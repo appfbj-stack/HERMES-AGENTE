@@ -30,7 +30,7 @@ services:
       HERMES_AGENT_URL: ${HERMES_AGENT_URL:-https://apihermes.fbautomacao.space}
       HERMES_AGENT_PATH: ${HERMES_AGENT_PATH:-/chat}
       HERMES_AGENT_API_KEY: ${HERMES_AGENT_API_KEY:-}
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-8793872667:AAG0XnR_zFXU5aczpPh_lV-Zt2DWEWtDshY}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       CORS_ORIGINS: '["https://meuchat.fbautomacao.space","https://api.meuchat.fbautomacao.space"]'
     depends_on:
