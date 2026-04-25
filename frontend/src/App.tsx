@@ -161,25 +161,45 @@ function DashboardPage({ chats, credits, leads, tasks }: { chats: Chat[]; credit
           </div>
         ))}
       </div>
-      <div className="grid gap-6 xl:grid-cols-[1.4fr,1fr]">
-        <div className="rounded-[32px] bg-white p-6 shadow-soft">
-          <h2 className="font-serif text-2xl">Atividade recente</h2>
-          <div className="mt-5 space-y-4">
-            {chats.slice(0, 5).map((chat) => (
-              <div key={chat.id} className="rounded-2xl bg-panel px-4 py-4">
-                <div className="font-medium">{chat.contact_name || "Sem nome"}</div>
-                <div className="text-sm text-slate-500">{chat.last_message || "Sem mensagens"}</div>
+      <div className="rounded-[32px] bg-white p-6 shadow-soft">
+        <h2 className="font-serif text-2xl">Atividade recente</h2>
+        <div className="mt-5 space-y-3">
+          {chats.length === 0 && (
+            <div className="rounded-2xl bg-panel px-4 py-6 text-center text-sm text-slate-500">
+              Nenhuma conversa ainda. Quando seu bot receber a primeira mensagem, aparecerá aqui.
+            </div>
+          )}
+          {chats.slice(0, 8).map((chat) => {
+            const initials = (chat.contact_name || "?")
+              .split(" ")
+              .map((n) => n[0])
+              .slice(0, 2)
+              .join("")
+              .toUpperCase();
+            return (
+              <div
+                key={chat.id}
+                className="flex items-center gap-3 rounded-2xl bg-panel px-4 py-3"
+              >
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand text-sm font-semibold text-white">
+                  {initials}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate font-medium">
+                      {chat.contact_name || "Sem nome"}
+                    </span>
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] uppercase text-emerald-700">
+                      {chat.channel || "telegram"}
+                    </span>
+                  </div>
+                  <div className="truncate text-sm text-slate-500">
+                    {chat.last_message || "Sem mensagens"}
+                  </div>
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
-        <div className="rounded-[32px] bg-ink p-6 text-white shadow-soft">
-          <h2 className="font-serif text-2xl">Resumo operacional</h2>
-          <div className="mt-5 space-y-4 text-sm text-white/80">
-            <div>Plano: operação multi-tenant com créditos por mensagem.</div>
-            <div>Canal: Telegram com resposta por DeepSeek.</div>
-            <div>Estado: pronto para receber onboarding e deploy em Coolify.</div>
-          </div>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -204,8 +224,42 @@ function ChatPage({
   onToggleAi: () => Promise<void>;
 }) {
   const [content, setContent] = useState("");
+  const [search, setSearch] = useState("");
   const navigate = useNavigate();
   const isBlocked = (credits?.remaining ?? 0) <= 0 && (credits?.total ?? 0) > 0;
+
+  const filteredChats = chats.filter((c) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      (c.contact_name || "").toLowerCase().includes(q) ||
+      (c.contact_phone || "").toLowerCase().includes(q) ||
+      (c.last_message || "").toLowerCase().includes(q)
+    );
+  });
+
+  function getInitials(name: string | null | undefined) {
+    return (name || "?")
+      .split(" ")
+      .map((n) => n[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("")
+      .toUpperCase();
+  }
+
+  function formatTime(iso?: string | null) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    const today = new Date();
+    if (d.toDateString() === today.toDateString()) {
+      return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    }
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+    if (d.toDateString() === yesterday.toDateString()) return "Ontem";
+    return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -215,65 +269,143 @@ function ChatPage({
   }
 
   return (
-    <div className="grid h-[calc(100vh-3rem)] gap-4 xl:grid-cols-[360px,1fr]">
-      <section className="overflow-hidden rounded-[32px] bg-white shadow-soft">
-        <div className="border-b border-black/5 p-5">
-          <input className="input" placeholder="Buscar contatos" />
+    <div className="grid h-[calc(100vh-3rem)] overflow-hidden rounded-[24px] bg-white shadow-soft xl:grid-cols-[360px,1fr]">
+      {/* Sidebar de conversas */}
+      <section className="flex flex-col overflow-hidden border-r border-black/5">
+        <div className="border-b border-black/5 bg-[#f0f2f5] px-4 py-3">
+          <div className="flex items-center gap-2 rounded-xl bg-white px-3 py-2">
+            <svg className="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+            </svg>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar conversa"
+              className="flex-1 bg-transparent text-sm outline-none"
+            />
+          </div>
         </div>
-        <div className="overflow-y-auto">
-          {chats.map((chat) => (
+        <div className="flex-1 overflow-y-auto">
+          {filteredChats.length === 0 && (
+            <div className="px-6 py-12 text-center text-sm text-slate-400">
+              Nenhuma conversa
+            </div>
+          )}
+          {filteredChats.map((chat) => (
             <button
               key={chat.id}
               onClick={() => onSelectChat(chat)}
-              className={`flex w-full items-start gap-3 border-b border-black/5 px-5 py-4 text-left transition ${
-                selectedChat?.id === chat.id ? "bg-brand/10" : "hover:bg-panel"
+              className={`flex w-full items-center gap-3 border-b border-black/5 px-4 py-3 text-left transition hover:bg-[#f5f6f6] ${
+                selectedChat?.id === chat.id ? "bg-[#f0f2f5]" : ""
               }`}
             >
-              <div className="mt-1 h-11 w-11 rounded-full bg-brand/20" />
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">{chat.contact_name || "Contato"}</span>
-                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] uppercase text-emerald-700">
-                    {chat.ai_paused ? "IA pausada" : "IA ativa"}
-                  </span>
+              <div className="relative shrink-0">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-600 text-sm font-semibold text-white">
+                  {getInitials(chat.contact_name)}
                 </div>
-                <div className="truncate text-sm text-slate-500">{chat.last_message || "Sem mensagens"}</div>
+                {!chat.ai_paused && (
+                  <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate font-medium text-ink">{chat.contact_name || "Contato"}</span>
+                  <span className="shrink-0 text-[11px] text-slate-400">{formatTime(chat.last_message_at)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate text-sm text-slate-500">{chat.last_message || "Sem mensagens"}</span>
+                  {chat.ai_paused && (
+                    <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-amber-700">
+                      Pausada
+                    </span>
+                  )}
+                </div>
               </div>
             </button>
           ))}
         </div>
       </section>
 
-      <section className="flex flex-col overflow-hidden rounded-[32px] bg-[#efeae2] shadow-soft">
+      {/* Janela de conversa */}
+      <section className="flex flex-col overflow-hidden">
         {selectedChat ? (
           <>
-            <div className="flex items-center justify-between border-b border-black/5 bg-white/90 px-6 py-4 backdrop-blur">
-              <div>
-                <div className="font-medium">{selectedChat.contact_name || "Contato"}</div>
-                <div className="text-sm text-slate-500">
-                  {selectedChat.ai_paused ? "Offline para IA" : "Online para IA"}
+            {/* Header WhatsApp Web */}
+            <div className="flex items-center justify-between border-b border-black/5 bg-[#f0f2f5] px-4 py-2.5">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-600 text-sm font-semibold text-white">
+                    {getInitials(selectedChat.contact_name)}
+                  </div>
+                  {!selectedChat.ai_paused && (
+                    <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[#f0f2f5] bg-emerald-500" />
+                  )}
+                </div>
+                <div>
+                  <div className="font-medium text-ink">{selectedChat.contact_name || "Contato"}</div>
+                  <div className="text-xs text-slate-500">
+                    {selectedChat.contact_phone && <span>{selectedChat.contact_phone} · </span>}
+                    {selectedChat.ai_paused ? "IA pausada" : "IA online"}
+                  </div>
                 </div>
               </div>
-              <button onClick={onToggleAi} className="rounded-2xl bg-ink px-4 py-2 text-sm text-white">
-                {selectedChat.ai_paused ? "Retomar IA" : "Pausar IA"}
+              <button
+                onClick={onToggleAi}
+                className={`rounded-full px-4 py-1.5 text-xs font-medium transition ${
+                  selectedChat.ai_paused
+                    ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                    : "bg-amber-500 text-white hover:bg-amber-600"
+                }`}
+              >
+                {selectedChat.ai_paused ? "▶ Retomar IA" : "⏸ Pausar IA"}
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top_right,rgba(27,127,107,0.10),transparent_25%),linear-gradient(180deg,#efeae2,#e7dfd3)] p-6">
-              <div className="space-y-4">
-                {messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`max-w-[70%] rounded-[22px] px-4 py-3 text-sm shadow ${
-                      message.sender_type === "user"
-                        ? "bg-white"
-                        : message.sender_type === "assistant"
-                          ? "ml-auto bg-bubble"
-                          : "ml-auto bg-[#d8edff]"
-                    }`}
-                  >
-                    {message.content}
+
+            {/* Mensagens com fundo estilo WhatsApp */}
+            <div
+              className="flex-1 overflow-y-auto px-6 py-4"
+              style={{
+                backgroundColor: "#efeae2",
+                backgroundImage:
+                  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cg fill='%23000' fill-opacity='0.025'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z'/%3E%3C/g%3E%3C/svg%3E\")",
+              }}
+            >
+              <div className="space-y-2">
+                {messages.length === 0 && (
+                  <div className="mx-auto mt-8 max-w-sm rounded-2xl bg-white/80 px-6 py-3 text-center text-sm text-slate-500 shadow-sm">
+                    Sem mensagens nesta conversa.
                   </div>
-                ))}
+                )}
+                {messages.map((message) => {
+                  const isClient = message.sender_type === "user";
+                  const isHuman = message.sender_type === "human";
+                  return (
+                    <div
+                      key={message.id}
+                      className={`flex ${isClient ? "justify-start" : "justify-end"}`}
+                    >
+                      <div
+                        className={`relative max-w-[78%] whitespace-pre-wrap break-words px-3 py-2 text-sm shadow-sm md:max-w-[60%] ${
+                          isClient
+                            ? "rounded-lg rounded-tl-none bg-white text-ink"
+                            : isHuman
+                              ? "rounded-lg rounded-tr-none bg-[#fff3c4] text-ink"
+                              : "rounded-lg rounded-tr-none bg-[#d9fdd3] text-ink"
+                        }`}
+                      >
+                        {!isClient && (
+                          <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                            {isHuman ? "Atendente" : "IA"}
+                          </div>
+                        )}
+                        <div>{message.content}</div>
+                        <div className="mt-1 text-right text-[10px] text-slate-500">
+                          {formatTime(message.created_at)}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
             {isBlocked ? (
@@ -293,21 +425,49 @@ function ChatPage({
                 </div>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="border-t border-black/5 bg-white/90 p-4 backdrop-blur">
-                <div className="flex gap-3">
-                  <input
-                    className="input flex-1"
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    placeholder="Digite uma mensagem"
-                  />
-                  <button className="rounded-2xl bg-brand px-5 py-3 font-medium text-white">Enviar</button>
-                </div>
+              <form onSubmit={handleSubmit} className="flex items-center gap-2 border-t border-black/5 bg-[#f0f2f5] px-3 py-2.5">
+                <button type="button" className="p-2 text-slate-500 hover:text-slate-700" title="Emoji">
+                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </button>
+                <button type="button" className="p-2 text-slate-500 hover:text-slate-700" title="Anexar">
+                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                  </svg>
+                </button>
+                <input
+                  className="flex-1 rounded-full bg-white px-4 py-2.5 text-sm outline-none ring-1 ring-black/5 focus:ring-emerald-500"
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder="Digite uma mensagem"
+                />
+                <button
+                  type="submit"
+                  disabled={!content.trim()}
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-600 text-white transition hover:bg-emerald-700 disabled:bg-slate-300"
+                  title="Enviar"
+                >
+                  <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                  </svg>
+                </button>
               </form>
             )}
           </>
         ) : (
-          <div className="flex flex-1 items-center justify-center text-slate-500">Selecione uma conversa</div>
+          <div
+            className="flex flex-1 flex-col items-center justify-center gap-3 text-slate-500"
+            style={{
+              backgroundColor: "#f0f2f5",
+            }}
+          >
+            <div className="text-6xl">💬</div>
+            <div className="text-lg font-medium">Hermes — Painel de atendimento</div>
+            <div className="max-w-md text-center text-sm">
+              Selecione uma conversa à esquerda para começar a atender. Mensagens recebidas pelo Telegram aparecerão automaticamente aqui.
+            </div>
+          </div>
         )}
       </section>
     </div>
