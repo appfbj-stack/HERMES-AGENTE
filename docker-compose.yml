@@ -2,8 +2,8 @@ services:
   db:
     image: 'postgres:16-alpine'
     environment:
-      POSTGRES_DB: hermes
-      POSTGRES_USER: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-hermes}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     volumes:
       - 'postgres_data:/var/lib/postgresql/data'
@@ -14,8 +14,21 @@ services:
   backend:
     build:
       context: ./backend
-    env_file:
-      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://postgres:postgres@db:5432/hermes}
+      JWT_SECRET: ${JWT_SECRET:-mude-em-producao-este-segredo-tem-no-minimo-32-chars}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-1440}
+      BOOTSTRAP_TOKEN: ${BOOTSTRAP_TOKEN:-hermes-bootstrap}
+      AI_PROVIDER: ${AI_PROVIDER:-deepseek}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://openrouter.ai/api/v1}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek/deepseek-chat}
+      HERMES_AGENT_URL: ${HERMES_AGENT_URL:-https://apihermes.fbautomacao.space}
+      HERMES_AGENT_PATH: ${HERMES_AGENT_PATH:-/chat}
+      HERMES_AGENT_API_KEY: ${HERMES_AGENT_API_KEY:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://meuchat.fbautomacao.space,http://localhost:5173}
     depends_on:
       - db
       - redis
