@@ -1,21 +1,15 @@
-version: "3.9"
-
 services:
   db:
-    image: postgres:16-alpine
+    image: 'postgres:16-alpine'
     environment:
       POSTGRES_DB: hermes
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - 'postgres_data:/var/lib/postgresql/data'
 
   redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    image: 'redis:7-alpine'
 
   backend:
     build:
@@ -25,19 +19,18 @@ services:
     depends_on:
       - db
       - redis
-    ports:
-      - "8000:8000"
+    expose:
+      - '8000'
 
   frontend:
     build:
       context: ./frontend
       args:
-        VITE_API_BASE_URL: https://meuchat.fbautomacao.space
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-https://api.meuchat.fbautomacao.space}
     depends_on:
       - backend
-    ports:
-      - "8080:80"
+    expose:
+      - '80'
 
 volumes:
   postgres_data:
-
