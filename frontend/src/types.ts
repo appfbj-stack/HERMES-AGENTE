@@ -56,6 +56,7 @@ export type MeResponse = {
     name: string;
     email: string;
     role: string;
+    is_super_admin: boolean;
   };
   tenant: {
     id: number;
@@ -63,6 +64,48 @@ export type MeResponse = {
     email: string;
     plan: string;
     active: boolean;
+    niche: string | null;
+    system_prompt: string | null;
+    telegram_bot_username: string | null;
   };
+};
+
+export type AdminTenant = {
+  id: number;
+  name: string;
+  email: string;
+  plan: string;
+  active: boolean;
+  niche: string | null;
+  system_prompt: string | null;
+  telegram_bot_token: string | null;
+  telegram_bot_username: string | null;
+  created_at: string;
+  credits_total: number;
+  credits_used: number;
+  credits_remaining: number;
+};
+
+export type CreateTenantPayload = {
+  name: string;
+  email: string;
+  plan: string;
+  niche: string | null;
+  system_prompt: string | null;
+  telegram_bot_token: string | null;
+  telegram_bot_username: string | null;
+  credits: number;
+  user_name: string;
+  user_email: string;
+  user_password: string;
+};
+
+export type NicheTemplate = {
+  id: string;
+  label: string;
+  emoji: string;
+  defaultPlan: "starter" | "pro" | "enterprise";
+  defaultCredits: number;
+  systemPrompt: string;
 };
 

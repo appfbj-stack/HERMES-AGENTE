@@ -1,8 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from app.core.config import get_settings
 from app.core.database import Base, engine
+from app.routes.admin import router as admin_router
 from app.routes.auth import router as auth_router
 from app.routes.chats import router as chats_router
 from app.routes.credits import router as credits_router
@@ -14,7 +16,7 @@ from app.routes.webhook import router as webhook_router
 
 settings = get_settings()
 
-app = FastAPI(title="Hermes Agente API", version="0.1.0")
+app = FastAPI(title="Hermes Agente API", version="0.2.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -24,17 +26,36 @@ app.add_middleware(
 )
 
 
+# Migrações leves (idempotentes) — adicionam colunas novas em DBs existentes.
+MIGRATIONS = [
+    "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS niche VARCHAR(50)",
+    "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS system_prompt TEXT",
+    "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS telegram_bot_token VARCHAR(255)",
+    "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS telegram_bot_username VARCHAR(100)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS ix_tenants_telegram_bot_token ON tenants(telegram_bot_token) WHERE telegram_bot_token IS NOT NULL",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin BOOLEAN NOT NULL DEFAULT FALSE",
+    # Promove o primeiro usuário a super admin (idempotente)
+    "UPDATE users SET is_super_admin = TRUE WHERE id = (SELECT id FROM users ORDER BY id ASC LIMIT 1) AND is_super_admin = FALSE",
+]
+
+
 @app.on_event("startup")
 def on_startup() -> None:
     Base.metadata.create_all(bind=engine)
+    with engine.begin() as conn:
+        for sql in MIGRATIONS:
+            try:
+                conn.execute(text(sql))
+            except Exception as exc:  # noqa: BLE001
+                print(f"[migration] skip: {sql[:60]}... -> {exc}")
 
 
 app.include_router(health_router)
 app.include_router(auth_router)
+app.include_router(admin_router)
 app.include_router(chats_router)
 app.include_router(messages_router)
 app.include_router(leads_router)
 app.include_router(tasks_router)
 app.include_router(credits_router)
 app.include_router(webhook_router)
-

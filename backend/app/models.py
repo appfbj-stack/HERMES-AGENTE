@@ -21,6 +21,14 @@ class Tenant(Base):
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
+    # Personalização do agente
+    niche: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    system_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Telegram bot dedicado deste tenant
+    telegram_bot_token: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True)
+    telegram_bot_username: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
     users: Mapped[list["User"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
 
 
@@ -33,6 +41,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), index=True)
     password: Mapped[str] = mapped_column(String(255))
     role: Mapped[str] = mapped_column(String(50), default="agent")
+    is_super_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     tenant: Mapped["Tenant"] = relationship(back_populates="users")

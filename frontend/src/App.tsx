@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { getChats, getCredits, getLeads, getMessages, getTasks, login, me, sendMessage, toggleAi } from "./api";
+import MasterPanel from "./MasterPanel";
 import type { Chat, Credit, Lead, MeResponse, Message, Task } from "./types";
 
 function currencyCredits(credits?: Credit) {
@@ -20,7 +21,7 @@ function Layout({
   const location = useLocation();
   const navigate = useNavigate();
 
-  const nav = [
+  const baseNav = [
     { label: "Dashboard", path: "/dashboard" },
     { label: "Chat", path: "/chat" },
     { label: "Leads", path: "/leads" },
@@ -28,6 +29,9 @@ function Layout({
     { label: "Mensagens", path: "/credits" },
     { label: "Configurações", path: "/settings" },
   ];
+  const nav = profile.user.is_super_admin
+    ? [{ label: "👑 Master", path: "/master" }, ...baseNav]
+    : baseNav;
 
   const remaining = credits?.remaining ?? 0;
   const total = credits?.total ?? 0;
@@ -718,7 +722,10 @@ function ProtectedApp() {
         <Route path="/tasks" element={<TablePage title="Tarefas" rows={tasks} render={(row) => [row.title, row.description || "-", row.status, row.due_date || "-"]} />} />
         <Route path="/credits" element={<CreditsPage credits={credits} />} />
         <Route path="/settings" element={<SettingsPage profile={profile} />} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        {profile.user.is_super_admin && (
+          <Route path="/master" element={<MasterPanel />} />
+        )}
+        <Route path="*" element={<Navigate to={profile.user.is_super_admin ? "/master" : "/dashboard"} replace />} />
       </Routes>
     </Layout>
   );

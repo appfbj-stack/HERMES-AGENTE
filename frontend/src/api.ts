@@ -1,4 +1,14 @@
-import type { Chat, Credit, Lead, LoginResponse, MeResponse, Message, Task } from "./types";
+import type {
+  AdminTenant,
+  Chat,
+  CreateTenantPayload,
+  Credit,
+  Lead,
+  LoginResponse,
+  MeResponse,
+  Message,
+  Task,
+} from "./types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
@@ -68,5 +78,36 @@ export async function toggleAi(chatId: number, ai_paused: boolean) {
     method: "POST",
     body: JSON.stringify({ ai_paused }),
   });
+}
+
+// ========== ADMIN (super admin only) ==========
+
+export async function getAdminTenants() {
+  return request<AdminTenant[]>("/admin/tenants");
+}
+
+export async function createAdminTenant(payload: CreateTenantPayload) {
+  return request<AdminTenant>("/admin/tenants", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateAdminTenant(tenantId: number, patch: Partial<CreateTenantPayload> & { active?: boolean }) {
+  return request<AdminTenant>(`/admin/tenants/${tenantId}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function addAdminCredits(tenantId: number, amount: number) {
+  return request<AdminTenant>(`/admin/tenants/${tenantId}/credits`, {
+    method: "POST",
+    body: JSON.stringify({ amount }),
+  });
+}
+
+export async function deleteAdminTenant(tenantId: number) {
+  return request<void>(`/admin/tenants/${tenantId}`, { method: "DELETE" });
 }
 

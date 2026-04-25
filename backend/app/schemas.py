@@ -30,6 +30,7 @@ class UserOut(BaseModel):
     name: str
     email: EmailStr
     role: str
+    is_super_admin: bool = False
 
     class Config:
         from_attributes = True
@@ -41,9 +42,52 @@ class TenantOut(BaseModel):
     email: EmailStr
     plan: str
     active: bool
+    niche: str | None = None
+    system_prompt: str | None = None
+    telegram_bot_username: str | None = None
 
     class Config:
         from_attributes = True
+
+
+class TenantAdminOut(TenantOut):
+    """Visão estendida só pra super admin."""
+    telegram_bot_token: str | None = None
+    created_at: datetime
+    credits_total: int = 0
+    credits_used: int = 0
+    credits_remaining: int = 0
+
+    class Config:
+        from_attributes = True
+
+
+class TenantCreateAdmin(BaseModel):
+    name: str
+    email: EmailStr
+    plan: str = "starter"
+    niche: str | None = None
+    system_prompt: str | None = None
+    telegram_bot_token: str | None = None
+    telegram_bot_username: str | None = None
+    credits: int = 1000
+    user_name: str
+    user_email: EmailStr
+    user_password: str = Field(min_length=6)
+
+
+class TenantUpdateAdmin(BaseModel):
+    name: str | None = None
+    plan: str | None = None
+    active: bool | None = None
+    niche: str | None = None
+    system_prompt: str | None = None
+    telegram_bot_token: str | None = None
+    telegram_bot_username: str | None = None
+
+
+class CreditsAddRequest(BaseModel):
+    amount: int = Field(gt=0)
 
 
 class MeResponse(BaseModel):

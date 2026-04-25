@@ -32,6 +32,7 @@ def bootstrap(payload: BootstrapRequest, db: Session = Depends(get_db)):
         email=payload.user_email,
         password=get_password_hash(payload.password),
         role="admin",
+        is_super_admin=True,  # primeiro user = dono do SaaS
     )
     db.add(user)
     db.add(Credit(tenant_id=tenant.id, total=payload.credits, used=0, remaining=payload.credits))

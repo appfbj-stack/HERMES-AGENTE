@@ -1,9 +1,9 @@
 from sqlalchemy.orm import Session
 
-from app.models import AssistantMemory, Chat, Lead, Message, Task
+from app.models import AssistantMemory, Chat, Lead, Message, Task, Tenant
 
 
-SYSTEM_PROMPT = """
+DEFAULT_SYSTEM_PROMPT = """
 Você é um assistente de negócios.
 Você deve responder clientes, captar leads, organizar informações, criar tarefas,
 sugerir ações e manter contexto do cliente.
@@ -15,9 +15,13 @@ def build_context(db: Session, tenant_id: int, chat: Chat) -> list[dict[str, str
     messages = db.query(Message).filter(Message.chat_id == chat.id).order_by(Message.created_at.asc()).limit(20).all()
     memory = db.query(AssistantMemory).filter(AssistantMemory.tenant_id == tenant_id).all()
 
+    # Usa o system_prompt customizado do tenant se houver, senão default
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    base_prompt = (tenant.system_prompt if tenant and tenant.system_prompt else DEFAULT_SYSTEM_PROMPT)
+
     memory_text = "\n".join(f"{item.key}: {item.value}" for item in memory) or "Sem memória adicional."
     context: list[dict[str, str]] = [
-        {"role": "system", "content": f"{SYSTEM_PROMPT}\n\nMemória do tenant:\n{memory_text}"}
+        {"role": "system", "content": f"{base_prompt}\n\nMemória do tenant:\n{memory_text}"}
     ]
 
     role_map = {"user": "user", "assistant": "assistant", "human": "assistant"}
