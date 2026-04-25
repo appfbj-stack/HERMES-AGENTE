@@ -40,21 +40,21 @@ function Layout({
   const isBlocked = total > 0 && remaining <= 0;
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#f7fbf6,transparent_35%),linear-gradient(135deg,#e2f2ea,#f4efe6)] text-ink">
+    <div className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top,#f7fbf6,transparent_35%),linear-gradient(135deg,#e2f2ea,#f4efe6)] text-ink">
       <div className="mx-auto flex min-h-screen max-w-[1500px]">
-        <aside className="w-72 border-r border-black/5 bg-white/70 p-6 backdrop-blur-xl">
-          <div className="mb-10">
-            <div className="text-xs uppercase tracking-[0.3em] text-brand/70">Hermes Agente</div>
-            <h1 className="mt-2 font-serif text-3xl font-semibold">Painel SaaS</h1>
-            <p className="mt-3 text-sm text-slate-600">{profile.tenant.name}</p>
+        <aside className="w-60 shrink-0 border-r border-black/5 bg-white/70 p-4 backdrop-blur-xl">
+          <div className="mb-6">
+            <div className="text-[10px] uppercase tracking-[0.3em] text-brand/70">Hermes Agente</div>
+            <h1 className="mt-1 font-serif text-2xl font-semibold">Painel SaaS</h1>
+            <p className="mt-1 truncate text-xs text-slate-600">{profile.tenant.name}</p>
           </div>
 
-          <nav className="space-y-2">
+          <nav className="space-y-1">
             {nav.map((item) => (
               <button
                 key={item.path}
                 onClick={() => navigate(item.path)}
-                className={`w-full rounded-2xl px-4 py-3 text-left text-sm transition ${
+                className={`w-full truncate rounded-xl px-3 py-2 text-left text-sm transition ${
                   location.pathname === item.path
                     ? "bg-brand text-white shadow-soft"
                     : "bg-white text-slate-700 hover:bg-brand/10"
@@ -67,7 +67,7 @@ function Layout({
 
           <div
             onClick={() => navigate("/credits")}
-            className={`mt-6 cursor-pointer rounded-3xl p-5 text-sm transition ${
+            className={`mt-4 cursor-pointer rounded-2xl p-4 text-sm transition ${
               isBlocked
                 ? "bg-red-600 text-white"
                 : isLow
@@ -75,32 +75,30 @@ function Layout({
                   : "bg-emerald-600 text-white"
             }`}
           >
-            <div className="text-white/80 text-xs uppercase tracking-wider">Mensagens</div>
-            <div className="mt-1 text-2xl font-semibold">
+            <div className="text-white/80 text-[10px] uppercase tracking-wider">Mensagens</div>
+            <div className="mt-0.5 text-xl font-semibold">
               {remaining.toLocaleString("pt-BR")}
-              <span className="text-sm text-white/70">/{total.toLocaleString("pt-BR")}</span>
+              <span className="text-xs text-white/70">/{total.toLocaleString("pt-BR")}</span>
             </div>
-            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white/30">
+            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/30">
               <div className="h-full bg-white" style={{ width: `${pct}%` }} />
             </div>
             {isBlocked && (
-              <div className="mt-2 text-xs">
-                ⚠️ Sem mensagens. Clique para comprar.
-              </div>
+              <div className="mt-2 text-[11px] leading-tight">⚠️ Sem mensagens.</div>
             )}
             {isLow && !isBlocked && (
-              <div className="mt-2 text-xs">⚠️ Acabando! Clique para comprar.</div>
+              <div className="mt-2 text-[11px] leading-tight">⚠️ Acabando!</div>
             )}
           </div>
 
-          <div className="mt-4 rounded-3xl bg-ink p-5 text-sm text-white">
-            <div className="text-white/60">Operador</div>
-            <div className="mt-2 font-medium">{profile.user.name}</div>
-            <div className="text-white/70">{profile.user.role}</div>
+          <div className="mt-3 rounded-2xl bg-ink p-3 text-xs text-white">
+            <div className="text-white/60 text-[10px] uppercase">Operador</div>
+            <div className="mt-1 truncate font-medium">{profile.user.name}</div>
+            <div className="truncate text-white/70">{profile.user.role}</div>
           </div>
         </aside>
 
-        <main className="flex-1 p-6">{children}</main>
+        <main className="min-w-0 flex-1 overflow-x-hidden p-4 md:p-6">{children}</main>
       </div>
     </div>
   );
@@ -156,18 +154,18 @@ function DashboardPage({ chats, credits, leads, tasks }: { chats: Chat[]; credit
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((card) => (
-          <div key={card.label} className="rounded-[28px] bg-white/80 p-6 shadow-soft backdrop-blur">
-            <div className="text-sm text-slate-500">{card.label}</div>
-            <div className="mt-3 text-4xl font-semibold text-ink">{card.value}</div>
+          <div key={card.label} className="overflow-hidden rounded-2xl bg-white/80 p-4 shadow-soft backdrop-blur">
+            <div className="truncate text-xs uppercase tracking-wide text-slate-500">{card.label}</div>
+            <div className="mt-2 truncate text-2xl font-semibold text-ink md:text-3xl">{card.value}</div>
           </div>
         ))}
       </div>
-      <div className="rounded-[32px] bg-white p-6 shadow-soft">
-        <h2 className="font-serif text-2xl">Atividade recente</h2>
-        <div className="mt-5 space-y-3">
+      <div className="overflow-hidden rounded-2xl bg-white p-5 shadow-soft">
+        <h2 className="font-serif text-xl md:text-2xl">Atividade recente</h2>
+        <div className="mt-4 space-y-2">
           {chats.length === 0 && (
             <div className="rounded-2xl bg-panel px-4 py-6 text-center text-sm text-slate-500">
               Nenhuma conversa ainda. Quando seu bot receber a primeira mensagem, aparecerá aqui.
