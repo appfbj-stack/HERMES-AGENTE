@@ -28,7 +28,7 @@ services:
       HERMES_AGENT_API_KEY: ${HERMES_AGENT_API_KEY:-}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-      CORS_ORIGINS: ${CORS_ORIGINS:-https://meuchat.fbautomacao.space,http://localhost:5173}
+      CORS_ORIGINS: '${CORS_ORIGINS:-["https://meuchat.fbautomacao.space","http://localhost:5173","http://localhost:8080"]}'     
     depends_on:
       - db
       - redis
