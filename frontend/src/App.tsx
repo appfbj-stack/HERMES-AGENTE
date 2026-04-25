@@ -5,14 +5,16 @@ import type { Chat, Credit, Lead, MeResponse, Message, Task } from "./types";
 
 function currencyCredits(credits?: Credit) {
   if (!credits) return "--";
-  return `${credits.remaining}/${credits.total}`;
+  return `${credits.remaining.toLocaleString("pt-BR")} / ${credits.total.toLocaleString("pt-BR")}`;
 }
 
 function Layout({
   profile,
+  credits,
   children,
 }: {
   profile: MeResponse;
+  credits?: Credit;
   children: React.ReactNode;
 }) {
   const location = useLocation();
@@ -23,9 +25,15 @@ function Layout({
     { label: "Chat", path: "/chat" },
     { label: "Leads", path: "/leads" },
     { label: "Tarefas", path: "/tasks" },
-    { label: "Créditos", path: "/credits" },
+    { label: "Mensagens", path: "/credits" },
     { label: "Configurações", path: "/settings" },
   ];
+
+  const remaining = credits?.remaining ?? 0;
+  const total = credits?.total ?? 0;
+  const pct = total > 0 ? Math.max(0, Math.min(100, (remaining / total) * 100)) : 0;
+  const isLow = total > 0 && remaining / total <= 0.1;
+  const isBlocked = total > 0 && remaining <= 0;
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,#f7fbf6,transparent_35%),linear-gradient(135deg,#e2f2ea,#f4efe6)] text-ink">
@@ -53,7 +61,35 @@ function Layout({
             ))}
           </nav>
 
-          <div className="mt-10 rounded-3xl bg-ink p-5 text-sm text-white">
+          <div
+            onClick={() => navigate("/credits")}
+            className={`mt-6 cursor-pointer rounded-3xl p-5 text-sm transition ${
+              isBlocked
+                ? "bg-red-600 text-white"
+                : isLow
+                  ? "bg-amber-500 text-white"
+                  : "bg-emerald-600 text-white"
+            }`}
+          >
+            <div className="text-white/80 text-xs uppercase tracking-wider">Mensagens</div>
+            <div className="mt-1 text-2xl font-semibold">
+              {remaining.toLocaleString("pt-BR")}
+              <span className="text-sm text-white/70">/{total.toLocaleString("pt-BR")}</span>
+            </div>
+            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white/30">
+              <div className="h-full bg-white" style={{ width: `${pct}%` }} />
+            </div>
+            {isBlocked && (
+              <div className="mt-2 text-xs">
+                ⚠️ Sem mensagens. Clique para comprar.
+              </div>
+            )}
+            {isLow && !isBlocked && (
+              <div className="mt-2 text-xs">⚠️ Acabando! Clique para comprar.</div>
+            )}
+          </div>
+
+          <div className="mt-4 rounded-3xl bg-ink p-5 text-sm text-white">
             <div className="text-white/60">Operador</div>
             <div className="mt-2 font-medium">{profile.user.name}</div>
             <div className="text-white/70">{profile.user.role}</div>
@@ -112,7 +148,7 @@ function DashboardPage({ chats, credits, leads, tasks }: { chats: Chat[]; credit
     { label: "Conversas", value: chats.length },
     { label: "Leads", value: leads.length },
     { label: "Tarefas", value: tasks.length },
-    { label: "Créditos", value: currencyCredits(credits) },
+    { label: "Mensagens", value: currencyCredits(credits) },
   ];
 
   return (
@@ -154,6 +190,7 @@ function ChatPage({
   chats,
   selectedChat,
   messages,
+  credits,
   onSelectChat,
   onSendMessage,
   onToggleAi,
@@ -161,15 +198,18 @@ function ChatPage({
   chats: Chat[];
   selectedChat?: Chat;
   messages: Message[];
+  credits?: Credit;
   onSelectChat: (chat: Chat) => void;
   onSendMessage: (content: string) => Promise<void>;
   onToggleAi: () => Promise<void>;
 }) {
   const [content, setContent] = useState("");
+  const navigate = useNavigate();
+  const isBlocked = (credits?.remaining ?? 0) <= 0 && (credits?.total ?? 0) > 0;
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (!content.trim()) return;
+    if (!content.trim() || isBlocked) return;
     await onSendMessage(content);
     setContent("");
   }
@@ -236,17 +276,35 @@ function ChatPage({
                 ))}
               </div>
             </div>
-            <form onSubmit={handleSubmit} className="border-t border-black/5 bg-white/90 p-4 backdrop-blur">
-              <div className="flex gap-3">
-                <input
-                  className="input flex-1"
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  placeholder="Digite uma mensagem"
-                />
-                <button className="rounded-2xl bg-brand px-5 py-3 font-medium text-white">Enviar</button>
+            {isBlocked ? (
+              <div className="border-t border-red-200 bg-red-50 p-4">
+                <div className="flex items-center gap-3">
+                  <div className="text-2xl">🔒</div>
+                  <div className="flex-1">
+                    <div className="font-semibold text-red-900">Sem mensagens disponíveis</div>
+                    <div className="text-xs text-red-700">A IA está pausada até você comprar mais.</div>
+                  </div>
+                  <button
+                    onClick={() => navigate("/credits")}
+                    className="rounded-2xl bg-red-600 px-5 py-2 text-sm font-semibold text-white hover:bg-red-700"
+                  >
+                    Comprar mensagens
+                  </button>
+                </div>
               </div>
-            </form>
+            ) : (
+              <form onSubmit={handleSubmit} className="border-t border-black/5 bg-white/90 p-4 backdrop-blur">
+                <div className="flex gap-3">
+                  <input
+                    className="input flex-1"
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    placeholder="Digite uma mensagem"
+                  />
+                  <button className="rounded-2xl bg-brand px-5 py-3 font-medium text-white">Enviar</button>
+                </div>
+              </form>
+            )}
           </>
         ) : (
           <div className="flex flex-1 items-center justify-center text-slate-500">Selecione uma conversa</div>
@@ -288,20 +346,115 @@ function TablePage<T extends { id: number }>({
 }
 
 function CreditsPage({ credits }: { credits?: Credit }) {
+  const total = credits?.total ?? 0;
+  const used = credits?.used ?? 0;
+  const remaining = credits?.remaining ?? 0;
+  const pct = total > 0 ? Math.max(0, Math.min(100, (remaining / total) * 100)) : 0;
+  const isBlocked = total > 0 && remaining <= 0;
+  const isLow = total > 0 && remaining / total <= 0.1;
+
   return (
-    <div className="grid gap-6 md:grid-cols-3">
+    <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-[32px] bg-white p-6 shadow-soft">
+          <div className="text-sm text-slate-500">Plano (total)</div>
+          <div className="mt-3 text-4xl font-semibold">{total.toLocaleString("pt-BR")}</div>
+          <div className="mt-1 text-xs text-slate-400">mensagens/mês</div>
+        </div>
+        <div className="rounded-[32px] bg-white p-6 shadow-soft">
+          <div className="text-sm text-slate-500">Usadas</div>
+          <div className="mt-3 text-4xl font-semibold">{used.toLocaleString("pt-BR")}</div>
+        </div>
+        <div
+          className={`rounded-[32px] p-6 shadow-soft text-white ${
+            isBlocked ? "bg-red-600" : isLow ? "bg-amber-500" : "bg-ink"
+          }`}
+        >
+          <div className="text-sm text-white/70">Restantes</div>
+          <div className="mt-3 text-4xl font-semibold">{remaining.toLocaleString("pt-BR")}</div>
+        </div>
+      </div>
+
       <div className="rounded-[32px] bg-white p-6 shadow-soft">
-        <div className="text-sm text-slate-500">Total</div>
-        <div className="mt-3 text-4xl font-semibold">{credits?.total ?? 0}</div>
+        <div className="mb-2 flex items-center justify-between text-sm">
+          <span className="text-slate-600">Consumo do mês</span>
+          <span className="font-semibold">{pct.toFixed(0)}% restante</span>
+        </div>
+        <div className="h-3 w-full overflow-hidden rounded-full bg-slate-100">
+          <div
+            className={`h-full rounded-full transition-all ${
+              isBlocked ? "bg-red-600" : isLow ? "bg-amber-500" : "bg-emerald-600"
+            }`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
       </div>
-      <div className="rounded-[32px] bg-white p-6 shadow-soft">
-        <div className="text-sm text-slate-500">Usados</div>
-        <div className="mt-3 text-4xl font-semibold">{credits?.used ?? 0}</div>
-      </div>
-      <div className="rounded-[32px] bg-ink p-6 text-white shadow-soft">
-        <div className="text-sm text-white/60">Restantes</div>
-        <div className="mt-3 text-4xl font-semibold">{credits?.remaining ?? 0}</div>
-      </div>
+
+      {isBlocked && (
+        <div className="rounded-[32px] border-2 border-red-300 bg-red-50 p-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-600 text-2xl text-white">
+              !
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-red-900">
+                Suas mensagens acabaram
+              </h3>
+              <p className="mt-1 text-sm text-red-700">
+                A IA está pausada. Compre mais mensagens para voltar a atender automaticamente seus clientes.
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            {[
+              { label: "+500 mensagens", price: "R$ 49", qty: 500 },
+              { label: "+2.000 mensagens", price: "R$ 149", qty: 2000, popular: true },
+              { label: "+10.000 mensagens", price: "R$ 499", qty: 10000 },
+            ].map((pkg) => (
+              <button
+                key={pkg.qty}
+                onClick={() => alert(`Em breve: integração ASAAS para comprar ${pkg.label} por ${pkg.price}`)}
+                className={`relative rounded-2xl border p-4 text-left transition hover:shadow-md ${
+                  pkg.popular
+                    ? "border-red-600 bg-white"
+                    : "border-red-200 bg-white"
+                }`}
+              >
+                {pkg.popular && (
+                  <span className="absolute -top-2 right-3 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-semibold uppercase text-white">
+                    Mais comprado
+                  </span>
+                )}
+                <div className="text-base font-semibold text-ink">{pkg.label}</div>
+                <div className="mt-1 text-2xl font-bold text-red-600">{pkg.price}</div>
+                <div className="mt-2 text-xs text-slate-500">Pagamento via Pix/Boleto</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!isBlocked && isLow && (
+        <div className="rounded-[32px] border-2 border-amber-300 bg-amber-50 p-6">
+          <div className="flex items-center gap-3">
+            <div className="text-2xl">⚠️</div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-amber-900">
+                Suas mensagens estão acabando
+              </h3>
+              <p className="text-sm text-amber-700">
+                Restam {remaining.toLocaleString("pt-BR")} de {total.toLocaleString("pt-BR")}. Considere comprar um pacote extra para não interromper o atendimento.
+              </p>
+            </div>
+            <button
+              onClick={() => alert("Em breve: integração ASAAS")}
+              className="rounded-2xl bg-amber-600 px-5 py-2 text-sm font-semibold text-white hover:bg-amber-700"
+            >
+              Comprar mais
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -373,7 +526,7 @@ function ProtectedApp() {
   const selectedChat = chats.find((item) => item.id === selectedChatId);
 
   return (
-    <Layout profile={profile}>
+    <Layout profile={profile} credits={credits}>
       <Routes>
         <Route path="/dashboard" element={<DashboardPage chats={chats} credits={credits} leads={leads} tasks={tasks} />} />
         <Route
@@ -383,6 +536,7 @@ function ProtectedApp() {
               chats={chats}
               selectedChat={selectedChat}
               messages={messages}
+              credits={credits}
               onSelectChat={(chat) => setSelectedChatId(chat.id)}
               onSendMessage={async (content) => {
                 if (!selectedChat) return;
