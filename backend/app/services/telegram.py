@@ -1,0 +1,12 @@
+import httpx
+from ..config import settings
+
+
+async def send_telegram_message(chat_id: str | int, text: str) -> dict | None:
+    if not settings.telegram_bot_token:
+        return None
+    url = f"https://api.telegram.org/bot{settings.telegram_bot_token}/sendMessage"
+    async with httpx.AsyncClient(timeout=20) as client:
+        r = await client.post(url, json={"chat_id": chat_id, "text": text})
+        r.raise_for_status()
+        return r.json()

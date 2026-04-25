@@ -1,0 +1,76 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: hermes-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-agente}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agente}
+      POSTGRES_DB: ${POSTGRES_DB:-agente_saas}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-agente} -d ${POSTGRES_DB:-agente_saas}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hermes
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    image: hermes-backend:latest
+    container_name: hermes-backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-agente}:${POSTGRES_PASSWORD:-agente}@db:5432/${POSTGRES_DB:-agente_saas}
+      JWT_SECRET: ${JWT_SECRET:-troque-este-segredo}
+      JWT_ALGORITHM: HS256
+      JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-10080}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_API_URL: ${LLM_API_URL:-https://openrouter.ai/api/v1/chat/completions}
+      LLM_MODEL: ${LLM_MODEL:-deepseek/deepseek-chat}
+      LLM_PROVIDER: ${LLM_PROVIDER:-openrouter}
+      OPENROUTER_REFERER: ${OPENROUTER_REFERER:-https://meuchat.fbautomacao.space}
+      OPENROUTER_TITLE: ${OPENROUTER_TITLE:-Hermes Agente SaaS}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
+      WHATSAPP_API_URL: ${WHATSAPP_API_URL:-}
+      WHATSAPP_API_TOKEN: ${WHATSAPP_API_TOKEN:-}
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://meuchat.fbautomacao.space,http://localhost:5173}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      INITIAL_CREDITS: ${INITIAL_CREDITS:-10000}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    networks:
+      - hermes
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-https://api.meuchat.fbautomacao.space}
+    image: hermes-frontend:latest
+    container_name: hermes-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+    networks:
+      - hermes
+
+volumes:
+  pgdata:
+    driver: local
+
+networks:
+  hermes:
+    driver: bridge
