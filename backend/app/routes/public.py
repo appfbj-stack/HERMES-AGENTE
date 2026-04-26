@@ -34,6 +34,7 @@ class PublicTenantInfo(BaseModel):
     name: str
     niche: str | None
     welcome: str = "Olá! Como posso te ajudar hoje?"
+    bot_display_name: str = "Assistente Pessoal"
     active: bool
 
 

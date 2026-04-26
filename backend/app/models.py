@@ -24,6 +24,8 @@ class Tenant(Base):
     # Personalização do agente
     niche: Mapped[str | None] = mapped_column(String(50), nullable=True)
     system_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    bot_display_name: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    welcome_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Telegram bot dedicado deste tenant
     telegram_bot_token: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True)

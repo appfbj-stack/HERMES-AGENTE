@@ -44,6 +44,8 @@ class TenantOut(BaseModel):
     active: bool
     niche: str | None = None
     system_prompt: str | None = None
+    bot_display_name: str | None = None
+    welcome_message: str | None = None
     telegram_bot_username: str | None = None
 
     class Config:
@@ -68,6 +70,8 @@ class TenantCreateAdmin(BaseModel):
     plan: str = "starter"
     niche: str | None = None
     system_prompt: str | None = None
+    bot_display_name: str | None = None
+    welcome_message: str | None = None
     telegram_bot_token: str | None = None
     telegram_bot_username: str | None = None
     credits: int = 1000
@@ -82,6 +86,8 @@ class TenantUpdateAdmin(BaseModel):
     active: bool | None = None
     niche: str | None = None
     system_prompt: str | None = None
+    bot_display_name: str | None = None
+    welcome_message: str | None = None
     telegram_bot_token: str | None = None
     telegram_bot_username: str | None = None
 

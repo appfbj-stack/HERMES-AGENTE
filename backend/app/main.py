@@ -33,6 +33,8 @@ MIGRATIONS = [
     "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS system_prompt TEXT",
     "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS telegram_bot_token VARCHAR(255)",
     "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS telegram_bot_username VARCHAR(100)",
+    "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS bot_display_name VARCHAR(80)",
+    "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS welcome_message TEXT",
     "CREATE UNIQUE INDEX IF NOT EXISTS ix_tenants_telegram_bot_token ON tenants(telegram_bot_token) WHERE telegram_bot_token IS NOT NULL",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin BOOLEAN NOT NULL DEFAULT FALSE",
     # Promove o primeiro usuário a super admin (idempotente)

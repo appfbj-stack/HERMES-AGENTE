@@ -184,11 +184,11 @@ export default function PublicChat() {
     <div className="flex h-screen flex-col bg-[#efeae2]">
       {/* Header */}
       <div className="flex items-center gap-3 border-b border-black/5 bg-emerald-700 px-4 py-3 text-white">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-sm font-semibold">
-          {getInitials(tenant.name)}
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-lg">
+          💬
         </div>
         <div className="flex-1 min-w-0">
-          <div className="font-semibold truncate">{tenant.name}</div>
+          <div className="font-semibold">Chat</div>
           <div className="text-xs text-white/80 flex items-center gap-1">
             <span className="inline-block h-2 w-2 rounded-full bg-emerald-300" /> online
           </div>
@@ -260,11 +260,6 @@ export default function PublicChat() {
                         : "rounded-lg rounded-tl-none bg-white text-ink"
                   }`}
                 >
-                  {!mine && (
-                    <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
-                      {isHuman ? tenant.name : tenant.name}
-                    </div>
-                  )}
                   <div>{m.content}</div>
                   <div className="mt-1 text-right text-[10px] text-slate-500">
                     {formatTime(m.created_at)}
