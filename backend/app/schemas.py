@@ -96,6 +96,64 @@ class CreditsAddRequest(BaseModel):
     amount: int = Field(gt=0)
 
 
+# ===== Billing / Asaas =====
+class PlanOut(BaseModel):
+    id: int
+    code: str
+    name: str
+    monthly_credits: int
+    price_cents: int
+    description: str | None = None
+
+    class Config:
+        from_attributes = True
+
+
+class SubscriptionOut(BaseModel):
+    id: int
+    plan_id: int
+    plan: PlanOut | None = None
+    status: str
+    next_due_date: datetime | None = None
+    last_paid_at: datetime | None = None
+    asaas_subscription_id: str | None = None
+
+    class Config:
+        from_attributes = True
+
+
+class PaymentOut(BaseModel):
+    id: int
+    type: str
+    value_cents: int
+    status: str
+    billing_type: str | None
+    invoice_url: str | None
+    pix_qr_code: str | None
+    pix_payload: str | None
+    credits_added: int
+    due_date: datetime | None
+    paid_at: datetime | None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CreateSubscriptionRequest(BaseModel):
+    plan_id: int
+    billing_type: str = "PIX"  # PIX | BOLETO | CREDIT_CARD
+    cpf_cnpj: str | None = None
+    phone: str | None = None
+
+
+class BuyCreditsRequest(BaseModel):
+    credits: int = Field(gt=0)
+    value_cents: int = Field(gt=0)
+    billing_type: str = "PIX"
+    cpf_cnpj: str | None = None
+
+
 class MeResponse(BaseModel):
     user: UserOut
     tenant: TenantOut

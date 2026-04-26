@@ -6,6 +6,7 @@ from app.core.config import get_settings
 from app.core.database import Base, engine
 from app.routes.admin import router as admin_router
 from app.routes.auth import router as auth_router
+from app.routes.billing import router as billing_router
 from app.routes.chats import router as chats_router
 from app.routes.credits import router as credits_router
 from app.routes.health import router as health_router
@@ -39,6 +40,16 @@ MIGRATIONS = [
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin BOOLEAN NOT NULL DEFAULT FALSE",
     # Promove o primeiro usuário a super admin (idempotente)
     "UPDATE users SET is_super_admin = TRUE WHERE id = (SELECT id FROM users ORDER BY id ASC LIMIT 1) AND is_super_admin = FALSE",
+    # ===== Seed de planos default =====
+    """INSERT INTO plans (code, name, monthly_credits, price_cents, description, active)
+       VALUES ('starter', 'Starter', 1000, 9700, '1.000 mensagens/mês • 1 canal • IA com nicho', true)
+       ON CONFLICT (code) DO NOTHING""",
+    """INSERT INTO plans (code, name, monthly_credits, price_cents, description, active)
+       VALUES ('pro', 'Pro', 5000, 29700, '5.000 mensagens/mês • 3 canais • CRM completo', true)
+       ON CONFLICT (code) DO NOTHING""",
+    """INSERT INTO plans (code, name, monthly_credits, price_cents, description, active)
+       VALUES ('enterprise', 'Enterprise', 20000, 89700, '20.000 mensagens/mês • Canais ilimitados • Bot dedicado • Suporte', true)
+       ON CONFLICT (code) DO NOTHING""",
 ]
 
 
@@ -63,3 +74,4 @@ app.include_router(tasks_router)
 app.include_router(credits_router)
 app.include_router(webhook_router)
 app.include_router(public_router)
+app.include_router(billing_router)

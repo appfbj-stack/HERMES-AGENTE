@@ -39,6 +39,11 @@ services:
       MAX_OUTPUT_TOKENS: ${MAX_OUTPUT_TOKENS:-500}
       MAX_CONTEXT_MESSAGES: ${MAX_CONTEXT_MESSAGES:-12}
       MAX_CONTEXT_CHARS_PER_MESSAGE: ${MAX_CONTEXT_CHARS_PER_MESSAGE:-600}
+      # Asaas (cole sua API key no Coolify)
+      ASAAS_API_KEY: ${ASAAS_API_KEY:-}
+      ASAAS_API_URL: ${ASAAS_API_URL:-https://sandbox.asaas.com/api/v3}
+      ASAAS_WEBHOOK_TOKEN: ${ASAAS_WEBHOOK_TOKEN:-}
+      ASAAS_OVERDUE_GRACE_DAYS: ${ASAAS_OVERDUE_GRACE_DAYS:-7}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       CORS_ORIGINS: '["https://meuchat.fbautomacao.space","https://api.meuchat.fbautomacao.space"]'
     depends_on:

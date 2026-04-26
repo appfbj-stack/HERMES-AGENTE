@@ -23,14 +23,18 @@ class Settings(BaseSettings):
     redis_url: str = ""
 
     # ===== LIMITES DE TOKENS / ANTI-PREJUÍZO =====
-    # Caracteres máximos numa mensagem de cliente final (rejeita se exceder)
     max_input_chars: int = 800
-    # Tokens máximos da resposta do bot (cap rígido na DeepSeek)
     max_output_tokens: int = 500
-    # Quantas mensagens passadas mandar como contexto (corta histórico antigo)
     max_context_messages: int = 12
-    # Caracteres máximos por mensagem de contexto (truncamento)
     max_context_chars_per_message: int = 600
+
+    # ===== ASAAS (cobrança) =====
+    asaas_api_key: str = ""
+    # Sandbox: https://sandbox.asaas.com/api/v3
+    # Produção: https://api.asaas.com/v3
+    asaas_api_url: str = "https://sandbox.asaas.com/api/v3"
+    asaas_webhook_token: str = ""  # token secreto enviado nos webhooks (opcional)
+    asaas_overdue_grace_days: int = 7  # dias de tolerância antes de bloquear
     access_token_expire_minutes: int = 1440
     bootstrap_token: str = "hermes-bootstrap"
     cors_origins: list[str] = Field(

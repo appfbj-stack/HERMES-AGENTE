@@ -139,3 +139,54 @@ class UsageLog(Base):
     tokens_used: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
+
+# ===================================
+# Billing (Asaas)
+# ===================================
+class Plan(Base):
+    __tablename__ = "plans"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    code: Mapped[str] = mapped_column(String(50), unique=True, index=True)  # starter, pro, enterprise
+    name: Mapped[str] = mapped_column(String(100))
+    monthly_credits: Mapped[int] = mapped_column(Integer)
+    price_cents: Mapped[int] = mapped_column(Integer)  # em centavos: R$ 297 = 29700
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), unique=True, index=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"))
+    status: Mapped[str] = mapped_column(String(32), default="pending")
+    # pending | active | overdue | canceled
+    asaas_customer_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    asaas_subscription_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    next_due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    canceled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class Payment(Base):
+    __tablename__ = "payments"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    asaas_payment_id: Mapped[str | None] = mapped_column(String(100), unique=True, nullable=True, index=True)
+    type: Mapped[str] = mapped_column(String(32))  # subscription | credits_pack
+    value_cents: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(32), default="pending")
+    # pending | confirmed | received | overdue | refunded | canceled
+    billing_type: Mapped[str | None] = mapped_column(String(20), nullable=True)  # PIX | BOLETO | CREDIT_CARD
+    invoice_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    pix_qr_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    pix_payload: Mapped[str | None] = mapped_column(Text, nullable=True)
+    credits_added: Mapped[int] = mapped_column(Integer, default=0)
+    due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
