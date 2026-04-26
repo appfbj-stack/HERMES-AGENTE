@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { getChats, getCredits, getLeads, getMessages, getTasks, login, me, sendMessage, toggleAi } from "./api";
 import MasterPanel from "./MasterPanel";
+import PublicChat from "./PublicChat";
 import type { Chat, Credit, Lead, MeResponse, Message, Task } from "./types";
 
 function currencyCredits(credits?: Credit) {
@@ -729,13 +730,23 @@ function ProtectedApp() {
   );
 }
 
-export default function App() {
+function AuthGate() {
   const [authenticated, setAuthenticated] = useState(Boolean(localStorage.getItem("hermes_token")));
-
   if (!authenticated) {
     return <LoginPage onLogged={() => setAuthenticated(true)} />;
   }
-
   return <ProtectedApp />;
+}
+
+export default function App() {
+  return (
+    <Routes>
+      {/* Chat público (sem login) — onde os clientes finais chegam pelo QR */}
+      <Route path="/c/:tenantId" element={<PublicChat />} />
+      <Route path="/chat-publico/:tenantId" element={<PublicChat />} />
+      {/* Painel administrativo (login obrigatório) */}
+      <Route path="/*" element={<AuthGate />} />
+    </Routes>
+  );
 }
 

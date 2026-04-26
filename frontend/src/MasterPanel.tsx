@@ -553,25 +553,28 @@ function QRCodeModal({
   masterBot: MasterBotInfo | null;
   onClose: () => void;
 }) {
-  // Prioridade: bot dedicado do tenant > bot mestre com deep link
+  const [tab, setTab] = useState<"web" | "telegram">("web");
+
+  const panelUrl = masterBot?.panel_url || "https://meuchat.fbautomacao.space";
+  const webLink = `${panelUrl}/c/${tenant.id}`;
+
   const dedicatedUsername = (tenant.telegram_bot_username || "").replace("@", "");
   const masterUsername = (masterBot?.username || "").replace("@", "");
-
   const usingDedicated = !!dedicatedUsername;
-  const username = usingDedicated ? dedicatedUsername : masterUsername;
-  const link = !username
+  const tgUsername = usingDedicated ? dedicatedUsername : masterUsername;
+  const tgLink = !tgUsername
     ? ""
     : usingDedicated
-      ? `https://t.me/${username}`
-      : `https://t.me/${username}?start=tenant_${tenant.id}`;
+      ? `https://t.me/${tgUsername}`
+      : `https://t.me/${tgUsername}?start=tenant_${tenant.id}`;
 
+  const link = tab === "web" ? webLink : tgLink;
   const qrUrl = link
     ? `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(link)}`
     : "";
 
-  const downloadName = usingDedicated
-    ? `qr-${username}.png`
-    : `qr-${tenant.name.toLowerCase().replace(/\s+/g, "-")}.png`;
+  const slug = tenant.name.toLowerCase().replace(/\s+/g, "-");
+  const downloadName = `qr-${slug}-${tab}.png`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -586,26 +589,47 @@ function QRCodeModal({
           </button>
         </div>
 
-        {!link ? (
+        {/* Tabs Web / Telegram */}
+        <div className="mb-4 flex gap-2 rounded-xl bg-slate-100 p-1">
+          <button
+            onClick={() => setTab("web")}
+            className={`flex-1 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+              tab === "web" ? "bg-white shadow text-emerald-700" : "text-slate-600"
+            }`}
+          >
+            🌐 Chat Web
+          </button>
+          <button
+            onClick={() => setTab("telegram")}
+            className={`flex-1 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+              tab === "telegram" ? "bg-white shadow text-emerald-700" : "text-slate-600"
+            }`}
+          >
+            ✈️ Telegram
+          </button>
+        </div>
+
+        {tab === "telegram" && !tgLink ? (
           <div className="rounded-2xl bg-amber-50 p-5 text-sm text-amber-800">
-            ⚠️ Bot mestre não configurado. Defina{" "}
+            ⚠️ Bot Telegram não configurado. Defina{" "}
             <code className="rounded bg-amber-100 px-1">HERMES_MASTER_BOT_USERNAME</code> nas
             envs ou cadastre um bot dedicado pra este tenant.
           </div>
         ) : (
           <div className="space-y-4">
-            <div
-              className={`rounded-xl px-3 py-2 text-xs ${
-                usingDedicated ? "bg-purple-50 text-purple-800" : "bg-emerald-50 text-emerald-800"
-              }`}
-            >
-              {usingDedicated ? (
+            <div className="rounded-xl bg-emerald-50 p-3 text-xs text-emerald-800">
+              {tab === "web" ? (
                 <>
-                  🟣 <strong>Bot dedicado</strong> — branding próprio do cliente
+                  🟢 <strong>Chat web</strong> — abre direto no navegador, sem precisar de
+                  Telegram. Recomendado!
+                </>
+              ) : usingDedicated ? (
+                <>
+                  🟣 <strong>Bot Telegram dedicado</strong> — branding próprio do cliente
                 </>
               ) : (
                 <>
-                  🟢 <strong>Bot mestre compartilhado</strong> — identifica via deep link
+                  ✈️ <strong>Bot Telegram mestre</strong> — identifica via deep link
                 </>
               )}
             </div>
@@ -615,9 +639,7 @@ function QRCodeModal({
             </div>
 
             <div className="space-y-2 rounded-xl bg-slate-50 p-4 text-sm">
-              <div className="text-xs font-semibold uppercase text-slate-500">
-                Link pro cliente:
-              </div>
+              <div className="text-xs font-semibold uppercase text-slate-500">Link:</div>
               <a
                 href={link}
                 target="_blank"
@@ -648,8 +670,17 @@ function QRCodeModal({
             </div>
 
             <p className="text-xs text-slate-500">
-              Envie esse QR pro cliente colocar no Instagram, vitrine, cardápio, cartão de visita,
-              etc. Quem escanear abre o Telegram já no bot certo.
+              {tab === "web" ? (
+                <>
+                  Quem escanear abre o chat <strong>direto no navegador</strong>, sem precisar
+                  de app instalado. Funciona em qualquer celular.
+                </>
+              ) : (
+                <>
+                  Quem escanear abre o Telegram já no bot. Cliente final precisa ter o app
+                  instalado.
+                </>
+              )}
             </p>
           </div>
         )}
