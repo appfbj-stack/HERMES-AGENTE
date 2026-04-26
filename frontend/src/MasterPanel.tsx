@@ -16,7 +16,7 @@ import { NICHE_TEMPLATES } from "./niches";
 import type { AdminTenant, NicheTemplate } from "./types";
 
 function genPassword(): string {
-  return "Hermes" + Math.floor(1000 + Math.random() * 9000) + "!";
+  return "Senha" + Math.floor(1000 + Math.random() * 9000) + "!";
 }
 
 function formatDate(iso: string): string {

@@ -44,8 +44,8 @@ function Layout({
       <div className="mx-auto flex min-h-screen max-w-[1500px]">
         <aside className="w-60 shrink-0 border-r border-black/5 bg-white/70 p-4 backdrop-blur-xl">
           <div className="mb-6">
-            <div className="text-[10px] uppercase tracking-[0.3em] text-brand/70">Hermes Agente</div>
-            <h1 className="mt-1 font-serif text-2xl font-semibold">Painel SaaS</h1>
+            <div className="text-[10px] uppercase tracking-[0.3em] text-brand/70">Meu Assistente Pessoal</div>
+            <h1 className="mt-1 font-serif text-2xl font-semibold">Painel</h1>
             <p className="mt-1 truncate text-xs text-slate-600">{profile.tenant.name}</p>
           </div>
 
@@ -125,7 +125,7 @@ function LoginPage({ onLogged }: { onLogged: () => void }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(140deg,#1b7f6b,#163b32_55%,#f1e9dc)] p-6">
       <form onSubmit={handleSubmit} className="w-full max-w-md rounded-[32px] bg-white p-8 shadow-soft">
-        <div className="text-xs uppercase tracking-[0.3em] text-brand/70">Telegram + DeepSeek</div>
+        <div className="text-xs uppercase tracking-[0.3em] text-brand/70">Meu Assistente Pessoal</div>
         <h1 className="mt-3 font-serif text-4xl font-semibold text-ink">Entrar</h1>
         <p className="mt-3 text-sm text-slate-500">Painel estilo WhatsApp com CRM e operação multi-tenant.</p>
         <div className="mt-8 space-y-4">
@@ -465,7 +465,7 @@ function ChatPage({
             }}
           >
             <div className="text-6xl">💬</div>
-            <div className="text-lg font-medium">Hermes — Painel de atendimento</div>
+            <div className="text-lg font-medium">Meu Assistente Pessoal</div>
             <div className="max-w-md text-center text-sm">
               Selecione uma conversa à esquerda para começar a atender. Mensagens recebidas pelo Telegram aparecerão automaticamente aqui.
             </div>
