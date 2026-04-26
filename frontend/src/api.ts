@@ -86,6 +86,16 @@ export async function getAdminTenants() {
   return request<AdminTenant[]>("/admin/tenants");
 }
 
+export type MasterBotInfo = {
+  username: string | null;
+  configured: boolean;
+  panel_url: string;
+};
+
+export async function getMasterBotInfo() {
+  return request<MasterBotInfo>("/admin/master-bot");
+}
+
 export async function createAdminTenant(payload: CreateTenantPayload) {
   return request<AdminTenant>("/admin/tenants", {
     method: "POST",

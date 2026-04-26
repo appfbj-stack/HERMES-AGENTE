@@ -5,6 +5,7 @@ Permite criar/listar/editar tenants (clientes).
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import get_password_hash
 from app.deps import get_current_user
@@ -17,6 +18,23 @@ from app.schemas import (
 )
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+@router.get("/master-bot")
+def master_bot_info(_: User = Depends(lambda u=Depends(get_current_user): _check_super(u))):
+    """Retorna o username do bot mestre pra gerar QR codes."""
+    s = get_settings()
+    return {
+        "username": s.hermes_master_bot_username or None,
+        "configured": bool(s.hermes_master_bot_token),
+        "panel_url": s.public_panel_url,
+    }
+
+
+def _check_super(user: User) -> User:
+    if not user.is_super_admin:
+        raise HTTPException(status_code=403, detail="Super admin only")
+    return user
 
 
 def _require_super_admin(user: User = Depends(get_current_user)) -> User:

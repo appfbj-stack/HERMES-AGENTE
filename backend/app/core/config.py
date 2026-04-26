@@ -16,7 +16,10 @@ class Settings(BaseSettings):
     deepseek_api_key: str = ""
     deepseek_model: str = "deepseek-chat"
     deepseek_base_url: str = "https://api.deepseek.com"
-    telegram_bot_token: str = ""
+    telegram_bot_token: str = ""  # legado (compatibilidade)
+    hermes_master_bot_token: str = ""  # bot mestre que atende TODOS os tenants
+    hermes_master_bot_username: str = ""  # ex: hermes_atende_bot (sem @)
+    public_panel_url: str = "https://meuchat.fbautomacao.space"
     redis_url: str = ""
     access_token_expire_minutes: int = 1440
     bootstrap_token: str = "hermes-bootstrap"

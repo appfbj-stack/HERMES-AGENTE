@@ -8,7 +8,9 @@ import {
   createAdminTenant,
   deleteAdminTenant,
   getAdminTenants,
+  getMasterBotInfo,
   updateAdminTenant,
+  type MasterBotInfo,
 } from "./api";
 import { NICHE_TEMPLATES } from "./niches";
 import type { AdminTenant, NicheTemplate } from "./types";
@@ -35,6 +37,7 @@ function pctColor(t: AdminTenant): string {
 
 export default function MasterPanel() {
   const [tenants, setTenants] = useState<AdminTenant[]>([]);
+  const [masterBot, setMasterBot] = useState<MasterBotInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -44,8 +47,12 @@ export default function MasterPanel() {
     setLoading(true);
     setError("");
     try {
-      const data = await getAdminTenants();
-      setTenants(data);
+      const [tenantsData, botData] = await Promise.all([
+        getAdminTenants(),
+        getMasterBotInfo().catch(() => null),
+      ]);
+      setTenants(tenantsData);
+      setMasterBot(botData);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro");
     } finally {
@@ -65,6 +72,33 @@ export default function MasterPanel() {
 
   return (
     <div className="space-y-6">
+      {masterBot && !masterBot.configured && (
+        <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-4 text-sm">
+          <strong className="text-amber-900">⚠️ Bot mestre não configurado.</strong>
+          <span className="ml-2 text-amber-800">
+            Defina <code className="rounded bg-amber-100 px-1">HERMES_MASTER_BOT_TOKEN</code> e{" "}
+            <code className="rounded bg-amber-100 px-1">HERMES_MASTER_BOT_USERNAME</code> nas
+            envs do Coolify pra clientes sem bot dedicado funcionarem.
+          </span>
+        </div>
+      )}
+      {masterBot && masterBot.configured && (
+        <div className="rounded-2xl border-2 border-emerald-300 bg-emerald-50 p-4 text-sm">
+          <strong className="text-emerald-900">✅ Bot mestre ativo:</strong>{" "}
+          <a
+            href={`https://t.me/${(masterBot.username || "").replace("@", "")}`}
+            target="_blank"
+            rel="noreferrer"
+            className="font-mono text-emerald-700 hover:underline"
+          >
+            @{(masterBot.username || "").replace("@", "")}
+          </a>
+          <span className="ml-2 text-emerald-800">
+            — atende todos os tenants automaticamente via deep link.
+          </span>
+        </div>
+      )}
+
       <div className="grid gap-4 md:grid-cols-4">
         <Stat label="Clientes ativos" value={tenants.filter((t) => t.active).length} />
         <Stat label="Bloqueados" value={blocked} color="red" />
@@ -223,7 +257,13 @@ export default function MasterPanel() {
         />
       )}
 
-      {qrTenant && <QRCodeModal tenant={qrTenant} onClose={() => setQrTenant(null)} />}
+      {qrTenant && (
+        <QRCodeModal
+          tenant={qrTenant}
+          masterBot={masterBot}
+          onClose={() => setQrTenant(null)}
+        />
+      )}
     </div>
   );
 }
@@ -413,12 +453,18 @@ function CreateTenantModal({
                 />
               </div>
             </div>
-            <div className="rounded-2xl bg-slate-50 p-4">
-              <div className="text-xs font-semibold uppercase text-slate-500 mb-2">🤖 Bot do Telegram (opcional)</div>
+            <div className="rounded-2xl border-2 border-dashed border-slate-200 p-4">
+              <div className="mb-2 text-xs font-semibold uppercase text-slate-500">
+                🤖 Bot Dedicado (opcional — premium)
+              </div>
+              <p className="mb-3 text-xs text-slate-500">
+                Por padrão usa o <strong>bot mestre</strong> com deep link. Preencha aqui só se
+                este cliente paga premium e quer um bot exclusivo (você cria no @BotFather).
+              </p>
               <div className="grid gap-3 md:grid-cols-2">
                 <input
                   className="input"
-                  placeholder="Token (do @BotFather)"
+                  placeholder="Token do BotFather"
                   value={form.telegram_bot_token}
                   onChange={(e) => setForm({ ...form, telegram_bot_token: e.target.value })}
                 />
@@ -429,9 +475,6 @@ function CreateTenantModal({
                   onChange={(e) => setForm({ ...form, telegram_bot_username: e.target.value })}
                 />
               </div>
-              <p className="mt-2 text-xs text-slate-500">
-                Você pode deixar em branco e configurar depois nas configurações do tenant.
-              </p>
             </div>
             <div>
               <label className="text-xs font-semibold uppercase text-slate-500">
@@ -472,19 +515,21 @@ function CreateTenantModal({
         {step === 3 && (
           <div className="space-y-4">
             <div className="rounded-2xl bg-emerald-50 p-5">
-              <p className="text-sm text-emerald-900">
-                Manda essas informações pro cliente:
+              <p className="text-sm text-emerald-900 font-semibold">
+                ✅ Cliente criado! Manda as credenciais:
               </p>
-              <div className="mt-3 space-y-2 rounded-xl bg-white p-4 font-mono text-sm">
+              <div className="mt-3 space-y-2 rounded-xl bg-white p-4 font-mono text-xs">
                 <div>🌐 Painel: https://meuchat.fbautomacao.space</div>
                 <div>📧 Login: {form.user_email}</div>
                 <div>🔑 Senha: {form.user_password}</div>
                 {form.telegram_bot_username && (
-                  <div>
-                    🤖 Bot: https://t.me/{form.telegram_bot_username.replace("@", "")}
-                  </div>
+                  <div>🤖 Bot dedicado: https://t.me/{form.telegram_bot_username.replace("@", "")}</div>
                 )}
               </div>
+              <p className="mt-3 text-xs text-emerald-800">
+                💡 O QR Code (com link do bot mestre + identificação do cliente) está disponível na
+                tabela. Clique em "QR" na linha do cliente.
+              </p>
             </div>
             <button
               onClick={onCreated}
@@ -499,33 +544,80 @@ function CreateTenantModal({
   );
 }
 
-function QRCodeModal({ tenant, onClose }: { tenant: AdminTenant; onClose: () => void }) {
-  const username = (tenant.telegram_bot_username || "").replace("@", "");
-  const link = username ? `https://t.me/${username}` : "";
+function QRCodeModal({
+  tenant,
+  masterBot,
+  onClose,
+}: {
+  tenant: AdminTenant;
+  masterBot: MasterBotInfo | null;
+  onClose: () => void;
+}) {
+  // Prioridade: bot dedicado do tenant > bot mestre com deep link
+  const dedicatedUsername = (tenant.telegram_bot_username || "").replace("@", "");
+  const masterUsername = (masterBot?.username || "").replace("@", "");
+
+  const usingDedicated = !!dedicatedUsername;
+  const username = usingDedicated ? dedicatedUsername : masterUsername;
+  const link = !username
+    ? ""
+    : usingDedicated
+      ? `https://t.me/${username}`
+      : `https://t.me/${username}?start=tenant_${tenant.id}`;
+
   const qrUrl = link
     ? `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(link)}`
     : "";
+
+  const downloadName = usingDedicated
+    ? `qr-${username}.png`
+    : `qr-${tenant.name.toLowerCase().replace(/\s+/g, "-")}.png`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-md rounded-[32px] bg-white p-6 shadow-2xl">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-serif text-2xl">QR Code — {tenant.name}</h2>
+          <div>
+            <h2 className="font-serif text-2xl">QR Code</h2>
+            <p className="text-sm text-slate-500">{tenant.name}</p>
+          </div>
           <button onClick={onClose} className="text-2xl text-slate-400 hover:text-slate-600">
             ×
           </button>
         </div>
-        {!username ? (
+
+        {!link ? (
           <div className="rounded-2xl bg-amber-50 p-5 text-sm text-amber-800">
-            ⚠️ Esse cliente ainda não tem bot configurado. Edite o tenant e adicione um username.
+            ⚠️ Bot mestre não configurado. Defina{" "}
+            <code className="rounded bg-amber-100 px-1">HERMES_MASTER_BOT_USERNAME</code> nas
+            envs ou cadastre um bot dedicado pra este tenant.
           </div>
         ) : (
           <div className="space-y-4">
+            <div
+              className={`rounded-xl px-3 py-2 text-xs ${
+                usingDedicated ? "bg-purple-50 text-purple-800" : "bg-emerald-50 text-emerald-800"
+              }`}
+            >
+              {usingDedicated ? (
+                <>
+                  🟣 <strong>Bot dedicado</strong> — branding próprio do cliente
+                </>
+              ) : (
+                <>
+                  🟢 <strong>Bot mestre compartilhado</strong> — identifica via deep link
+                </>
+              )}
+            </div>
+
             <div className="flex justify-center rounded-2xl bg-slate-50 p-6">
               <img src={qrUrl} alt="QR Code" className="h-64 w-64" />
             </div>
-            <div className="space-y-2 rounded-xl bg-emerald-50 p-4 text-sm">
-              <div className="font-semibold">Link do bot:</div>
+
+            <div className="space-y-2 rounded-xl bg-slate-50 p-4 text-sm">
+              <div className="text-xs font-semibold uppercase text-slate-500">
+                Link pro cliente:
+              </div>
               <a
                 href={link}
                 target="_blank"
@@ -535,6 +627,7 @@ function QRCodeModal({ tenant, onClose }: { tenant: AdminTenant; onClose: () => 
                 {link}
               </a>
             </div>
+
             <div className="flex gap-2">
               <button
                 onClick={() => {
@@ -543,19 +636,20 @@ function QRCodeModal({ tenant, onClose }: { tenant: AdminTenant; onClose: () => 
                 }}
                 className="flex-1 rounded-2xl bg-slate-100 px-5 py-2 text-sm font-medium hover:bg-slate-200"
               >
-                Copiar link
+                📋 Copiar link
               </button>
               <a
                 href={qrUrl}
-                download={`qrcode-${username}.png`}
+                download={downloadName}
                 className="flex-1 rounded-2xl bg-emerald-600 px-5 py-2 text-center text-sm font-semibold text-white hover:bg-emerald-700"
               >
-                Baixar QR
+                ⬇ Baixar QR
               </a>
             </div>
+
             <p className="text-xs text-slate-500">
-              Envie esse QR pro cliente colocar no Insta, vitrine, cardápio, e-mail, etc. Quem
-              escanear abre o bot direto no Telegram.
+              Envie esse QR pro cliente colocar no Instagram, vitrine, cardápio, cartão de visita,
+              etc. Quem escanear abre o Telegram já no bot certo.
             </p>
           </div>
         )}
