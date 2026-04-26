@@ -49,6 +49,7 @@ async def generate_reply(messages: list[dict[str, str]]) -> tuple[str, int]:
         "model": settings.deepseek_model,
         "messages": messages,
         "temperature": 0.3,
+        "max_tokens": settings.max_output_tokens,  # cap rígido — protege contra resposta gigante
     }
     headers = {"Authorization": f"Bearer {settings.deepseek_api_key}"}
 

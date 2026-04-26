@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.models import AssistantMemory, Chat, Lead, Message, Task, Tenant
 
 
@@ -8,11 +9,28 @@ Você é um assistente de negócios.
 Você deve responder clientes, captar leads, organizar informações, criar tarefas,
 sugerir ações e manter contexto do cliente.
 Responda de forma útil, objetiva e comercialmente clara.
+SEJA BREVE: respostas devem ter no máximo 3-4 parágrafos curtos. Não use floreios desnecessários.
 """.strip()
 
 
+def _truncate(text: str, max_chars: int) -> str:
+    if len(text) <= max_chars:
+        return text
+    return text[: max_chars - 3] + "..."
+
+
 def build_context(db: Session, tenant_id: int, chat: Chat) -> list[dict[str, str]]:
-    messages = db.query(Message).filter(Message.chat_id == chat.id).order_by(Message.created_at.asc()).limit(20).all()
+    settings = get_settings()
+    # Limita histórico: pega só as N últimas mensagens (em vez de todas)
+    messages = (
+        db.query(Message)
+        .filter(Message.chat_id == chat.id)
+        .order_by(Message.created_at.desc())
+        .limit(settings.max_context_messages)
+        .all()
+    )
+    messages.reverse()  # cronológico de novo
+
     memory = db.query(AssistantMemory).filter(AssistantMemory.tenant_id == tenant_id).all()
 
     # Usa o system_prompt customizado do tenant se houver, senão default
@@ -26,7 +44,9 @@ def build_context(db: Session, tenant_id: int, chat: Chat) -> list[dict[str, str
 
     role_map = {"user": "user", "assistant": "assistant", "human": "assistant"}
     for item in messages:
-        context.append({"role": role_map.get(item.sender_type, "user"), "content": item.content})
+        # Trunca cada mensagem do histórico pra economizar tokens
+        truncated = _truncate(item.content, settings.max_context_chars_per_message)
+        context.append({"role": role_map.get(item.sender_type, "user"), "content": truncated})
     return context
 
 

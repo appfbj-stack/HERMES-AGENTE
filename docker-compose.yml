@@ -34,6 +34,11 @@ services:
       HERMES_MASTER_BOT_TOKEN: ${HERMES_MASTER_BOT_TOKEN:-8793872667:AAG0XnR_zFXU5aczpPh_lV-Zt2DWEWtDshY}
       HERMES_MASTER_BOT_USERNAME: ${HERMES_MASTER_BOT_USERNAME:-janejf_bot}
       PUBLIC_PANEL_URL: ${PUBLIC_PANEL_URL:-https://meuchat.fbautomacao.space}
+      # Limites anti-prejuízo
+      MAX_INPUT_CHARS: ${MAX_INPUT_CHARS:-800}
+      MAX_OUTPUT_TOKENS: ${MAX_OUTPUT_TOKENS:-500}
+      MAX_CONTEXT_MESSAGES: ${MAX_CONTEXT_MESSAGES:-12}
+      MAX_CONTEXT_CHARS_PER_MESSAGE: ${MAX_CONTEXT_CHARS_PER_MESSAGE:-600}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       CORS_ORIGINS: '["https://meuchat.fbautomacao.space","https://api.meuchat.fbautomacao.space"]'
     depends_on:

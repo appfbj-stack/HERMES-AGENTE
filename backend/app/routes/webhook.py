@@ -95,6 +95,18 @@ async def telegram_webhook(
     contact_name = message_data.get("from", {}).get("first_name") or message_data["chat"].get("title")
     contact_phone = str(message_data.get("from", {}).get("id"))
 
+    # 🛡️ PROTEÇÃO ANTI-PREJUÍZO: rejeita mensagem absurdamente longa
+    # antes de tudo (não cria chat, não consome crédito, não chama LLM)
+    settings_cfg = get_settings()
+    if len(text) > settings_cfg.max_input_chars:
+        await send_telegram_message(
+            chat_external_id,
+            f"⚠️ Sua mensagem é muito longa ({len(text)} caracteres). "
+            f"Por favor, encurte para até {settings_cfg.max_input_chars} caracteres "
+            f"e envie novamente. 🙏",
+        )
+        return {"status": "rejected", "reason": "input_too_long", "len": len(text)}
+
     resolved_tenant_id = _resolve_tenant_id(
         db,
         chat_external_id=chat_external_id,
