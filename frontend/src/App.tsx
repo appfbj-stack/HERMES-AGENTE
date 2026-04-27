@@ -1,6 +1,10 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { getCrmDashboard, getCrmModules, getChats, getCredits, getLeads, getMessages, getTasks, login, me, sendMessage, toggleAi } from "./api";
+import CrmSettingsPage from "./crm/CrmSettingsPage";
+import FollowupsPage from "./crm/FollowupsPage";
+import KanbanPage from "./crm/KanbanPage";
+import LeadsPage from "./crm/LeadsPage";
 import MasterPanel from "./MasterPanel";
 import PublicChat from "./PublicChat";
 import type { Chat, Credit, CrmDashboard, Lead, MeResponse, Message, Task, TenantModule } from "./types";
@@ -24,11 +28,20 @@ function Layout({
   const location = useLocation();
   const navigate = useNavigate();
 
+  const crmNav = modules?.crm
+    ? [
+        { label: "🗂 CRM", path: "/crm", group: true },
+        { label: "  ↳ Leads", path: "/crm/leads", sub: true },
+        { label: "  ↳ Kanban", path: "/crm/kanban", sub: true },
+        { label: "  ↳ Follow-ups", path: "/crm/followups", sub: true },
+        { label: "  ↳ Config. CRM", path: "/crm/settings", sub: true },
+      ]
+    : [];
+
   const baseNav = [
     { label: "Dashboard", path: "/dashboard" },
     { label: "Chat", path: "/chat" },
-    ...(modules?.crm ? [{ label: "🗂 CRM", path: "/crm" }] : []),
-    { label: "Leads", path: "/leads" },
+    ...crmNav,
     { label: "Tarefas", path: "/tasks" },
     { label: "Mensagens", path: "/credits" },
     { label: "Configurações", path: "/settings" },
@@ -53,20 +66,32 @@ function Layout({
             <p className="mt-1 truncate text-xs text-slate-600">{profile.tenant.name}</p>
           </div>
 
-          <nav className="space-y-1">
-            {nav.map((item) => (
-              <button
-                key={item.path}
-                onClick={() => navigate(item.path)}
-                className={`w-full truncate rounded-xl px-3 py-2 text-left text-sm transition ${
-                  location.pathname === item.path
-                    ? "bg-brand text-white shadow-soft"
-                    : "bg-white text-slate-700 hover:bg-brand/10"
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
+          <nav className="space-y-0.5">
+            {nav.map((item) => {
+              const isSub = (item as { sub?: boolean }).sub;
+              const isGroup = (item as { group?: boolean }).group;
+              const isActive = location.pathname === item.path ||
+                (isGroup && location.pathname.startsWith("/crm"));
+              return (
+                <button
+                  key={item.path}
+                  onClick={() => navigate(item.path)}
+                  className={`w-full truncate rounded-xl px-3 py-2 text-left text-sm transition ${
+                    isSub ? "pl-5 text-xs" : ""
+                  } ${
+                    isActive && !isSub
+                      ? "bg-violet-600 text-white shadow-soft"
+                      : isActive && isSub
+                      ? "bg-violet-50 font-medium text-violet-700"
+                      : isSub
+                      ? "text-slate-500 hover:bg-slate-100"
+                      : "bg-white text-slate-700 hover:bg-brand/10"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
           </nav>
 
           <div
@@ -827,6 +852,10 @@ function ProtectedApp() {
           }
         />
         <Route path="/crm" element={<CrmPage modules={modules} />} />
+        <Route path="/crm/leads" element={<LeadsPage />} />
+        <Route path="/crm/kanban" element={<KanbanPage />} />
+        <Route path="/crm/followups" element={<FollowupsPage />} />
+        <Route path="/crm/settings" element={<CrmSettingsPage />} />
         <Route path="/leads" element={<TablePage title="Leads" rows={leads} render={(row) => [row.name, row.phone || "-", row.interest || "-", row.status]} />} />
         <Route path="/tasks" element={<TablePage title="Tarefas" rows={tasks} render={(row) => [row.title, row.description || "-", row.status, row.due_date || "-"]} />} />
         <Route path="/credits" element={<CreditsPage credits={credits} />} />

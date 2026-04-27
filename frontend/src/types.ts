@@ -22,20 +22,74 @@ export type Message = {
 
 export type Lead = {
   id: number;
+  tenant_id: number;
   name: string;
   phone: string | null;
+  email: string | null;
   interest: string | null;
+  origem: string;
   status: string;
+  responsavel_id: number | null;
+  observacoes: string | null;
+  kanban_column_id: number | null;
+  last_contact_at: string | null;
   created_at: string;
+  updated_at: string | null;
 };
 
 export type Task = {
   id: number;
+  tenant_id: number;
   title: string;
   description: string | null;
   due_date: string | null;
   status: string;
+  priority: string;
+  lead_id: number | null;
+  assigned_user_id: number | null;
   created_at: string;
+  updated_at: string | null;
+};
+
+export type CrmKanbanColumn = {
+  id: number;
+  tenant_id: number;
+  name: string;
+  color: string;
+  position: number;
+  is_default: boolean;
+  created_at: string;
+};
+
+export type CrmFollowup = {
+  id: number;
+  tenant_id: number;
+  lead_id: number;
+  titulo: string;
+  descricao: string | null;
+  data_hora: string;
+  status: string;
+  canal: string;
+  created_at: string;
+  updated_at: string | null;
+};
+
+export type CrmTag = {
+  id: number;
+  tenant_id: number;
+  name: string;
+  color: string;
+  created_at: string;
+};
+
+export type CrmSettings = {
+  tenant_id: number;
+  mensagem_inicial: string | null;
+  horario_inicio: string;
+  horario_fim: string;
+  hermes_ativo: boolean;
+  notificar_followup_telegram: boolean;
+  updated_at: string | null;
 };
 
 export type Credit = {

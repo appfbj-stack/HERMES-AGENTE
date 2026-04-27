@@ -4,6 +4,10 @@ import type {
   CreateTenantPayload,
   Credit,
   CrmDashboard,
+  CrmFollowup,
+  CrmKanbanColumn,
+  CrmSettings,
+  CrmTag,
   Lead,
   LoginResponse,
   MeResponse,
@@ -63,12 +67,50 @@ export async function sendMessage(chatId: number, content: string) {
   });
 }
 
-export async function getLeads() {
-  return request<Lead[]>("/leads");
+export async function getLeads(params?: { status?: string; origem?: string; search?: string }) {
+  const q = new URLSearchParams();
+  if (params?.status) q.set("status", params.status);
+  if (params?.origem) q.set("origem", params.origem);
+  if (params?.search) q.set("search", params.search);
+  const qs = q.toString() ? `?${q}` : "";
+  return request<Lead[]>(`/leads${qs}`);
 }
 
-export async function getTasks() {
-  return request<Task[]>("/tasks");
+export async function getLead(id: number) {
+  return request<Lead>(`/leads/${id}`);
+}
+
+export async function createLead(payload: Partial<Lead>) {
+  return request<Lead>("/leads", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function updateLead(id: number, patch: Partial<Lead>) {
+  return request<Lead>(`/leads/${id}`, { method: "PATCH", body: JSON.stringify(patch) });
+}
+
+export async function deleteLead(id: number) {
+  return request<void>(`/leads/${id}`, { method: "DELETE" });
+}
+
+export async function getTasks(params?: { status?: string; priority?: string; lead_id?: number }) {
+  const q = new URLSearchParams();
+  if (params?.status) q.set("status", params.status);
+  if (params?.priority) q.set("priority", params.priority);
+  if (params?.lead_id) q.set("lead_id", String(params.lead_id));
+  const qs = q.toString() ? `?${q}` : "";
+  return request<Task[]>(`/tasks${qs}`);
+}
+
+export async function createTask(payload: Partial<Task>) {
+  return request<Task>("/tasks", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function updateTask(id: number, patch: Partial<Task>) {
+  return request<Task>(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify(patch) });
+}
+
+export async function deleteTask(id: number) {
+  return request<void>(`/tasks/${id}`, { method: "DELETE" });
 }
 
 export async function getCredits() {
@@ -138,5 +180,82 @@ export async function getCrmModules() {
 
 export async function getCrmDashboard() {
   return request<CrmDashboard>("/crm/dashboard");
+}
+
+// Kanban
+export async function getKanbanColumns() {
+  return request<CrmKanbanColumn[]>("/crm/kanban");
+}
+
+export async function createKanbanColumn(payload: { name: string; color?: string; position?: number }) {
+  return request<CrmKanbanColumn>("/crm/kanban", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function deleteKanbanColumn(id: number) {
+  return request<void>(`/crm/kanban/${id}`, { method: "DELETE" });
+}
+
+export async function moveLeadKanban(lead_id: number, column_id: number) {
+  return request<{ ok: boolean }>("/crm/kanban/move", {
+    method: "POST",
+    body: JSON.stringify({ lead_id, column_id }),
+  });
+}
+
+// Follow-ups
+export async function getFollowups(params?: { lead_id?: number; status?: string }) {
+  const q = new URLSearchParams();
+  if (params?.lead_id) q.set("lead_id", String(params.lead_id));
+  if (params?.status) q.set("status", params.status);
+  const qs = q.toString() ? `?${q}` : "";
+  return request<CrmFollowup[]>(`/crm/followups${qs}`);
+}
+
+export async function createFollowup(payload: {
+  lead_id: number;
+  titulo: string;
+  descricao?: string;
+  data_hora: string;
+  canal?: string;
+}) {
+  return request<CrmFollowup>("/crm/followups", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function updateFollowup(id: number, patch: Partial<CrmFollowup>) {
+  return request<CrmFollowup>(`/crm/followups/${id}`, { method: "PATCH", body: JSON.stringify(patch) });
+}
+
+export async function deleteFollowup(id: number) {
+  return request<void>(`/crm/followups/${id}`, { method: "DELETE" });
+}
+
+// Tags
+export async function getCrmTags() {
+  return request<CrmTag[]>("/crm/tags");
+}
+
+export async function createCrmTag(payload: { name: string; color?: string }) {
+  return request<CrmTag>("/crm/tags", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function deleteCrmTag(id: number) {
+  return request<void>(`/crm/tags/${id}`, { method: "DELETE" });
+}
+
+export async function addTagToLead(lead_id: number, tag_id: number) {
+  return request<{ ok: boolean }>(`/crm/leads/${lead_id}/tags/${tag_id}`, { method: "POST" });
+}
+
+export async function removeTagFromLead(lead_id: number, tag_id: number) {
+  return request<void>(`/crm/leads/${lead_id}/tags/${tag_id}`, { method: "DELETE" });
+}
+
+// Settings
+export async function getCrmSettings() {
+  return request<CrmSettings>("/crm/settings");
+}
+
+export async function updateCrmSettings(patch: Partial<CrmSettings>) {
+  return request<CrmSettings>("/crm/settings", { method: "PATCH", body: JSON.stringify(patch) });
 }
 
