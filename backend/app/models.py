@@ -65,6 +65,8 @@ class Chat(Base):
     status: Mapped[str] = mapped_column(String(50), default="open")
     ai_paused: Mapped[bool] = mapped_column(Boolean, default=False)
     assigned_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    # Vínculo com lead do CRM (criado automaticamente na primeira mensagem)
+    lead_id: Mapped[int | None] = mapped_column(ForeignKey("leads.id"), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     messages: Mapped[list["Message"]] = relationship(back_populates="chat", cascade="all, delete-orphan")

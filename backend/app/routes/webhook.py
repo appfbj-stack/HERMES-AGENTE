@@ -6,6 +6,13 @@ Identificação do tenant em ordem de prioridade:
   2. Chat já existente → usa o tenant que já estava associado
   3. Token do bot → tenant que tem aquele token (bot dedicado, premium)
   4. Fallback: tenant_id passado por query (compatibilidade legada)
+
+Fluxo CRM (quando módulo CRM ativo no tenant):
+  1. Busca lead pelo telefone → cria se não existir
+  2. Vincula chat.lead_id ao lead
+  3. Injeta contexto CRM no system prompt do Hermes
+  4. Após reply, extrai e executa [[CRM:...]] do texto
+  5. Envia reply limpo (sem comandos) ao cliente
 """
 import re
 from datetime import datetime, timezone
@@ -16,7 +23,8 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.models import Chat, Credit, Message, Tenant, UsageLog
-from app.services.agent import build_context, maybe_create_lead, maybe_create_task
+from app.services.agent import build_context, maybe_create_task
+from app.services.crm_agent import get_or_create_lead_from_chat, parse_and_execute_crm_commands
 from app.services.deepseek import generate_reply
 from app.services.telegram import send_telegram_message
 
@@ -96,7 +104,6 @@ async def telegram_webhook(
     contact_phone = str(message_data.get("from", {}).get("id"))
 
     # 🛡️ PROTEÇÃO ANTI-PREJUÍZO: rejeita mensagem absurdamente longa
-    # antes de tudo (não cria chat, não consome crédito, não chama LLM)
     settings_cfg = get_settings()
     if len(text) > settings_cfg.max_input_chars:
         await send_telegram_message(
@@ -115,8 +122,6 @@ async def telegram_webhook(
         fallback_query=tenant_id,
     )
     if not resolved_tenant_id:
-        # Cliente final escaneou QR errado ou bot mestre não foi associado a tenant
-        # Manda mensagem genérica de boas-vindas
         settings = get_settings()
         if settings.hermes_master_bot_token:
             await send_telegram_message(
@@ -131,6 +136,7 @@ async def telegram_webhook(
     else:
         inbound_text = text
 
+    # ─── Chat: busca ou cria ──────────────────────────────────────────────────
     chat = (
         db.query(Chat)
         .filter(
@@ -165,9 +171,13 @@ async def telegram_webhook(
     db.add(inbound_message)
     db.flush()
 
-    maybe_create_lead(db, resolved_tenant_id, chat, inbound_text)
+    # ─── CRM: busca/cria lead e vincula ao chat ───────────────────────────────
+    lead = get_or_create_lead_from_chat(db, resolved_tenant_id, chat, inbound_text)
+
+    # Tarefa automática (keywords como "ligar", "orçamento") — legado mantido
     maybe_create_task(db, resolved_tenant_id, inbound_text)
 
+    # ─── Crédito: verifica antes de chamar a IA ───────────────────────────────
     credit = db.query(Credit).filter(Credit.tenant_id == resolved_tenant_id).first()
     if not credit:
         db.commit()
@@ -185,30 +195,39 @@ async def telegram_webhook(
         db.commit()
         return {"status": "paused"}
 
-    context = build_context(db, resolved_tenant_id, chat)
+    # ─── Hermes: gera resposta com contexto CRM ───────────────────────────────
+    context = build_context(db, resolved_tenant_id, chat, lead=lead)
     reply_text, tokens_used = await generate_reply(context)
 
+    # ─── CRM: executa comandos [[CRM:...]] e limpa o texto ───────────────────
+    clean_reply = parse_and_execute_crm_commands(db, resolved_tenant_id, lead, reply_text)
+
+    # ─── Salva resposta e debita crédito ─────────────────────────────────────
     outbound_message = Message(
         tenant_id=resolved_tenant_id,
         chat_id=chat.id,
         sender_type="assistant",
-        content=reply_text,
+        content=clean_reply,
     )
-    chat.last_message = reply_text
+    chat.last_message = clean_reply
     chat.last_message_at = datetime.now(timezone.utc)
     db.add(outbound_message)
     db.flush()
 
     credit.used += 1
     credit.remaining -= 1
-    db.add(UsageLog(tenant_id=resolved_tenant_id, message_id=outbound_message.id, tokens_used=tokens_used))
+    db.add(UsageLog(
+        tenant_id=resolved_tenant_id,
+        message_id=outbound_message.id,
+        tokens_used=tokens_used,
+    ))
     db.commit()
 
     # Envia via bot dedicado do tenant (se tiver) ou bot mestre
     await send_telegram_message(
         chat.chat_external_id,
-        reply_text,
+        clean_reply,
         tenant_id=resolved_tenant_id,
         db=db,
     )
-    return {"status": "ok", "tenant_id": resolved_tenant_id}
+    return {"status": "ok", "tenant_id": resolved_tenant_id, "crm_lead_id": lead.id if lead else None}
