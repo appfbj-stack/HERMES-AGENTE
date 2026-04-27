@@ -92,9 +92,21 @@ class Lead(Base):
     tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
     name: Mapped[str] = mapped_column(String(255))
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     interest: Mapped[str | None] = mapped_column(Text, nullable=True)
+    origem: Mapped[str] = mapped_column(String(50), default="manual")
+    # whatsapp | telegram | site | manual
     status: Mapped[str] = mapped_column(String(50), default="new")
+    responsavel_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    observacoes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_contact_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    kanban_column_id: Mapped[int | None] = mapped_column(ForeignKey("crm_kanban_columns.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    tags: Mapped[list["CrmLeadTag"]] = relationship(back_populates="lead", cascade="all, delete-orphan")
+    followups: Mapped[list["CrmFollowup"]] = relationship(back_populates="lead", cascade="all, delete-orphan")
+    activity_logs: Mapped[list["CrmActivityLog"]] = relationship(back_populates="lead", cascade="all, delete-orphan")
 
 
 class Task(Base):
@@ -106,7 +118,12 @@ class Task(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(String(50), default="pending")
+    priority: Mapped[str] = mapped_column(String(20), default="normal")
+    # low | normal | high | urgent
+    lead_id: Mapped[int | None] = mapped_column(ForeignKey("leads.id"), nullable=True)
+    assigned_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
 class AssistantMemory(Base):
@@ -189,4 +206,116 @@ class Payment(Base):
     due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+# ===================================
+# CRM Module
+# ===================================
+
+class TenantModule(Base):
+    """Controla quais módulos estão ativos por tenant."""
+    __tablename__ = "tenant_modules"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), unique=True, index=True)
+    crm: Mapped[bool] = mapped_column(Boolean, default=False)
+    whatsapp: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class CrmKanbanColumn(Base):
+    __tablename__ = "crm_kanban_columns"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    name: Mapped[str] = mapped_column(String(100))
+    color: Mapped[str] = mapped_column(String(20), default="#6366f1")
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    leads: Mapped[list["Lead"]] = relationship(back_populates="kanban_column")
+
+
+# Adiciona back-reference na Lead para a coluna kanban
+Lead.kanban_column = relationship("CrmKanbanColumn", back_populates="leads", foreign_keys=[Lead.kanban_column_id])
+
+
+class CrmTag(Base):
+    __tablename__ = "crm_tags"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    name: Mapped[str] = mapped_column(String(50))
+    color: Mapped[str] = mapped_column(String(20), default="#10b981")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    __table_args__ = (UniqueConstraint("tenant_id", "name", name="uq_crm_tag_tenant_name"),)
+
+
+class CrmLeadTag(Base):
+    __tablename__ = "crm_lead_tags"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    lead_id: Mapped[int] = mapped_column(ForeignKey("leads.id", ondelete="CASCADE"), index=True)
+    tag_id: Mapped[int] = mapped_column(ForeignKey("crm_tags.id", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    lead: Mapped["Lead"] = relationship(back_populates="tags")
+    tag: Mapped["CrmTag"] = relationship()
+
+    __table_args__ = (UniqueConstraint("lead_id", "tag_id", name="uq_lead_tag"),)
+
+
+class CrmFollowup(Base):
+    __tablename__ = "crm_followups"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    lead_id: Mapped[int] = mapped_column(ForeignKey("leads.id", ondelete="CASCADE"), index=True)
+    titulo: Mapped[str] = mapped_column(String(255))
+    descricao: Mapped[str | None] = mapped_column(Text, nullable=True)
+    data_hora: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(20), default="pendente")
+    # pendente | feito | atrasado
+    canal: Mapped[str] = mapped_column(String(30), default="whatsapp")
+    # whatsapp | telegram | ligacao | presencial
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    lead: Mapped["Lead"] = relationship(back_populates="followups")
+
+
+class CrmActivityLog(Base):
+    """Histórico de mudanças de status/kanban por lead."""
+    __tablename__ = "crm_activity_logs"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    lead_id: Mapped[int] = mapped_column(ForeignKey("leads.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    action: Mapped[str] = mapped_column(String(100))
+    # "status_changed", "kanban_moved", "followup_created", "note_added", etc.
+    detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    lead: Mapped["Lead"] = relationship(back_populates="activity_logs")
+
+
+class CrmSettings(Base):
+    """Configurações do CRM por tenant."""
+    __tablename__ = "crm_settings"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), unique=True, index=True)
+    mensagem_inicial: Mapped[str | None] = mapped_column(Text, nullable=True)
+    horario_inicio: Mapped[str] = mapped_column(String(5), default="08:00")
+    horario_fim: Mapped[str] = mapped_column(String(5), default="18:00")
+    hermes_ativo: Mapped[bool] = mapped_column(Boolean, default=True)
+    notificar_followup_telegram: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 

@@ -9,6 +9,7 @@ from app.routes.auth import router as auth_router
 from app.routes.billing import router as billing_router
 from app.routes.chats import router as chats_router
 from app.routes.credits import router as credits_router
+from app.routes.crm import router as crm_router
 from app.routes.health import router as health_router
 from app.routes.leads import router as leads_router
 from app.routes.messages import router as messages_router
@@ -40,6 +41,19 @@ MIGRATIONS = [
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin BOOLEAN NOT NULL DEFAULT FALSE",
     # Promove o primeiro usuário a super admin (idempotente)
     "UPDATE users SET is_super_admin = TRUE WHERE id = (SELECT id FROM users ORDER BY id ASC LIMIT 1) AND is_super_admin = FALSE",
+    # ===== CRM — novos campos em leads =====
+    "ALTER TABLE leads ADD COLUMN IF NOT EXISTS email VARCHAR(255)",
+    "ALTER TABLE leads ADD COLUMN IF NOT EXISTS origem VARCHAR(50) NOT NULL DEFAULT 'manual'",
+    "ALTER TABLE leads ADD COLUMN IF NOT EXISTS responsavel_id INTEGER REFERENCES users(id)",
+    "ALTER TABLE leads ADD COLUMN IF NOT EXISTS observacoes TEXT",
+    "ALTER TABLE leads ADD COLUMN IF NOT EXISTS last_contact_at TIMESTAMPTZ",
+    "ALTER TABLE leads ADD COLUMN IF NOT EXISTS kanban_column_id INTEGER REFERENCES crm_kanban_columns(id)",
+    "ALTER TABLE leads ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()",
+    # ===== CRM — novos campos em tasks =====
+    "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS priority VARCHAR(20) NOT NULL DEFAULT 'normal'",
+    "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS lead_id INTEGER REFERENCES leads(id)",
+    "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assigned_user_id INTEGER REFERENCES users(id)",
+    "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()",
     # ===== Seed de planos default =====
     """INSERT INTO plans (code, name, monthly_credits, price_cents, description, active)
        VALUES ('starter', 'Starter', 1000, 9700, '1.000 mensagens/mês • 1 canal • IA com nicho', true)
@@ -75,3 +89,4 @@ app.include_router(credits_router)
 app.include_router(webhook_router)
 app.include_router(public_router)
 app.include_router(billing_router)
+app.include_router(crm_router)

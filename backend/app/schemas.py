@@ -194,13 +194,43 @@ class SendMessageRequest(BaseModel):
 class LeadCreate(BaseModel):
     name: str
     phone: str | None = None
+    email: str | None = None
     interest: str | None = None
+    origem: str = "manual"
     status: str = "new"
+    responsavel_id: int | None = None
+    observacoes: str | None = None
+    kanban_column_id: int | None = None
 
 
-class LeadOut(LeadCreate):
+class LeadUpdate(BaseModel):
+    name: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    interest: str | None = None
+    origem: str | None = None
+    status: str | None = None
+    responsavel_id: int | None = None
+    observacoes: str | None = None
+    kanban_column_id: int | None = None
+    last_contact_at: datetime | None = None
+
+
+class LeadOut(BaseModel):
     id: int
+    tenant_id: int
+    name: str
+    phone: str | None = None
+    email: str | None = None
+    interest: str | None = None
+    origem: str = "manual"
+    status: str = "new"
+    responsavel_id: int | None = None
+    observacoes: str | None = None
+    kanban_column_id: int | None = None
+    last_contact_at: datetime | None = None
     created_at: datetime
+    updated_at: datetime | None = None
 
     class Config:
         from_attributes = True
@@ -211,14 +241,169 @@ class TaskCreate(BaseModel):
     description: str | None = None
     due_date: datetime | None = None
     status: str = "pending"
+    priority: str = "normal"
+    lead_id: int | None = None
+    assigned_user_id: int | None = None
 
 
-class TaskOut(TaskCreate):
+class TaskUpdate(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    due_date: datetime | None = None
+    status: str | None = None
+    priority: str | None = None
+    lead_id: int | None = None
+    assigned_user_id: int | None = None
+
+
+class TaskOut(BaseModel):
     id: int
+    tenant_id: int
+    title: str
+    description: str | None = None
+    due_date: datetime | None = None
+    status: str = "pending"
+    priority: str = "normal"
+    lead_id: int | None = None
+    assigned_user_id: int | None = None
+    created_at: datetime
+    updated_at: datetime | None = None
+
+    class Config:
+        from_attributes = True
+
+
+# ===== CRM =====
+
+class CrmTagCreate(BaseModel):
+    name: str
+    color: str = "#10b981"
+
+
+class CrmTagOut(BaseModel):
+    id: int
+    tenant_id: int
+    name: str
+    color: str
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class CrmKanbanColumnCreate(BaseModel):
+    name: str
+    color: str = "#6366f1"
+    position: int = 0
+
+
+class CrmKanbanColumnOut(BaseModel):
+    id: int
+    tenant_id: int
+    name: str
+    color: str
+    position: int
+    is_default: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CrmKanbanMoveRequest(BaseModel):
+    lead_id: int
+    column_id: int
+
+
+class CrmFollowupCreate(BaseModel):
+    lead_id: int
+    titulo: str
+    descricao: str | None = None
+    data_hora: datetime
+    canal: str = "whatsapp"
+
+
+class CrmFollowupUpdate(BaseModel):
+    titulo: str | None = None
+    descricao: str | None = None
+    data_hora: datetime | None = None
+    status: str | None = None
+    canal: str | None = None
+
+
+class CrmFollowupOut(BaseModel):
+    id: int
+    tenant_id: int
+    lead_id: int
+    titulo: str
+    descricao: str | None = None
+    data_hora: datetime
+    status: str
+    canal: str
+    created_at: datetime
+    updated_at: datetime | None = None
+
+    class Config:
+        from_attributes = True
+
+
+class CrmActivityLogOut(BaseModel):
+    id: int
+    lead_id: int
+    user_id: int | None = None
+    action: str
+    detail: str | None = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CrmSettingsUpdate(BaseModel):
+    mensagem_inicial: str | None = None
+    horario_inicio: str | None = None
+    horario_fim: str | None = None
+    hermes_ativo: bool | None = None
+    notificar_followup_telegram: bool | None = None
+
+
+class CrmSettingsOut(BaseModel):
+    tenant_id: int
+    mensagem_inicial: str | None = None
+    horario_inicio: str
+    horario_fim: str
+    hermes_ativo: bool
+    notificar_followup_telegram: bool
+    updated_at: datetime | None = None
+
+    class Config:
+        from_attributes = True
+
+
+class CrmDashboardOut(BaseModel):
+    total_leads: int
+    leads_novos: int
+    atendimentos_abertos: int
+    followups_hoje: int
+    conversas_ativas: int
+    fechamentos: int
+    mensagens_usadas_mes: int
+    plano_atual: str
+    creditos_restantes: int
+
+
+class TenantModuleOut(BaseModel):
+    tenant_id: int
+    crm: bool
+    whatsapp: bool
+
+    class Config:
+        from_attributes = True
+
+
+class TenantModuleUpdate(BaseModel):
+    crm: bool | None = None
+    whatsapp: bool | None = None
 
 
 class CreditOut(BaseModel):

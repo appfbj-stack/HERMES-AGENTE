@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import decode_token
-from app.models import Credit, Tenant, User
+from app.models import Credit, Tenant, TenantModule, User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
@@ -36,6 +36,20 @@ def get_current_credit(db: Session = Depends(get_db), tenant: Tenant = Depends(g
     if not credit:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Credits not configured")
     return credit
+
+
+def require_crm(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """Exige que o módulo CRM esteja ativo para o tenant. Retorna o user."""
+    mod = db.query(TenantModule).filter(TenantModule.tenant_id == current_user.tenant_id).first()
+    if not mod or not mod.crm:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Módulo CRM não está ativo neste plano. Fale com o suporte.",
+        )
+    return current_user
 
 
 def get_webhook_tenant_id(x_tenant_id: str | None = Header(default=None), tenant_id: int | None = None) -> int:
