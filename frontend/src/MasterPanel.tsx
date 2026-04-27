@@ -9,6 +9,7 @@ import {
   deleteAdminTenant,
   getAdminTenants,
   getMasterBotInfo,
+  setAdminTenantModules,
   updateAdminTenant,
   type MasterBotInfo,
 } from "./api";
@@ -141,6 +142,7 @@ export default function MasterPanel() {
                   <th className="px-3 py-2">Plano</th>
                   <th className="px-3 py-2">Mensagens</th>
                   <th className="px-3 py-2">Bot</th>
+                  <th className="px-3 py-2">Módulos</th>
                   <th className="px-3 py-2">Status</th>
                   <th className="px-3 py-2">Ações</th>
                 </tr>
@@ -184,6 +186,24 @@ export default function MasterPanel() {
                           <span className="text-slate-400">não config</span>
                         )}
                       </td>
+                      {/* Módulos */}
+                      <td className="px-3 py-3">
+                        <button
+                          onClick={async () => {
+                            await setAdminTenantModules(t.id, { crm: !t.crm_enabled });
+                            load();
+                          }}
+                          title={t.crm_enabled ? "Desativar CRM" : "Ativar CRM"}
+                          className={`flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold uppercase transition ${
+                            t.crm_enabled
+                              ? "bg-violet-100 text-violet-700 hover:bg-violet-200"
+                              : "bg-slate-100 text-slate-400 hover:bg-slate-200"
+                          }`}
+                        >
+                          {t.crm_enabled ? "✓ CRM" : "○ CRM"}
+                        </button>
+                      </td>
+
                       <td className="px-3 py-3">
                         {!t.active ? (
                           <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] uppercase text-red-700">

@@ -3,11 +3,13 @@ import type {
   Chat,
   CreateTenantPayload,
   Credit,
+  CrmDashboard,
   Lead,
   LoginResponse,
   MeResponse,
   Message,
   Task,
+  TenantModule,
 } from "./types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
@@ -119,5 +121,22 @@ export async function addAdminCredits(tenantId: number, amount: number) {
 
 export async function deleteAdminTenant(tenantId: number) {
   return request<void>(`/admin/tenants/${tenantId}`, { method: "DELETE" });
+}
+
+export async function setAdminTenantModules(tenantId: number, modules: Partial<TenantModule>) {
+  return request<AdminTenant>(`/admin/tenants/${tenantId}/modules`, {
+    method: "PATCH",
+    body: JSON.stringify(modules),
+  });
+}
+
+// ========== CRM ==========
+
+export async function getCrmModules() {
+  return request<TenantModule>("/crm/modules");
+}
+
+export async function getCrmDashboard() {
+  return request<CrmDashboard>("/crm/dashboard");
 }
 

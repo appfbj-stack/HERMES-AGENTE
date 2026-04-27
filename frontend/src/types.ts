@@ -84,6 +84,25 @@ export type AdminTenant = {
   credits_total: number;
   credits_used: number;
   credits_remaining: number;
+  crm_enabled: boolean;
+};
+
+export type TenantModule = {
+  tenant_id: number;
+  crm: boolean;
+  whatsapp: boolean;
+};
+
+export type CrmDashboard = {
+  total_leads: number;
+  leads_novos: number;
+  atendimentos_abertos: number;
+  followups_hoje: number;
+  conversas_ativas: number;
+  fechamentos: number;
+  mensagens_usadas_mes: number;
+  plano_atual: string;
+  creditos_restantes: number;
 };
 
 export type CreateTenantPayload = {

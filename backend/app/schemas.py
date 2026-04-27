@@ -59,6 +59,7 @@ class TenantAdminOut(TenantOut):
     credits_total: int = 0
     credits_used: int = 0
     credits_remaining: int = 0
+    crm_enabled: bool = False
 
     class Config:
         from_attributes = True

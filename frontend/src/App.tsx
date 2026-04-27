@@ -1,9 +1,9 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import { getChats, getCredits, getLeads, getMessages, getTasks, login, me, sendMessage, toggleAi } from "./api";
+import { getCrmDashboard, getCrmModules, getChats, getCredits, getLeads, getMessages, getTasks, login, me, sendMessage, toggleAi } from "./api";
 import MasterPanel from "./MasterPanel";
 import PublicChat from "./PublicChat";
-import type { Chat, Credit, Lead, MeResponse, Message, Task } from "./types";
+import type { Chat, Credit, CrmDashboard, Lead, MeResponse, Message, Task, TenantModule } from "./types";
 
 function currencyCredits(credits?: Credit) {
   if (!credits) return "--";
@@ -13,10 +13,12 @@ function currencyCredits(credits?: Credit) {
 function Layout({
   profile,
   credits,
+  modules,
   children,
 }: {
   profile: MeResponse;
   credits?: Credit;
+  modules?: TenantModule | null;
   children: React.ReactNode;
 }) {
   const location = useLocation();
@@ -25,6 +27,7 @@ function Layout({
   const baseNav = [
     { label: "Dashboard", path: "/dashboard" },
     { label: "Chat", path: "/chat" },
+    ...(modules?.crm ? [{ label: "🗂 CRM", path: "/crm" }] : []),
     { label: "Leads", path: "/leads" },
     { label: "Tarefas", path: "/tasks" },
     { label: "Mensagens", path: "/credits" },
@@ -645,6 +648,110 @@ function SettingsPage({ profile }: { profile: MeResponse }) {
   );
 }
 
+function CrmPage({ modules }: { modules?: TenantModule | null }) {
+  const navigate = useNavigate();
+  const [data, setData] = useState<CrmDashboard | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getCrmDashboard()
+      .then(setData)
+      .catch(() => setData(null))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (!modules?.crm) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
+        <div className="text-5xl">🔒</div>
+        <h2 className="font-serif text-2xl text-ink">CRM não ativado</h2>
+        <p className="max-w-sm text-sm text-slate-500">
+          O módulo CRM não está ativo no seu plano. Entre em contato com o suporte para ativar.
+        </p>
+      </div>
+    );
+  }
+
+  const stats = data
+    ? [
+        { label: "Total de Leads", value: data.total_leads, color: "bg-violet-600" },
+        { label: "Leads Novos", value: data.leads_novos, color: "bg-blue-500" },
+        { label: "Atendimentos Abertos", value: data.atendimentos_abertos, color: "bg-amber-500" },
+        { label: "Follow-ups Hoje", value: data.followups_hoje, color: "bg-rose-500" },
+        { label: "Conversas Ativas", value: data.conversas_ativas, color: "bg-emerald-600" },
+        { label: "Fechamentos", value: data.fechamentos, color: "bg-teal-600" },
+        { label: "Msgs Usadas (mês)", value: data.mensagens_usadas_mes.toLocaleString("pt-BR"), color: "bg-slate-600" },
+        { label: "Créditos Restantes", value: data.creditos_restantes.toLocaleString("pt-BR"), color: "bg-ink" },
+      ]
+    : [];
+
+  const quickLinks = [
+    { label: "👥 Leads", path: "/leads", desc: "Gerenciar e filtrar leads" },
+    { label: "✅ Tarefas", path: "/tasks", desc: "Tarefas por prioridade e lead" },
+    { label: "💬 Conversas", path: "/chat", desc: "Atendimento híbrido IA + humano" },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="font-serif text-3xl text-ink">CRM</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Plano: <span className="font-medium capitalize">{data?.plano_atual ?? "..."}</span>
+          </p>
+        </div>
+      </div>
+
+      {/* Stats */}
+      {loading ? (
+        <div className="py-10 text-center text-slate-400">Carregando métricas...</div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {stats.map((s) => (
+            <div key={s.label} className="overflow-hidden rounded-2xl bg-white shadow-soft">
+              <div className={`h-1 w-full ${s.color}`} />
+              <div className="p-4">
+                <div className="text-xs uppercase tracking-wide text-slate-500">{s.label}</div>
+                <div className="mt-2 text-2xl font-semibold text-ink">{s.value}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Acesso rápido */}
+      <div className="rounded-[28px] bg-white p-6 shadow-soft">
+        <h2 className="font-serif text-xl text-ink">Acesso rápido</h2>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          {quickLinks.map((l) => (
+            <button
+              key={l.path}
+              onClick={() => navigate(l.path)}
+              className="rounded-2xl border-2 border-slate-100 p-4 text-left transition hover:border-violet-400 hover:bg-violet-50"
+            >
+              <div className="text-base font-semibold text-ink">{l.label}</div>
+              <div className="mt-1 text-xs text-slate-500">{l.desc}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Em breve */}
+      <div className="rounded-[28px] border-2 border-dashed border-violet-200 bg-violet-50 p-6">
+        <div className="text-sm font-semibold text-violet-800">🚀 Em breve neste módulo</div>
+        <ul className="mt-2 grid grid-cols-2 gap-1 text-xs text-violet-700 md:grid-cols-3">
+          {["Kanban visual (arrasta e solta)", "Follow-up com lembretes", "Tags por lead", "Histórico de atividades", "Configurações do CRM", "Conexão WhatsApp"].map((item) => (
+            <li key={item} className="flex items-center gap-1">
+              <span className="text-violet-400">○</span> {item}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 function ProtectedApp() {
   const [profile, setProfile] = useState<MeResponse | null>(null);
   const [chats, setChats] = useState<Chat[]>([]);
@@ -653,15 +760,17 @@ function ProtectedApp() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [credits, setCredits] = useState<Credit>();
+  const [modules, setModules] = useState<TenantModule | null>(null);
 
   useEffect(() => {
-    Promise.all([me(), getChats(), getLeads(), getTasks(), getCredits()])
-      .then(([profileData, chatsData, leadsData, tasksData, creditsData]) => {
+    Promise.all([me(), getChats(), getLeads(), getTasks(), getCredits(), getCrmModules().catch(() => null)])
+      .then(([profileData, chatsData, leadsData, tasksData, creditsData, modulesData]) => {
         setProfile(profileData);
         setChats(chatsData);
         setLeads(leadsData);
         setTasks(tasksData);
         setCredits(creditsData);
+        setModules(modulesData as TenantModule | null);
         if (chatsData.length > 0) {
           setSelectedChatId(chatsData[0].id);
         }
@@ -689,7 +798,7 @@ function ProtectedApp() {
   const selectedChat = chats.find((item) => item.id === selectedChatId);
 
   return (
-    <Layout profile={profile} credits={credits}>
+    <Layout profile={profile} credits={credits} modules={modules}>
       <Routes>
         <Route path="/dashboard" element={<DashboardPage chats={chats} credits={credits} leads={leads} tasks={tasks} />} />
         <Route
@@ -717,6 +826,7 @@ function ProtectedApp() {
             />
           }
         />
+        <Route path="/crm" element={<CrmPage modules={modules} />} />
         <Route path="/leads" element={<TablePage title="Leads" rows={leads} render={(row) => [row.name, row.phone || "-", row.interest || "-", row.status]} />} />
         <Route path="/tasks" element={<TablePage title="Tarefas" rows={tasks} render={(row) => [row.title, row.description || "-", row.status, row.due_date || "-"]} />} />
         <Route path="/credits" element={<CreditsPage credits={credits} />} />

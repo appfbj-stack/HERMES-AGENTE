@@ -9,11 +9,12 @@ from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import get_password_hash
 from app.deps import get_current_user
-from app.models import Credit, Tenant, User
+from app.models import Credit, Tenant, TenantModule, User
 from app.schemas import (
     CreditsAddRequest,
     TenantAdminOut,
     TenantCreateAdmin,
+    TenantModuleUpdate,
     TenantUpdateAdmin,
 )
 
@@ -45,6 +46,7 @@ def _require_super_admin(user: User = Depends(get_current_user)) -> User:
 
 def _to_admin_out(db: Session, tenant: Tenant) -> dict:
     credit = db.query(Credit).filter(Credit.tenant_id == tenant.id).first()
+    mod = db.query(TenantModule).filter(TenantModule.tenant_id == tenant.id).first()
     return {
         "id": tenant.id,
         "name": tenant.name,
@@ -59,6 +61,7 @@ def _to_admin_out(db: Session, tenant: Tenant) -> dict:
         "credits_total": credit.total if credit else 0,
         "credits_used": credit.used if credit else 0,
         "credits_remaining": credit.remaining if credit else 0,
+        "crm_enabled": mod.crm if mod else False,
     }
 
 
@@ -156,6 +159,31 @@ def add_credits(
         db.flush()
     credit.total += payload.amount
     credit.remaining += payload.amount
+    db.commit()
+    db.refresh(tenant)
+    return _to_admin_out(db, tenant)
+
+
+@router.patch("/tenants/{tenant_id}/modules", response_model=TenantAdminOut)
+def set_tenant_modules(
+    tenant_id: int,
+    payload: TenantModuleUpdate,
+    _: User = Depends(_require_super_admin),
+    db: Session = Depends(get_db),
+):
+    """Ativa/desativa módulos (CRM, WhatsApp...) por tenant."""
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404)
+
+    mod = db.query(TenantModule).filter(TenantModule.tenant_id == tenant_id).first()
+    if not mod:
+        mod = TenantModule(tenant_id=tenant_id)
+        db.add(mod)
+
+    for k, v in payload.model_dump(exclude_unset=True).items():
+        setattr(mod, k, v)
+
     db.commit()
     db.refresh(tenant)
     return _to_admin_out(db, tenant)
