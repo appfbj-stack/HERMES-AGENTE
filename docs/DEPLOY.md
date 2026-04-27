@@ -12,6 +12,10 @@
    - backend na porta `8000` se quiser acesso direto à API
 5. Configure o webhook do Telegram usando o domínio público do backend
 
+Por padrão, o frontend já encaminha `/api/*` para o serviço `backend:8000` via `nginx`.
+Se frontend e backend ficarem no mesmo domínio, mantenha `VITE_API_BASE_URL=/api`.
+Use uma URL absoluta apenas quando o frontend for buildado para consumir uma API em outro domínio.
+
 Exemplo:
 
 ```text

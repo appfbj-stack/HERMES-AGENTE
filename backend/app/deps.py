@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import decode_token
 from app.models import Credit, Tenant, TenantModule, User
+from app.services.crm import ensure_crm_defaults, get_or_create_tenant_module
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
@@ -38,17 +39,41 @@ def get_current_credit(db: Session = Depends(get_db), tenant: Tenant = Depends(g
     return credit
 
 
-def require_crm(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> User:
-    """Exige que o módulo CRM esteja ativo para o tenant. Retorna o user."""
-    mod = db.query(TenantModule).filter(TenantModule.tenant_id == current_user.tenant_id).first()
-    if not mod or not mod.crm:
+def get_current_modules(db: Session = Depends(get_db), tenant: Tenant = Depends(get_current_tenant)) -> TenantModule:
+    module = get_or_create_tenant_module(db, tenant.id)
+    db.flush()
+    return module
+
+
+def require_crm_module(modules: TenantModule = Depends(get_current_modules)) -> TenantModule:
+    if not modules.crm:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Módulo CRM não está ativo neste plano. Fale com o suporte.",
         )
+    return modules
+
+
+def ensure_crm_ready(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_current_tenant),
+    modules: TenantModule = Depends(require_crm_module),
+) -> TenantModule:
+    ensure_crm_defaults(db, tenant.id)
+    db.flush()
+    return modules
+
+
+def require_crm(
+    _: TenantModule = Depends(ensure_crm_ready),
+    current_user: User = Depends(get_current_user),
+) -> User:
+    return current_user
+
+
+def require_master_user(current_user: User = Depends(get_current_user)) -> User:
+    if not current_user.is_super_admin and current_user.role != "master":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Master access required")
     return current_user
 
 
@@ -57,4 +82,3 @@ def get_webhook_tenant_id(x_tenant_id: str | None = Header(default=None), tenant
     if not resolved:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="tenant_id is required")
     return resolved
-

@@ -17,6 +17,7 @@ from app.schemas import (
     TenantModuleUpdate,
     TenantUpdateAdmin,
 )
+from app.services.crm import ensure_crm_defaults
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -165,6 +166,7 @@ def add_credits(
 
 
 @router.patch("/tenants/{tenant_id}/modules", response_model=TenantAdminOut)
+@router.put("/tenants/{tenant_id}/modules", response_model=TenantAdminOut)
 def set_tenant_modules(
     tenant_id: int,
     payload: TenantModuleUpdate,
@@ -183,6 +185,8 @@ def set_tenant_modules(
 
     for k, v in payload.model_dump(exclude_unset=True).items():
         setattr(mod, k, v)
+    if mod.crm:
+        ensure_crm_defaults(db, tenant_id)
 
     db.commit()
     db.refresh(tenant)

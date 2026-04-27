@@ -16,25 +16,25 @@ class Settings(BaseSettings):
     deepseek_api_key: str = ""
     deepseek_model: str = "deepseek-chat"
     deepseek_base_url: str = "https://api.deepseek.com"
-    telegram_bot_token: str = ""  # legado (compatibilidade)
-    hermes_master_bot_token: str = ""  # bot mestre que atende TODOS os tenants
-    hermes_master_bot_username: str = ""  # ex: hermes_atende_bot (sem @)
+    telegram_bot_token: str = ""
+    hermes_master_bot_token: str = ""
+    hermes_master_bot_username: str = ""
     public_panel_url: str = "https://meuchat.fbautomacao.space"
+    evolution_api_base_url: str = ""
+    evolution_api_key: str = ""
+    evolution_api_key_header: str = "apikey"
     redis_url: str = ""
 
-    # ===== LIMITES DE TOKENS / ANTI-PREJUÍZO =====
     max_input_chars: int = 800
     max_output_tokens: int = 500
     max_context_messages: int = 12
     max_context_chars_per_message: int = 600
 
-    # ===== ASAAS (cobrança) =====
     asaas_api_key: str = ""
-    # Sandbox: https://sandbox.asaas.com/api/v3
-    # Produção: https://api.asaas.com/v3
     asaas_api_url: str = "https://sandbox.asaas.com/api/v3"
-    asaas_webhook_token: str = ""  # token secreto enviado nos webhooks (opcional)
-    asaas_overdue_grace_days: int = 7  # dias de tolerância antes de bloquear
+    asaas_webhook_token: str = ""
+    asaas_overdue_grace_days: int = 7
+
     access_token_expire_minutes: int = 1440
     bootstrap_token: str = "hermes-bootstrap"
     cors_origins: list[str] = Field(

@@ -22,74 +22,231 @@ export type Message = {
 
 export type Lead = {
   id: number;
+  tenant_id?: number;
+  name: string;
+  phone: string | null;
+  email?: string | null;
+  interest: string | null;
+  origem?: string;
+  status: string;
+  observacoes?: string | null;
+  kanban_column_id?: number | null;
+  created_at: string;
+};
+
+export type CrmTag = {
+  id: number;
+  name: string;
+  color: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CrmLead = {
+  id: number;
   tenant_id: number;
   name: string;
   phone: string | null;
   email: string | null;
-  interest: string | null;
-  origem: string;
+  origin: string;
   status: string;
-  responsavel_id: number | null;
-  observacoes: string | null;
-  kanban_column_id: number | null;
+  responsible_user_id: number | null;
+  notes: string | null;
   last_contact_at: string | null;
   created_at: string;
-  updated_at: string | null;
+  updated_at: string;
+  tags: CrmTag[];
 };
 
-export type Task = {
+export type CrmConversation = {
+  id: number;
+  lead_id: number | null;
+  chat_id: number | null;
+  channel: string;
+  external_id: string;
+  contact_name: string | null;
+  contact_phone: string | null;
+  status: string;
+  ai_enabled: boolean;
+  assigned_user_id: number | null;
+  last_message: string | null;
+  last_message_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CrmMessage = {
+  id: number;
+  conversation_id: number;
+  legacy_message_id: number | null;
+  sender_type: string;
+  channel: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CrmActivityLog = {
   id: number;
   tenant_id: number;
-  title: string;
-  description: string | null;
-  due_date: string | null;
-  status: string;
-  priority: string;
   lead_id: number | null;
-  assigned_user_id: number | null;
+  conversation_id: number | null;
+  action: string;
+  description: string | null;
+  metadata_json: string | null;
   created_at: string;
-  updated_at: string | null;
+  updated_at: string;
 };
 
 export type CrmKanbanColumn = {
   id: number;
-  tenant_id: number;
   name: string;
-  color: string;
   position: number;
+  color: string;
   is_default: boolean;
   created_at: string;
+  updated_at: string;
+};
+
+export type CrmKanbanCard = {
+  lead: CrmLead;
+  conversation: CrmConversation | null;
+};
+
+export type CrmKanbanBoard = {
+  columns: CrmKanbanColumn[];
+  cards: Record<string, CrmKanbanCard[]>;
 };
 
 export type CrmFollowup = {
   id: number;
   tenant_id: number;
   lead_id: number;
-  titulo: string;
-  descricao: string | null;
-  data_hora: string;
+  title: string;
+  titulo?: string;
+  description: string | null;
+  descricao?: string | null;
+  due_at: string;
+  data_hora?: string;
   status: string;
-  canal: string;
+  channel: string;
+  canal?: string;
+  responsible_user_id: number | null;
   created_at: string;
-  updated_at: string | null;
+  updated_at: string;
 };
 
-export type CrmTag = {
+export type CrmTask = {
   id: number;
   tenant_id: number;
-  name: string;
-  color: string;
+  title: string;
+  description: string | null;
+  responsible_user_id: number | null;
+  due_at: string | null;
+  status: string;
+  priority: string;
+  lead_id: number | null;
   created_at: string;
+  updated_at: string;
+};
+
+export type CrmDashboard = {
+  total_leads: number;
+  new_leads: number;
+  open_conversations: number;
+  today_followups: number;
+  active_conversations: number;
+  closed_won: number;
+  messages_used_month: number;
+  current_plan: string;
 };
 
 export type CrmSettings = {
+  id: number;
   tenant_id: number;
-  mensagem_inicial: string | null;
-  horario_inicio: string;
-  horario_fim: string;
-  hermes_ativo: boolean;
-  notificar_followup_telegram: boolean;
-  updated_at: string | null;
+  status_options: string[];
+  tags: string[];
+  initial_auto_message: string | null;
+  mensagem_inicial?: string | null;
+  business_hours: Record<string, unknown>;
+  hermes_enabled: boolean;
+  horario_inicio?: string;
+  horario_fim?: string;
+  hermes_ativo?: boolean;
+  notificar_followup_telegram?: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CrmWhatsAppConnection = {
+  id: number;
+  tenant_id: number;
+  provider: string;
+  instance_name: string;
+  api_base_url: string | null;
+  webhook_url: string | null;
+  status: string;
+  connected_phone: string | null;
+  qr_code_base64: string | null;
+  last_error: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CrmWhatsAppStatus = {
+  status: string;
+  connected_phone: string | null;
+  qr_code_base64: string | null;
+  raw: Record<string, unknown> | unknown[] | null;
+};
+
+export type AdminTenant = {
+  id: number;
+  name: string;
+  email: string;
+  plan: string;
+  active: boolean;
+  niche?: string | null;
+  system_prompt?: string | null;
+  telegram_bot_token?: string | null;
+  telegram_bot_username?: string | null;
+  created_at: string;
+  credits_total?: number;
+  credits_used?: number;
+  credits_remaining?: number;
+  crm_enabled: boolean;
+};
+
+export type CreateTenantPayload = {
+  name: string;
+  email: string;
+  plan: string;
+  niche: string | null;
+  system_prompt: string | null;
+  telegram_bot_token: string | null;
+  telegram_bot_username: string | null;
+  credits: number;
+  user_name: string;
+  user_email: string;
+  user_password: string;
+};
+
+export type NicheTemplate = {
+  id: string;
+  label: string;
+  emoji: string;
+  defaultPlan: "starter" | "pro" | "enterprise";
+  defaultCredits: number;
+  systemPrompt: string;
+};
+
+export type Task = {
+  id: number;
+  title: string;
+  description: string | null;
+  due_date: string | null;
+  status: string;
+  created_at: string;
 };
 
 export type Credit = {
@@ -118,67 +275,9 @@ export type MeResponse = {
     email: string;
     plan: string;
     active: boolean;
-    niche: string | null;
-    system_prompt: string | null;
-    telegram_bot_username: string | null;
+  };
+  modules: {
+    crm: boolean;
+    whatsapp?: boolean;
   };
 };
-
-export type AdminTenant = {
-  id: number;
-  name: string;
-  email: string;
-  plan: string;
-  active: boolean;
-  niche: string | null;
-  system_prompt: string | null;
-  telegram_bot_token: string | null;
-  telegram_bot_username: string | null;
-  created_at: string;
-  credits_total: number;
-  credits_used: number;
-  credits_remaining: number;
-  crm_enabled: boolean;
-};
-
-export type TenantModule = {
-  tenant_id: number;
-  crm: boolean;
-  whatsapp: boolean;
-};
-
-export type CrmDashboard = {
-  total_leads: number;
-  leads_novos: number;
-  atendimentos_abertos: number;
-  followups_hoje: number;
-  conversas_ativas: number;
-  fechamentos: number;
-  mensagens_usadas_mes: number;
-  plano_atual: string;
-  creditos_restantes: number;
-};
-
-export type CreateTenantPayload = {
-  name: string;
-  email: string;
-  plan: string;
-  niche: string | null;
-  system_prompt: string | null;
-  telegram_bot_token: string | null;
-  telegram_bot_username: string | null;
-  credits: number;
-  user_name: string;
-  user_email: string;
-  user_password: string;
-};
-
-export type NicheTemplate = {
-  id: string;
-  label: string;
-  emoji: string;
-  defaultPlan: "starter" | "pro" | "enterprise";
-  defaultCredits: number;
-  systemPrompt: string;
-};
-

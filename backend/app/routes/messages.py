@@ -3,8 +3,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.core.database import get_db
 from app.deps import get_current_credit, get_current_user
-from app.models import Chat, Message, UsageLog, User
+from app.models import Chat, CrmSetting, Message, TenantModule, UsageLog, User
 from app.schemas import MessageOut, SendMessageRequest
+from app.services.crm import ensure_crm_conversation, ensure_crm_defaults, ensure_crm_lead, sync_crm_message
 from app.services.telegram import send_telegram_message
 
 router = APIRouter(prefix="/messages", tags=["messages"])
@@ -46,9 +47,21 @@ async def send_message(
     credit.remaining -= 1
     db.flush()
     db.add(UsageLog(tenant_id=current_user.tenant_id, message_id=message.id, tokens_used=0))
+    module = db.query(TenantModule).filter(TenantModule.tenant_id == current_user.tenant_id).first()
+    if module and module.crm:
+        ensure_crm_defaults(db, current_user.tenant_id)
+        crm_settings = db.query(CrmSetting).filter(CrmSetting.tenant_id == current_user.tenant_id).first()
+        crm_lead = ensure_crm_lead(
+            db,
+            current_user.tenant_id,
+            name=chat.contact_name or f"Contato {chat.chat_external_id}",
+            phone=chat.contact_phone,
+            origin=chat.channel,
+        )
+        crm_conversation = ensure_crm_conversation(db, current_user.tenant_id, chat, crm_lead)
+        sync_crm_message(db, current_user.tenant_id, crm_conversation, message, chat.channel)
     db.commit()
     db.refresh(message)
 
     await send_telegram_message(chat.chat_external_id, payload.content)
     return message
-

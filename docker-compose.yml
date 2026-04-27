@@ -27,6 +27,9 @@ services:
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://openrouter.ai/api/v1}
       DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek/deepseek-chat}
+      EVOLUTION_API_BASE_URL: ${EVOLUTION_API_BASE_URL:-}
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-}
+      EVOLUTION_API_KEY_HEADER: ${EVOLUTION_API_KEY_HEADER:-apikey}
       HERMES_AGENT_URL: ${HERMES_AGENT_URL:-https://apihermes.fbautomacao.space}
       HERMES_AGENT_PATH: ${HERMES_AGENT_PATH:-/chat}
       HERMES_AGENT_API_KEY: ${HERMES_AGENT_API_KEY:-}
@@ -65,7 +68,7 @@ services:
     build:
       context: ./frontend
       args:
-        VITE_API_BASE_URL: https://api.meuchat.fbautomacao.space
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-https://api.meuchat.fbautomacao.space}
     depends_on:
       - backend
     expose:

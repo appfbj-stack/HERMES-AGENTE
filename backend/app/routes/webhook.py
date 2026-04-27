@@ -1,18 +1,5 @@
 """
-Webhook do Telegram — multi-tenant.
-
-Identificação do tenant em ordem de prioridade:
-  1. /start tenant_X  → primeiro contato do cliente final, salva associação
-  2. Chat já existente → usa o tenant que já estava associado
-  3. Token do bot → tenant que tem aquele token (bot dedicado, premium)
-  4. Fallback: tenant_id passado por query (compatibilidade legada)
-
-Fluxo CRM (quando módulo CRM ativo no tenant):
-  1. Busca lead pelo telefone → cria se não existir
-  2. Vincula chat.lead_id ao lead
-  3. Injeta contexto CRM no system prompt do Hermes
-  4. Após reply, extrai e executa [[CRM:...]] do texto
-  5. Envia reply limpo (sem comandos) ao cliente
+Webhook do Telegram e WhatsApp (Evolution Go) com suporte multi-tenant.
 """
 import re
 from datetime import datetime, timezone
@@ -22,21 +9,22 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.database import get_db
-from app.models import Chat, Credit, Message, Tenant, UsageLog
+from app.models import Chat, Credit, CrmSetting, CrmWhatsAppConnection, Message, Tenant, TenantModule, UsageLog
 from app.services.agent import build_context, maybe_create_task
+from app.services.crm import ensure_crm_conversation, ensure_crm_defaults, ensure_crm_lead, sync_crm_message
 from app.services.crm_agent import get_or_create_lead_from_chat, parse_and_execute_crm_commands
 from app.services.deepseek import generate_reply
 from app.services.telegram import send_telegram_message
+from app.services.whatsapp_provider import WhatsAppProviderError, get_provider
 
 router = APIRouter(prefix="/webhook", tags=["webhook"])
 
 
 def _extract_start_tenant(text: str) -> int | None:
-    """Extrai tenant_id de '/start tenant_15' ou '/start 15'."""
     if not text:
         return None
-    m = re.match(r"^/start\s+(?:tenant_)?(\d+)$", text.strip(), flags=re.IGNORECASE)
-    return int(m.group(1)) if m else None
+    match = re.match(r"^/start\s+(?:tenant_)?(\d+)$", text.strip(), flags=re.IGNORECASE)
+    return int(match.group(1)) if match else None
 
 
 def _resolve_tenant_id(
@@ -47,32 +35,57 @@ def _resolve_tenant_id(
     bot_token_received: str | None,
     fallback_query: int | None,
 ) -> int | None:
-    # 1) /start tenant_X — primeiro contato
     start_tenant = _extract_start_tenant(inbound_text)
-    if start_tenant:
-        if db.query(Tenant).filter(Tenant.id == start_tenant, Tenant.active == True).first():
-            return start_tenant
+    if start_tenant and db.query(Tenant).filter(Tenant.id == start_tenant, Tenant.active.is_(True)).first():
+        return start_tenant
 
-    # 2) Chat já existente neste channel
-    existing = (
-        db.query(Chat)
-        .filter(Chat.channel == "telegram", Chat.chat_external_id == chat_external_id)
-        .first()
-    )
+    existing = db.query(Chat).filter(Chat.channel == "telegram", Chat.chat_external_id == chat_external_id).first()
     if existing:
         return existing.tenant_id
 
-    # 3) Bot dedicado: token bate com algum tenant
     if bot_token_received:
-        t = db.query(Tenant).filter(Tenant.telegram_bot_token == bot_token_received).first()
-        if t:
-            return t.id
+        tenant = db.query(Tenant).filter(Tenant.telegram_bot_token == bot_token_received).first()
+        if tenant:
+            return tenant.id
 
-    # 4) Query param (compatibilidade)
-    if fallback_query:
-        if db.query(Tenant).filter(Tenant.id == fallback_query).first():
-            return fallback_query
+    if fallback_query and db.query(Tenant).filter(Tenant.id == fallback_query).first():
+        return fallback_query
+    return None
 
+
+def _extract_evolution_text(message_data: dict) -> str | None:
+    if not isinstance(message_data, dict):
+        return None
+    if isinstance(message_data.get("conversation"), str):
+        return message_data["conversation"].strip()
+    extended = message_data.get("extendedTextMessage")
+    if isinstance(extended, dict) and isinstance(extended.get("text"), str):
+        return extended["text"].strip()
+    for key in ("imageMessage", "videoMessage", "documentMessage"):
+        item = message_data.get(key)
+        if isinstance(item, dict) and isinstance(item.get("caption"), str):
+            return item["caption"].strip()
+    return None
+
+
+def _normalize_whatsapp_number(raw: str | None) -> str | None:
+    if not raw:
+        return None
+    cleaned = str(raw).split("@")[0].strip()
+    return cleaned or None
+
+
+def _extract_evolution_instance_name(payload: dict) -> str | None:
+    for key in ("instanceName", "instance", "instance_name"):
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    instance_data = payload.get("instance")
+    if isinstance(instance_data, dict):
+        for key in ("instanceName", "name", "instance"):
+            value = instance_data.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
     return None
 
 
@@ -83,14 +96,6 @@ async def telegram_webhook(
     bot_token: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ):
-    """
-    Recebe atualizações do Telegram.
-
-    Aceita 3 formatos de URL (todos seguros):
-      - /webhook/telegram                     (bot mestre, identifica via /start ou chat existente)
-      - /webhook/telegram?tenant_id=X         (compatibilidade legada)
-      - /webhook/telegram?bot_token=XXX       (bot dedicado por tenant)
-    """
     message_data = payload.get("message") or payload.get("edited_message")
     if not message_data:
         return {"status": "ignored", "reason": "no_message"}
@@ -103,14 +108,11 @@ async def telegram_webhook(
     contact_name = message_data.get("from", {}).get("first_name") or message_data["chat"].get("title")
     contact_phone = str(message_data.get("from", {}).get("id"))
 
-    # 🛡️ PROTEÇÃO ANTI-PREJUÍZO: rejeita mensagem absurdamente longa
     settings_cfg = get_settings()
     if len(text) > settings_cfg.max_input_chars:
         await send_telegram_message(
             chat_external_id,
-            f"⚠️ Sua mensagem é muito longa ({len(text)} caracteres). "
-            f"Por favor, encurte para até {settings_cfg.max_input_chars} caracteres "
-            f"e envie novamente. 🙏",
+            f"⚠️ Sua mensagem é muito longa ({len(text)} caracteres). Por favor, encurte para até {settings_cfg.max_input_chars} caracteres.",
         )
         return {"status": "rejected", "reason": "input_too_long", "len": len(text)}
 
@@ -122,30 +124,13 @@ async def telegram_webhook(
         fallback_query=tenant_id,
     )
     if not resolved_tenant_id:
-        settings = get_settings()
-        if settings.hermes_master_bot_token:
-            await send_telegram_message(
-                chat_external_id,
-                "👋 Olá! Para usar este atendimento, abra o link/QR Code que a empresa te enviou.",
-            )
+        if settings_cfg.hermes_master_bot_token:
+            await send_telegram_message(chat_external_id, "👋 Olá! Para usar este atendimento, abra o link/QR Code que a empresa te enviou.")
         return {"status": "no_tenant"}
 
-    # Se foi /start tenant_X, normaliza pra mensagem inicial
-    if _extract_start_tenant(text):
-        inbound_text = "/start"
-    else:
-        inbound_text = text
+    inbound_text = "/start" if _extract_start_tenant(text) else text
 
-    # ─── Chat: busca ou cria ──────────────────────────────────────────────────
-    chat = (
-        db.query(Chat)
-        .filter(
-            Chat.tenant_id == resolved_tenant_id,
-            Chat.channel == "telegram",
-            Chat.chat_external_id == chat_external_id,
-        )
-        .first()
-    )
+    chat = db.query(Chat).filter(Chat.tenant_id == resolved_tenant_id, Chat.channel == "telegram", Chat.chat_external_id == chat_external_id).first()
     if not chat:
         chat = Chat(
             tenant_id=resolved_tenant_id,
@@ -158,12 +143,7 @@ async def telegram_webhook(
         db.add(chat)
         db.flush()
 
-    inbound_message = Message(
-        tenant_id=resolved_tenant_id,
-        chat_id=chat.id,
-        sender_type="user",
-        content=inbound_text,
-    )
+    inbound_message = Message(tenant_id=resolved_tenant_id, chat_id=chat.id, sender_type="user", content=inbound_text)
     chat.contact_name = contact_name or chat.contact_name
     chat.contact_phone = contact_phone or chat.contact_phone
     chat.last_message = inbound_text
@@ -171,63 +151,171 @@ async def telegram_webhook(
     db.add(inbound_message)
     db.flush()
 
-    # ─── CRM: busca/cria lead e vincula ao chat ───────────────────────────────
     lead = get_or_create_lead_from_chat(db, resolved_tenant_id, chat, inbound_text)
-
-    # Tarefa automática (keywords como "ligar", "orçamento") — legado mantido
     maybe_create_task(db, resolved_tenant_id, inbound_text)
 
-    # ─── Crédito: verifica antes de chamar a IA ───────────────────────────────
+    module = db.query(TenantModule).filter(TenantModule.tenant_id == resolved_tenant_id).first()
+    crm_conversation = None
+    crm_lead = None
+    if module and module.crm:
+        ensure_crm_defaults(db, resolved_tenant_id)
+        crm_lead = ensure_crm_lead(
+            db,
+            resolved_tenant_id,
+            name=chat.contact_name or f"Contato {chat.chat_external_id}",
+            phone=chat.contact_phone,
+            origin=chat.channel,
+            notes=inbound_text[:500],
+        )
+        crm_conversation = ensure_crm_conversation(db, resolved_tenant_id, chat, crm_lead)
+        sync_crm_message(db, resolved_tenant_id, crm_conversation, inbound_message, chat.channel)
+
     credit = db.query(Credit).filter(Credit.tenant_id == resolved_tenant_id).first()
     if not credit:
         db.commit()
         return {"status": "no_credit_record"}
     if credit.remaining <= 0:
         db.commit()
-        await send_telegram_message(
-            chat.chat_external_id,
-            "⚠️ Atendimento temporariamente indisponível. Tente novamente em breve.",
-            tenant_id=resolved_tenant_id,
-            db=db,
-        )
+        await send_telegram_message(chat.chat_external_id, "⚠️ Atendimento temporariamente indisponível. Tente novamente em breve.", tenant_id=resolved_tenant_id, db=db)
         return {"status": "blocked", "reason": "no_credits"}
     if chat.ai_paused:
         db.commit()
         return {"status": "paused"}
+    if module and module.crm:
+        crm_settings = db.query(CrmSetting).filter(CrmSetting.tenant_id == resolved_tenant_id).first()
+        if crm_settings and not crm_settings.hermes_enabled:
+            db.commit()
+            return {"status": "crm_hermes_disabled"}
 
-    # ─── Hermes: gera resposta com contexto CRM ───────────────────────────────
     context = build_context(db, resolved_tenant_id, chat, lead=lead)
     reply_text, tokens_used = await generate_reply(context)
-
-    # ─── CRM: executa comandos [[CRM:...]] e limpa o texto ───────────────────
     clean_reply = parse_and_execute_crm_commands(db, resolved_tenant_id, lead, reply_text)
 
-    # ─── Salva resposta e debita crédito ─────────────────────────────────────
-    outbound_message = Message(
-        tenant_id=resolved_tenant_id,
-        chat_id=chat.id,
-        sender_type="assistant",
-        content=clean_reply,
-    )
+    outbound_message = Message(tenant_id=resolved_tenant_id, chat_id=chat.id, sender_type="assistant", content=clean_reply)
     chat.last_message = clean_reply
     chat.last_message_at = datetime.now(timezone.utc)
     db.add(outbound_message)
     db.flush()
 
+    if crm_conversation:
+        sync_crm_message(db, resolved_tenant_id, crm_conversation, outbound_message, chat.channel)
+
     credit.used += 1
     credit.remaining -= 1
-    db.add(UsageLog(
-        tenant_id=resolved_tenant_id,
-        message_id=outbound_message.id,
-        tokens_used=tokens_used,
-    ))
+    db.add(UsageLog(tenant_id=resolved_tenant_id, message_id=outbound_message.id, tokens_used=tokens_used))
     db.commit()
 
-    # Envia via bot dedicado do tenant (se tiver) ou bot mestre
-    await send_telegram_message(
-        chat.chat_external_id,
-        clean_reply,
-        tenant_id=resolved_tenant_id,
-        db=db,
-    )
+    await send_telegram_message(chat.chat_external_id, clean_reply, tenant_id=resolved_tenant_id, db=db)
     return {"status": "ok", "tenant_id": resolved_tenant_id, "crm_lead_id": lead.id if lead else None}
+
+
+@router.post("/evolution-go")
+async def evolution_go_webhook(
+    payload: dict,
+    tenant_id: int | None = Query(default=None),
+    instance_name: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    resolved_instance_name = instance_name or _extract_evolution_instance_name(payload)
+    connection_query = db.query(CrmWhatsAppConnection)
+    if tenant_id is not None:
+        connection_query = connection_query.filter(CrmWhatsAppConnection.tenant_id == tenant_id)
+    if resolved_instance_name:
+        connection_query = connection_query.filter(CrmWhatsAppConnection.instance_name == resolved_instance_name)
+    connection = connection_query.first()
+    if not connection:
+        return {"status": "ignored", "reason": "connection_not_found"}
+
+    key_data = payload.get("key") if isinstance(payload.get("key"), dict) else {}
+    if key_data.get("fromMe") is True:
+        return {"status": "ignored", "reason": "from_me"}
+
+    message_root = payload.get("message") if isinstance(payload.get("message"), dict) else {}
+    inbound_text = _extract_evolution_text(message_root)
+    if not inbound_text:
+        return {"status": "ignored", "reason": "unsupported_message"}
+
+    tenant_id = connection.tenant_id
+    remote_jid = _normalize_whatsapp_number(key_data.get("remoteJid") or payload.get("remoteJid"))
+    if not remote_jid:
+        return {"status": "ignored", "reason": "missing_remote_jid"}
+
+    contact_name = payload.get("pushName") if isinstance(payload.get("pushName"), str) else None
+    chat = db.query(Chat).filter(Chat.tenant_id == tenant_id, Chat.channel == "whatsapp", Chat.chat_external_id == remote_jid).first()
+    if not chat:
+        chat = Chat(
+            tenant_id=tenant_id,
+            channel="whatsapp",
+            contact_name=contact_name,
+            contact_phone=remote_jid,
+            chat_external_id=remote_jid,
+            status="open",
+        )
+        db.add(chat)
+        db.flush()
+
+    inbound_message = Message(tenant_id=tenant_id, chat_id=chat.id, sender_type="user", content=inbound_text)
+    chat.contact_name = contact_name or chat.contact_name
+    chat.contact_phone = remote_jid or chat.contact_phone
+    chat.last_message = inbound_text
+    chat.last_message_at = datetime.now(timezone.utc)
+    db.add(inbound_message)
+    db.flush()
+
+    lead = get_or_create_lead_from_chat(db, tenant_id, chat, inbound_text)
+    maybe_create_task(db, tenant_id, inbound_text)
+
+    module = db.query(TenantModule).filter(TenantModule.tenant_id == tenant_id).first()
+    crm_conversation = None
+    if module and module.crm:
+        ensure_crm_defaults(db, tenant_id)
+        crm_lead = ensure_crm_lead(
+            db,
+            tenant_id,
+            name=chat.contact_name or f"Contato {remote_jid}",
+            phone=chat.contact_phone,
+            origin="whatsapp",
+            notes=inbound_text[:500],
+        )
+        crm_conversation = ensure_crm_conversation(db, tenant_id, chat, crm_lead)
+        sync_crm_message(db, tenant_id, crm_conversation, inbound_message, chat.channel)
+
+    credit = db.query(Credit).filter(Credit.tenant_id == tenant_id).first()
+    if not credit:
+        raise HTTPException(status_code=404, detail="Credits not configured for tenant")
+    if credit.remaining <= 0:
+        db.commit()
+        return {"status": "blocked", "reason": "no_credits"}
+    if chat.ai_paused:
+        db.commit()
+        return {"status": "paused"}
+    if module and module.crm:
+        crm_settings = db.query(CrmSetting).filter(CrmSetting.tenant_id == tenant_id).first()
+        if crm_settings and not crm_settings.hermes_enabled:
+            db.commit()
+            return {"status": "crm_hermes_disabled"}
+
+    context = build_context(db, tenant_id, chat, lead=lead)
+    reply_text, tokens_used = await generate_reply(context)
+    clean_reply = parse_and_execute_crm_commands(db, tenant_id, lead, reply_text)
+
+    outbound_message = Message(tenant_id=tenant_id, chat_id=chat.id, sender_type="assistant", content=clean_reply)
+    chat.last_message = clean_reply
+    chat.last_message_at = datetime.now(timezone.utc)
+    db.add(outbound_message)
+    db.flush()
+
+    if crm_conversation:
+        sync_crm_message(db, tenant_id, crm_conversation, outbound_message, chat.channel)
+
+    credit.used += 1
+    credit.remaining -= 1
+    db.add(UsageLog(tenant_id=tenant_id, message_id=outbound_message.id, tokens_used=tokens_used))
+    db.commit()
+
+    try:
+        await get_provider(connection).send_text(connection, remote_jid, clean_reply)
+    except (WhatsAppProviderError, Exception):
+        return {"status": "partial", "reason": "reply_not_sent"}
+
+    return {"status": "ok"}

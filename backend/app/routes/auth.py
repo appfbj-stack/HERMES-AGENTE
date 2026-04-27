@@ -3,9 +3,9 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import create_access_token, get_password_hash, verify_password
-from app.deps import get_current_tenant, get_current_user
-from app.models import Credit, Tenant, User
-from app.schemas import BootstrapRequest, LoginRequest, MeResponse, TenantOut, TokenResponse, UserOut
+from app.deps import get_current_modules, get_current_tenant, get_current_user
+from app.models import Credit, Tenant, TenantModule, User
+from app.schemas import BootstrapRequest, LoginRequest, MeResponse, TenantModulesOut, TenantOut, TokenResponse, UserOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -36,6 +36,7 @@ def bootstrap(payload: BootstrapRequest, db: Session = Depends(get_db)):
     )
     db.add(user)
     db.add(Credit(tenant_id=tenant.id, total=payload.credits, used=0, remaining=payload.credits))
+    db.add(TenantModule(tenant_id=tenant.id, crm=False))
     db.commit()
     db.refresh(user)
 
@@ -55,5 +56,10 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
 def me(
     current_user: User = Depends(get_current_user),
     tenant: Tenant = Depends(get_current_tenant),
+    modules: TenantModule = Depends(get_current_modules),
 ):
-    return MeResponse(user=UserOut.model_validate(current_user), tenant=TenantOut.model_validate(tenant))
+    return MeResponse(
+        user=UserOut.model_validate(current_user),
+        tenant=TenantOut.model_validate(tenant),
+        modules=TenantModulesOut(crm=modules.crm),
+    )
