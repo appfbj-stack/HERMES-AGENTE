@@ -11,6 +11,7 @@ class TokenResponse(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+    tenant_email: EmailStr | None = None
 
 
 class BootstrapRequest(BaseModel):

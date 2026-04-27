@@ -51,10 +51,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export async function login(email: string, password: string) {
+export async function login(email: string, password: string, tenant_email?: string) {
   return request<LoginResponse>("/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, tenant_email: tenant_email || null }),
   });
 }
 

@@ -54,31 +54,80 @@ class EvolutionGoProvider(WhatsAppProvider):
     def _headers(self) -> dict[str, str]:
         return {self.api_key_header: self.api_key, "Content-Type": "application/json"}
 
+    @staticmethod
+    def _strip_data_envelope(data: dict | list | None) -> dict | list | None:
+        if isinstance(data, dict):
+            for key in ("data", "instance", "response"):
+                nested = data.get(key)
+                if isinstance(nested, (dict, list)):
+                    return nested
+        return data
+
+    @staticmethod
+    def _extract_value(data: dict | list | None, paths: list[tuple[str, ...]]) -> str | None:
+        for path in paths:
+            current = data
+            for segment in path:
+                if not isinstance(current, dict):
+                    current = None
+                    break
+                current = current.get(segment)
+            if isinstance(current, str) and current.strip():
+                return current.strip()
+        return None
+
+    async def _request_json(
+        self,
+        client: httpx.AsyncClient,
+        method: str,
+        path: str,
+        *,
+        json: dict | None = None,
+        accepted_statuses: tuple[int, ...] = (200, 201),
+    ) -> dict | list | None:
+        response = await client.request(method, path, json=json, headers=self._headers())
+        if response.status_code not in accepted_statuses:
+            response.raise_for_status()
+        if not response.content:
+            return None
+        try:
+            return response.json()
+        except ValueError as exc:
+            raise WhatsAppProviderError(f"Unexpected non-JSON response from Evolution endpoint {path}") from exc
+
     async def connect(self, connection: CrmWhatsAppConnection) -> WhatsAppProviderStatus:
         payload = {"instanceName": connection.instance_name, "qrcode": True}
         if connection.webhook_url:
             payload["webhook"] = {"url": connection.webhook_url}
 
         async with httpx.AsyncClient(base_url=self.base_url, timeout=30.0) as client:
-            response = await client.post("/instance/create", json=payload, headers=self._headers())
-            response.raise_for_status()
-            data = response.json()
+            data = await self._request_json(client, "POST", "/instance/create", json=payload)
 
         return self._normalize_status(data, default_status="connecting")
 
     async def get_status(self, connection: CrmWhatsAppConnection) -> WhatsAppProviderStatus:
         async with httpx.AsyncClient(base_url=self.base_url, timeout=20.0) as client:
-            response = await client.get(f"/instance/{connection.instance_name}/status", headers=self._headers())
-            response.raise_for_status()
-            data = response.json()
+            data = await self._request_json(client, "GET", f"/instance/{connection.instance_name}/status", accepted_statuses=(200,))
         return self._normalize_status(data, default_status="unknown")
 
     async def get_qrcode(self, connection: CrmWhatsAppConnection) -> WhatsAppProviderStatus:
         async with httpx.AsyncClient(base_url=self.base_url, timeout=20.0) as client:
-            response = await client.get(f"/instance/{connection.instance_name}/qrcode", headers=self._headers())
-            response.raise_for_status()
-            data = response.json()
-        return self._normalize_status(data, default_status="awaiting_qrcode")
+            data = None
+            errors: list[str] = []
+            for path in (
+                f"/instance/{connection.instance_name}/qrcode",
+                f"/instance/connect/{connection.instance_name}",
+            ):
+                try:
+                    data = await self._request_json(client, "GET", path, accepted_statuses=(200, 201))
+                    status = self._normalize_status(data, default_status="awaiting_qrcode")
+                    if status.qr_code_base64 or status.status in {"connected", "open"}:
+                        return status
+                except (httpx.HTTPError, WhatsAppProviderError) as exc:
+                    errors.append(f"{path}: {exc}")
+            if data is not None:
+                return self._normalize_status(data, default_status="awaiting_qrcode")
+            raise WhatsAppProviderError("Could not fetch QR code from Evolution. Tried /qrcode and /connect endpoints. " + "; ".join(errors))
 
     async def disconnect(self, connection: CrmWhatsAppConnection) -> None:
         async with httpx.AsyncClient(base_url=self.base_url, timeout=20.0) as client:
@@ -88,39 +137,61 @@ class EvolutionGoProvider(WhatsAppProvider):
     async def send_text(self, connection: CrmWhatsAppConnection, number: str, text: str) -> dict | list | None:
         payload = {
             "instanceName": connection.instance_name,
-            "number": number,
+            "number": number.split("@")[0],
             "text": text,
             "delay": 0,
         }
         async with httpx.AsyncClient(base_url=self.base_url, timeout=30.0) as client:
-            response = await client.post("/message/sendText", json=payload, headers=self._headers())
-            response.raise_for_status()
-            return response.json() if response.content else None
+            return await self._request_json(client, "POST", "/message/sendText", json=payload)
 
     def _normalize_status(self, data: dict | list, *, default_status: str) -> WhatsAppProviderStatus:
+        data = self._strip_data_envelope(data)
         if isinstance(data, list):
             return WhatsAppProviderStatus(status=default_status, raw=data)
 
-        qr_code = None
-        for key in ("qrcode", "qr", "base64", "code"):
-            value = data.get(key)
-            if isinstance(value, str) and value:
-                qr_code = value
-                break
+        qr_code = self._extract_value(
+            data,
+            [
+                ("qrcode",),
+                ("qr",),
+                ("base64",),
+                ("code",),
+                ("qrcode", "base64"),
+                ("qrcode", "code"),
+                ("pairingCode",),
+            ],
+        )
+        if qr_code and not qr_code.startswith("data:image"):
+            qr_code = f"data:image/png;base64,{qr_code}"
 
-        connected_phone = None
-        for key in ("number", "phone", "ownerJid", "wid"):
-            value = data.get(key)
-            if isinstance(value, str) and value:
-                connected_phone = value
-                break
+        connected_phone = self._extract_value(
+            data,
+            [
+                ("number",),
+                ("phone",),
+                ("ownerJid",),
+                ("wid",),
+                ("instance", "wid"),
+                ("instance", "phone"),
+            ],
+        )
 
         status = (
             data.get("status")
             or data.get("state")
             or data.get("connectionStatus")
+            or data.get("instanceStatus")
+            or data.get("connection")
+            or data.get("instance")
             or ("connected" if connected_phone else default_status)
         )
+        if isinstance(status, dict):
+            status = (
+                status.get("state")
+                or status.get("status")
+                or status.get("connectionStatus")
+                or default_status
+            )
         return WhatsAppProviderStatus(
             status=str(status),
             connected_phone=connected_phone,

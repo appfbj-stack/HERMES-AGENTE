@@ -137,6 +137,7 @@ function Layout({
 }
 
 function LoginPage({ onLogged }: { onLogged: () => void }) {
+  const [tenantEmail, setTenantEmail] = useState("contato@empresa.com");
   const [email, setEmail] = useState("admin@empresa.com");
   const [password, setPassword] = useState("123456");
   const [error, setError] = useState("");
@@ -146,7 +147,7 @@ function LoginPage({ onLogged }: { onLogged: () => void }) {
     setError("");
 
     try {
-      const result = await login(email, password);
+      const result = await login(email, password, tenantEmail.trim() || undefined);
       localStorage.setItem("hermes_token", result.access_token);
       onLogged();
     } catch (err) {
@@ -161,6 +162,12 @@ function LoginPage({ onLogged }: { onLogged: () => void }) {
         <h1 className="mt-3 font-serif text-4xl font-semibold text-ink">Entrar</h1>
         <p className="mt-3 text-sm text-slate-500">Painel estilo chat com CRM, atendimento e operação multi-tenant.</p>
         <div className="mt-8 space-y-4">
+          <input
+            className="input"
+            value={tenantEmail}
+            onChange={(e) => setTenantEmail(e.target.value)}
+            placeholder="Email da empresa / tenant"
+          />
           <input className="input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
           <input
             className="input"

@@ -68,6 +68,64 @@ def _extract_evolution_text(message_data: dict) -> str | None:
     return None
 
 
+def _extract_evolution_event(payload: dict) -> str | None:
+    for key in ("event", "type", "webhookEvent"):
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip().lower()
+    return None
+
+
+def _extract_evolution_key(payload: dict) -> dict:
+    for root_key in ("key",):
+        value = payload.get(root_key)
+        if isinstance(value, dict):
+            return value
+    data = payload.get("data")
+    if isinstance(data, dict):
+        key = data.get("key")
+        if isinstance(key, dict):
+            return key
+    message = payload.get("message")
+    if isinstance(message, dict):
+        key = message.get("key")
+        if isinstance(key, dict):
+            return key
+    return {}
+
+
+def _extract_evolution_message(payload: dict) -> dict:
+    direct = payload.get("message")
+    if isinstance(direct, dict):
+        nested = direct.get("message")
+        if isinstance(nested, dict):
+            return nested
+        return direct
+    data = payload.get("data")
+    if isinstance(data, dict):
+        direct = data.get("message")
+        if isinstance(direct, dict):
+            nested = direct.get("message")
+            if isinstance(nested, dict):
+                return nested
+            return direct
+    return {}
+
+
+def _extract_push_name(payload: dict) -> str | None:
+    for key in ("pushName", "push_name"):
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    data = payload.get("data")
+    if isinstance(data, dict):
+        for key in ("pushName", "push_name"):
+            value = data.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    return None
+
+
 def _normalize_whatsapp_number(raw: str | None) -> str | None:
     if not raw:
         return None
@@ -216,6 +274,10 @@ async def evolution_go_webhook(
     instance_name: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ):
+    event = _extract_evolution_event(payload)
+    if event and event not in {"messages.upsert", "messages_upsert", "message.upsert", "message_received"}:
+        return {"status": "ignored", "reason": f"unsupported_event:{event}"}
+
     resolved_instance_name = instance_name or _extract_evolution_instance_name(payload)
     connection_query = db.query(CrmWhatsAppConnection)
     if tenant_id is not None:
@@ -226,21 +288,25 @@ async def evolution_go_webhook(
     if not connection:
         return {"status": "ignored", "reason": "connection_not_found"}
 
-    key_data = payload.get("key") if isinstance(payload.get("key"), dict) else {}
+    key_data = _extract_evolution_key(payload)
     if key_data.get("fromMe") is True:
         return {"status": "ignored", "reason": "from_me"}
 
-    message_root = payload.get("message") if isinstance(payload.get("message"), dict) else {}
+    message_root = _extract_evolution_message(payload)
     inbound_text = _extract_evolution_text(message_root)
     if not inbound_text:
         return {"status": "ignored", "reason": "unsupported_message"}
 
     tenant_id = connection.tenant_id
-    remote_jid = _normalize_whatsapp_number(key_data.get("remoteJid") or payload.get("remoteJid"))
+    remote_jid = _normalize_whatsapp_number(
+        key_data.get("remoteJid")
+        or payload.get("remoteJid")
+        or (payload.get("data") or {}).get("remoteJid")
+    )
     if not remote_jid:
         return {"status": "ignored", "reason": "missing_remote_jid"}
 
-    contact_name = payload.get("pushName") if isinstance(payload.get("pushName"), str) else None
+    contact_name = _extract_push_name(payload)
     chat = db.query(Chat).filter(Chat.tenant_id == tenant_id, Chat.channel == "whatsapp", Chat.chat_external_id == remote_jid).first()
     if not chat:
         chat = Chat(
