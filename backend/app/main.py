@@ -56,6 +56,14 @@ MIGRATIONS = [
     "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS lead_id INTEGER REFERENCES leads(id)",
     "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assigned_user_id INTEGER REFERENCES users(id)",
     "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()",
+    # ===== CRM — colunas de crm_settings (tabela criada antes do schema atual) =====
+    "ALTER TABLE crm_settings ADD COLUMN IF NOT EXISTS status_options_json TEXT",
+    "ALTER TABLE crm_settings ADD COLUMN IF NOT EXISTS tags_json TEXT",
+    "ALTER TABLE crm_settings ADD COLUMN IF NOT EXISTS initial_auto_message TEXT",
+    "ALTER TABLE crm_settings ADD COLUMN IF NOT EXISTS business_hours_json TEXT",
+    "ALTER TABLE crm_settings ADD COLUMN IF NOT EXISTS hermes_enabled BOOLEAN NOT NULL DEFAULT TRUE",
+    "ALTER TABLE crm_settings ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()",
+    "ALTER TABLE crm_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()",
     # ===== Seed de planos default =====
     """INSERT INTO plans (code, name, monthly_credits, price_cents, description, active)
        VALUES ('starter', 'Starter', 1000, 9700, '1.000 mensagens/mês • 1 canal • IA com nicho', true)
