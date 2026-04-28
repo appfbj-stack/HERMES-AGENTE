@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS admin_memory (
     category VARCHAR(100) NOT NULL,
     key VARCHAR(255) NOT NULL,
     value TEXT NOT NULL,
-    metadata TEXT,
+    meta_data TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

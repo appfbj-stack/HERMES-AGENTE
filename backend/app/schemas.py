@@ -822,14 +822,14 @@ class AdminMemoryCreate(BaseModel):
     category: str = Field(min_length=1)
     key: str = Field(min_length=1)
     value: str = Field(min_length=1)
-    metadata: str | None = None
+    meta_data: str | None = None
 
 
 class AdminMemoryUpdate(BaseModel):
     category: str | None = None
     key: str | None = None
     value: str | None = None
-    metadata: str | None = None
+    meta_data: str | None = None
 
 
 class AdminMemoryOut(BaseModel):
@@ -837,7 +837,7 @@ class AdminMemoryOut(BaseModel):
     category: str
     key: str
     value: str
-    metadata: str | None
+    meta_data: str | None
     created_at: datetime
     updated_at: datetime
 

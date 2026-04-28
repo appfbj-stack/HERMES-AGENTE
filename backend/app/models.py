@@ -427,7 +427,7 @@ class AdminMemory(Base, TimestampMixin):
     category: Mapped[str] = mapped_column(String(100))
     key: Mapped[str] = mapped_column(String(255))
     value: Mapped[str] = mapped_column(Text)
-    metadata: Mapped[str | None] = mapped_column(Text, nullable=True)
+    meta_data: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class AdminActionLog(Base, TimestampMixin):

@@ -327,7 +327,7 @@ Pergunte o que o usuário precisa agora."""
             category=data.get("category"),
             key=data.get("key"),
             value=data.get("value"),
-            metadata=data.get("metadata"),
+            meta_data=data.get("metadata"),
         )
         self.db.add(memory)
         self.db.commit()
