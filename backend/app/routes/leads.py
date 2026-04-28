@@ -15,8 +15,8 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _log(db: Session, tenant_id: int, lead_id: int, action: str, detail: str, user_id: int) -> None:
-    db.add(CrmActivityLog(tenant_id=tenant_id, lead_id=lead_id, user_id=user_id, action=action, detail=detail))
+def _log(db: Session, tenant_id: int, lead_id: int, action: str, description: str) -> None:
+    db.add(CrmActivityLog(tenant_id=tenant_id, lead_id=lead_id, action=action, description=description))
 
 
 @router.get("", response_model=list[LeadOut])
@@ -69,7 +69,7 @@ def create_lead(
     lead = Lead(tenant_id=current_user.tenant_id, **payload.model_dump())
     db.add(lead)
     db.flush()
-    _log(db, current_user.tenant_id, lead.id, "lead_created", f"Lead criado: {lead.name}", current_user.id)
+    _log(db, current_user.tenant_id, lead.id, "lead_created", f"Lead criado: {lead.name}")
     db.commit()
     db.refresh(lead)
     return lead
@@ -95,7 +95,7 @@ def update_lead(
 
     lead.updated_at = utcnow()
     if changes:
-        _log(db, current_user.tenant_id, lead.id, "lead_updated", "; ".join(changes), current_user.id)
+        _log(db, current_user.tenant_id, lead.id, "lead_updated", "; ".join(changes))
     db.commit()
     db.refresh(lead)
     return lead
