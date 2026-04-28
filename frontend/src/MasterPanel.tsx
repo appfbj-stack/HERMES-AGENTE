@@ -12,199 +12,43 @@ import {
   setAdminTenantModules,
   updateAdminTenant,
   type MasterBotInfo,
-  hermesAdminChat,
-  getHermesAdminDashboard,
 } from "./api";
 import { NICHE_TEMPLATES } from "./niches";
-import type { AdminTenant, NicheTemplate, HermesAdminDashboard } from "./types";
+import type { AdminTenant, NicheTemplate } from "./types";
+import {
+  hermesAdminChat,
+  hermesAdminGetDashboard,
+  hermesAdminGetTasks,
+  hermesAdminGetProjects,
+  hermesAdminGetRoutines,
+  hermesAdminGetMemory,
+  hermesAdminGetLogs,
+  hermesAdminGetSkills,
+  hermesAdminCreateTask,
+  hermesAdminCreateProject,
+  hermesAdminCreateRoutine,
+  hermesAdminCreateMemory,
+  hermesAdminUpdateTask,
+  hermesAdminUpdateProject,
+  hermesAdminUpdateRoutine,
+  hermesAdminRunRoutine,
+  hermesAdminCreateSkill,
+  hermesAdminUpdateSkill,
+  hermesAdminDeleteSkill,
+  hermesAdminRunSkill,
+  hermesAdminSuggestSkill,
+} from "./api";
+import type {
+  HermesAdminChatResponse,
+  AdminTask,
+  AdminProject,
+  AdminRoutine,
+  AdminMemory,
+  AdminActionLog,
+  AdminSkill,
+  HermesAdminDashboard,
+} from "./types";
 
-
-
-function HermesAdminPanel({ show, tab, setTab, onClose }: { show: boolean, tab: string, setTab: (tab: any) => void, onClose: () => void }) {
-  const [messages, setMessages] = useState<Array<{role: string, content: string}>>([]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  async function sendMessage() {
-    if (!input.trim()) return;
-    setLoading(true);
-    try {
-      const userMsg = { role: 'user', content: input };
-      const newMessages = [...messages, userMsg];
-      setMessages(newMessages);
-      setInput('');
-      const response = await hermesAdminChat(input);
-      setMessages([...newMessages, { role: 'assistant', content: response.response }]);
-    } catch (e) {
-      setMessages([...messages, { role: 'assistant', content: 'Erro ao processar mensagem.' }]);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  if (!show) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="h-[85vh] w-full max-w-4xl overflow-hidden rounded-[32px] bg-white shadow-2xl">
-        <div className="flex h-full">
-          <div className="w-64 border-r border-black/5 bg-panel">
-            <div className="flex items-center justify-between border-b border-black/5 p-4">
-              <h3 className="font-serif text-lg">Hermes Admin</h3>
-              <button onClick={onClose} className="text-2xl text-slate-400 hover:text-slate-600">×</button>
-            </div>
-            <nav className="p-2 space-y-1">
-              <button
-                onClick={() => setTab('chat')}
-                className={`w-full rounded-xl px-4 py-2 text-left text-sm transition ${tab === 'chat' ? 'bg-emerald-100 text-emerald-700' : 'hover:bg-slate-100'}`}
-              >
-                💬 Chat
-              </button>
-              <button
-                onClick={() => setTab('tasks')}
-                className={`w-full rounded-xl px-4 py-2 text-left text-sm transition ${tab === 'tasks' ? 'bg-emerald-100 text-emerald-700' : 'hover:bg-slate-100'}`}
-              >
-                ✅ Tarefas
-              </button>
-              <button
-                onClick={() => setTab('projects')}
-                className={`w-full rounded-xl px-4 py-2 text-left text-sm transition ${tab === 'projects' ? 'bg-emerald-100 text-emerald-700' : 'hover:bg-slate-100'}`}
-              >
-                📁 Projetos
-              </button>
-              <button
-                onClick={() => setTab('routines')}
-                className={`w-full rounded-xl px-4 py-2 text-left text-sm transition ${tab === 'routines' ? 'bg-emerald-100 text-emerald-700' : 'hover:bg-slate-100'}`}
-              >
-                ⏰ Rotinas
-              </button>
-              <button
-                onClick={() => setTab('memory')}
-                className={`w-full rounded-xl px-4 py-2 text-left text-sm transition ${tab === 'memory' ? 'bg-emerald-100 text-emerald-700' : 'hover:bg-slate-100'}`}
-              >
-                🧠 Memória
-              </button>
-              <button
-                onClick={() => setTab('logs')}
-                className={`w-full rounded-xl px-4 py-2 text-left text-sm transition ${tab === 'logs' ? 'bg-emerald-100 text-emerald-700' : 'hover:bg-slate-100'}`}
-              >
-                📋 Logs
-              </button>
-            </nav>
-          </div>
-
-          <div className="flex-1 overflow-hidden">
-            {tab === 'chat' && (
-              <div className="flex h-full flex-col">
-                <div className="flex-1 overflow-y-auto p-6">
-                  <div className="space-y-4">
-                    {messages.length === 0 && (
-                      <div className="rounded-2xl bg-panel p-6 text-center text-slate-500">
-                        <div className="text-4xl mb-2">🤖</div>
-                        <div>Olá! Sou o Hermes Admin Master.</div>
-                        <div className="mt-2 text-sm">Posso ajudar você a:</div>
-                        <ul className="mt-4 inline-block text-left text-sm space-y-2">
-                          <li>• Listar clientes ativos/bloqueados</li>
-                          <li>• Ver pagamentos pendentes</li>
-                          <li>• Criar tarefas e rotinas</li>
-                          <li>• Consultar memória da empresa</li>
-                        </ul>
-                      </div>
-                    )}
-                    {messages.map((msg, i) => (
-                      <div
-                        key={i}
-                        className={`rounded-2xl p-4 ${msg.role === 'user' ? 'bg-emerald-600 text-white ml-12' : 'bg-panel text-ink mr-12'}`}
-                      >
-                        {msg.content}
-                      </div>
-                    ))}
-                    {loading && (
-                      <div className="rounded-2xl bg-panel p-4 text-slate-500 mr-12">Digitando...</div>
-                    )}
-                  </div>
-                </div>
-                <div className="border-t border-black/5 p-4">
-                  <div className="flex gap-2">
-                    <input
-                      value={input}
-                      onChange={(e) => setInput(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                      placeholder="Digite sua mensagem..."
-                      className="flex-1 rounded-full border-2 border-black/10 px-4 py-2 focus:border-emerald-500 focus:outline-none"
-                    />
-                    <button
-                      onClick={sendMessage}
-                      disabled={loading || !input.trim()}
-                      className="rounded-full bg-emerald-600 px-6 py-2 text-white hover:bg-emerald-700 disabled:opacity-50"
-                    >
-                      Enviar
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {tab === 'tasks' && (
-              <div className="h-full overflow-y-auto p-6">
-                <h3 className="mb-4 font-serif text-xl">Tarefas Internas</h3>
-                <div className="rounded-2xl bg-panel p-8 text-center text-slate-500">
-                  <div className="text-4xl mb-2">📋</div>
-                  <div>Gerenciamento de tarefas administrativas</div>
-                  <div className="mt-2 text-sm">Em breve: CRUD completo de tarefas</div>
-                </div>
-              </div>
-            )}
-
-            {tab === 'projects' && (
-              <div className="h-full overflow-y-auto p-6">
-                <h3 className="mb-4 font-serif text-xl">Projetos</h3>
-                <div className="rounded-2xl bg-panel p-8 text-center text-slate-500">
-                  <div className="text-4xl mb-2">📁</div>
-                  <div>Gerenciamento de projetos administrativos</div>
-                  <div className="mt-2 text-sm">Em breve: CRUD completo de projetos</div>
-                </div>
-              </div>
-            )}
-
-            {tab === 'routines' && (
-              <div className="h-full overflow-y-auto p-6">
-                <h3 className="mb-4 font-serif text-xl">Rotinas</h3>
-                <div className="rounded-2xl bg-panel p-8 text-center text-slate-500">
-                  <div className="text-4xl mb-2">⏰</div>
-                  <div>Gerenciamento de rotinas agendadas</div>
-                  <div className="mt-2 text-sm">Em breve: CRUD completo de rotinas</div>
-                </div>
-              </div>
-            )}
-
-            {tab === 'memory' && (
-              <div className="h-full overflow-y-auto p-6">
-                <h3 className="mb-4 font-serif text-xl">Memória da Empresa</h3>
-                <div className="rounded-2xl bg-panel p-8 text-center text-slate-500">
-                  <div className="text-4xl mb-2">🧠</div>
-                  <div>Memória corporativa do Hermes Admin</div>
-                  <div className="mt-2 text-sm">Em breve: CRUD completo de memória</div>
-                </div>
-              </div>
-            )}
-
-            {tab === 'logs' && (
-              <div className="h-full overflow-y-auto p-6">
-                <h3 className="mb-4 font-serif text-xl">Logs de Ações</h3>
-                <div className="rounded-2xl bg-panel p-8 text-center text-slate-500">
-                  <div className="text-4xl mb-2">📋</div>
-                  <div>Log de ações administrativas</div>
-                  <div className="mt-2 text-sm">Em breve: Listagem completa de logs</div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 function genPassword(): string {
   return "Senha" + Math.floor(1000 + Math.random() * 9000) + "!";
 }
@@ -233,24 +77,17 @@ export default function MasterPanel() {
   const [showForm, setShowForm] = useState(false);
   const [qrTenant, setQrTenant] = useState<AdminTenant | null>(null);
   const [showHermesAdmin, setShowHermesAdmin] = useState(false);
-  const [hermesTab, setHermesTab] = useState<'chat' | 'tasks' | 'projects' | 'routines' | 'memory' | 'logs'>('chat');
-  const [hermesMessages, setHermesMessages] = useState<Array<{role: string, content: string}>>([]);
-  const [hermesInput, setHermesInput] = useState('');
-  const [hermesDashboard, setHermesDashboard] = useState<HermesAdminDashboard | null>(null);
-  const [hermesLoading, setHermesLoading] = useState(false);
 
   async function load() {
     setLoading(true);
     setError("");
     try {
-      const [tenantsData, botData, hermesData] = await Promise.all([
+      const [tenantsData, botData] = await Promise.all([
         getAdminTenants(),
         getMasterBotInfo().catch(() => null),
-        getHermesAdminDashboard().catch(() => null),
       ]);
       setTenants(tenantsData);
       setMasterBot(botData);
-      setHermesDashboard(hermesData);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro");
     } finally {
@@ -308,31 +145,22 @@ export default function MasterPanel() {
         />
       </div>
 
-      <div className="rounded-[32px] bg-gradient-to-r from-violet-50 to-purple-50 p-6">
-        <h3 className="mb-4 font-serif text-xl">⚡ Atalhos Rápidos</h3>
-        <div className="grid gap-3 md:grid-cols-4">
+      <div className="rounded-2xl border-2 border-dashed border-violet-200 bg-violet-50 p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-violet-900">🤖 Hermes Admin</h3>
+            <p className="text-sm text-violet-700">
+              Assistente de IA para gerenciar sua plataforma
+            </p>
+          </div>
           <button
             onClick={() => setShowHermesAdmin(true)}
-            className="rounded-xl bg-white px-4 py-3 text-left text-sm transition hover:shadow-md"
+            className="rounded-full bg-violet-600 px-6 py-3 text-sm font-semibold text-white hover:bg-violet-700"
           >
-            <div className="font-medium text-emerald-700">🤖 Chat com Hermes</div>
-            <div className="text-xs text-slate-500">Perguntar ao assistente</div>
+            Abrir Hermes Admin
           </button>
-          <div className="rounded-xl bg-white px-4 py-3 text-left text-sm transition hover:shadow-md">
-            <div className="font-medium text-emerald-700">✅ Clientes ativos</div>
-            <div className="text-xs text-slate-500">{tenants.filter((t) => t.active).length} clientes</div>
-          </div>
-          <div className="rounded-xl bg-white px-4 py-3 text-left text-sm transition hover:shadow-md">
-            <div className="font-medium text-red-700">⚠️ Bloqueados</div>
-            <div className="text-xs text-slate-500">{tenants.filter((t) => t.credits_remaining <= 0).length} clientes</div>
-          </div>
-          <div className="rounded-xl bg-white px-4 py-3 text-left text-sm transition hover:shadow-md">
-            <div className="font-medium text-amber-700">💰 Mensagens</div>
-            <div className="text-xs text-slate-500">{totalUsedMessages.toLocaleString("pt-BR")} este mês</div>
-          </div>
         </div>
       </div>
-
 
       <div className="rounded-[32px] bg-white p-6 shadow-soft">
         <div className="mb-4 flex items-center justify-between">
@@ -342,12 +170,6 @@ export default function MasterPanel() {
             className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
           >
             + Novo cliente
-          </button>
-          <button
-            onClick={() => setShowHermesAdmin(true)}
-            className="rounded-full bg-violet-600 px-5 py-2 text-sm font-semibold text-white hover:bg-violet-700"
-          >
-            🤖 Hermes Admin
           </button>
         </div>
 
@@ -514,7 +336,8 @@ export default function MasterPanel() {
         />
       )}
     </div>
-      <HermesAdminPanel
+  );
+}
 
 function Stat({ label, value, color }: { label: string; value: string | number; color?: "red" | "emerald" }) {
   return (
@@ -637,136 +460,6 @@ function CreateTenantModal({
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 required
               />
-
-  );
-        show={showHermesAdmin}
-        tab={hermesTab}
-        setTab={setHermesTab}
-        onClose={() => setShowHermesAdmin(false)}
-      />
-
-}
-
-function Stat({ label, value, color }: { label: string; value: string | number; color?: "red" | "emerald" }) {
-  return (
-    <div
-      className={`rounded-[28px] p-6 shadow-soft backdrop-blur ${
-        color === "red" ? "bg-red-50" : color === "emerald" ? "bg-emerald-50" : "bg-white/80"
-      }`}
-    >
-      <div className="text-sm text-slate-500">{label}</div>
-      <div
-        className={`mt-3 text-3xl font-semibold ${
-          color === "red" ? "text-red-600" : color === "emerald" ? "text-emerald-700" : "text-ink"
-        }`}
-      >
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function CreateTenantModal({
-  onClose,
-  onCreated,
-}: {
-  onClose: () => void;
-  onCreated: () => void;
-}) {
-  const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [niche, setNiche] = useState<NicheTemplate | null>(null);
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    plan: "starter",
-    credits: 1000,
-    user_name: "",
-    user_email: "",
-    user_password: genPassword(),
-    telegram_bot_token: "",
-    telegram_bot_username: "",
-    system_prompt: "",
-  });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-
-  function pickNiche(n: NicheTemplate) {
-    setNiche(n);
-    setForm((f) => ({
-      ...f,
-      plan: n.defaultPlan,
-      credits: n.defaultCredits,
-      system_prompt: n.systemPrompt,
-    }));
-    setStep(2);
-  }
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    setError("");
-    try {
-      await createAdminTenant({
-        name: form.name,
-        email: form.email,
-        plan: form.plan,
-        niche: niche?.id || null,
-        system_prompt: form.system_prompt || null,
-        telegram_bot_token: form.telegram_bot_token || null,
-        telegram_bot_username: form.telegram_bot_username || null,
-        credits: form.credits,
-        user_name: form.user_name || form.name,
-        user_email: form.user_email,
-        user_password: form.user_password,
-      });
-      setStep(3);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erro");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-[32px] bg-white p-6 shadow-2xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-serif text-2xl">
-            {step === 1 && "Escolha o nicho"}
-            {step === 2 && `Configurar ${niche?.label}`}
-            {step === 3 && "✅ Cliente criado!"}
-          </h2>
-          <button onClick={onClose} className="text-2xl text-slate-400 hover:text-slate-600">
-            ×
-          </button>
-        </div>
-
-        {step === 1 && (
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-            {NICHE_TEMPLATES.map((n) => (
-              <button
-                key={n.id}
-                onClick={() => pickNiche(n)}
-                className="flex flex-col items-center gap-1 rounded-2xl border-2 border-slate-100 p-4 text-center transition hover:border-emerald-500 hover:bg-emerald-50"
-              >
-                <div className="text-3xl">{n.emoji}</div>
-                <div className="text-sm font-medium">{n.label}</div>
-                <div className="text-xs text-slate-500">{n.defaultCredits.toLocaleString("pt-BR")} msgs</div>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {step === 2 && niche && (
-          <form onSubmit={submit} className="space-y-4">
-            <div>
-              <label className="text-xs font-semibold uppercase text-slate-500">Empresa</label>
-              <input
-                className="input mt-1"
-                placeholder="ex: Barbearia Corte Real"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                required
             </div>
             <div className="grid gap-3 md:grid-cols-2">
               <div>
@@ -1062,6 +755,624 @@ function QRCodeModal({
             </p>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function HermesAdminPanel({ onClose }: { onClose: () => void }) {
+  const [activeTab, setActiveTab] = useState<
+    "chat" | "tasks" | "projects" | "routines" | "memory" | "logs"
+  >("chat");
+  const [messages, setMessages] = useState<
+    Array<{ role: "user" | "assistant"; content: string }>
+  >([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [dashboard, setDashboard] = useState<HermesAdminDashboard | null>(null);
+  const [tasks, setTasks] = useState<AdminTask[]>([]);
+  const [projects, setProjects] = useState<AdminProject[]>([]);
+  const [routines, setRoutines] = useState<AdminRoutine[]>([]);
+  const [memories, setMemories] = useState<AdminMemory[]>([]);
+  const [logs, setLogs] = useState<AdminActionLog[]>([]);
+  const [skills, setSkills] = useState<AdminSkill[]>([]);
+
+  const loadTasks = async () => {
+    try {
+      const data = await hermesAdminGetTasks();
+      setTasks(data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const loadProjects = async () => {
+    try {
+      const data = await hermesAdminGetProjects();
+      setProjects(data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const loadRoutines = async () => {
+    try {
+      const data = await hermesAdminGetRoutines();
+      setRoutines(data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const loadMemory = async () => {
+    try {
+      const data = await hermesAdminGetMemory();
+      setMemories(data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const loadLogs = async () => {
+    try {
+      const data = await hermesAdminGetLogs();
+      setLogs(data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const loadSkills = async () => {
+    try {
+      const data = await hermesAdminGetSkills();
+      setSkills(data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const loadDashboard = async () => {
+    try {
+      const data = await hermesAdminGetDashboard();
+      setDashboard(data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    loadTasks();
+    loadProjects();
+    loadRoutines();
+    loadMemory();
+    loadLogs();
+    loadSkills();
+    loadDashboard();
+  }, []);
+
+  const handleSend = async () => {
+    if (!input.trim() || loading) return;
+
+    const userMessage = input;
+    setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
+    setInput("");
+    setLoading(true);
+
+    try {
+      const response = await hermesAdminChat({
+        message: userMessage,
+        context: {
+          tasks,
+          projects,
+          routines,
+          memories,
+          dashboard,
+        },
+      });
+
+      setMessages((prev) => [...prev, { role: "assistant", content: response.message }]);
+
+      if (response.dashboard) {
+        setDashboard(response.dashboard);
+      }
+
+      if (response.suggested_skills && response.suggested_skills.length > 0) {
+        alert(`Sugestão de skill: ${response.suggested_skills[0].name}`);
+      }
+    } catch (e) {
+      console.error(e);
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: "Erro ao processar mensagem." },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateTask = async () => {
+    const title = prompt("Título da tarefa:");
+    if (!title) return;
+    const description = prompt("Descrição da tarefa:");
+    if (!description) return;
+
+    try {
+      await hermesAdminCreateTask({ title, description });
+      loadTasks();
+      alert("Tarefa criada!");
+    } catch (e) {
+      console.error(e);
+      alert("Erro ao criar tarefa.");
+    }
+  };
+
+  const handleUpdateTask = async (task: AdminTask) => {
+    const newStatus = prompt(
+      "Novo status (pending, in_progress, completed):",
+      task.status
+    );
+    if (!newStatus) return;
+
+    try {
+      await hermesAdminUpdateTask(task.id, { status: newStatus as any });
+      loadTasks();
+    } catch (e) {
+      console.error(e);
+      alert("Erro ao atualizar tarefa.");
+    }
+  };
+
+  const handleCreateProject = async () => {
+    const name = prompt("Nome do projeto:");
+    if (!name) return;
+    const description = prompt("Descrição do projeto:");
+    if (!description) return;
+
+    try {
+      await hermesAdminCreateProject({ name, description });
+      loadProjects();
+      alert("Projeto criado!");
+    } catch (e) {
+      console.error(e);
+      alert("Erro ao criar projeto.");
+    }
+  };
+
+  const handleCreateRoutine = async () => {
+    const name = prompt("Nome da rotina:");
+    if (!name) return;
+    const description = prompt("Descrição da rotina:");
+    if (!description) return;
+    const schedule = prompt("Agendamento (ex: 0 9 * * *):");
+    if (!schedule) return;
+
+    try {
+      await hermesAdminCreateRoutine({ name, description, schedule });
+      loadRoutines();
+      alert("Rotina criada!");
+    } catch (e) {
+      console.error(e);
+      alert("Erro ao criar rotina.");
+    }
+  };
+
+  const handleRunRoutine = async (routine: AdminRoutine) => {
+    try {
+      await hermesAdminRunRoutine(routine.id);
+      alert("Rotina executada!");
+    } catch (e) {
+      console.error(e);
+      alert("Erro ao executar rotina.");
+    }
+  };
+
+  const handleCreateMemory = async () => {
+    const key = prompt("Chave da memória:");
+    if (!key) return;
+    const value = prompt("Valor da memória:");
+    if (!value) return;
+
+    try {
+      await hermesAdminCreateMemory({ key, value, meta_data: {} });
+      loadMemory();
+      alert("Memória criada!");
+    } catch (e) {
+      console.error(e);
+      alert("Erro ao criar memória.");
+    }
+  };
+
+  const handleCreateSkill = async () => {
+    const name = prompt("Nome da skill:");
+    if (!name) return;
+    const description = prompt("Descrição da skill:");
+    if (!description) return;
+    const instructions = prompt("Instruções da skill:");
+    if (!instructions) return;
+
+    try {
+      await hermesAdminCreateSkill({
+        name,
+        description,
+        trigger_type: "manual",
+        trigger_value: "",
+        instructions,
+      });
+      loadSkills();
+      alert("Skill criada!");
+    } catch (e) {
+      console.error(e);
+      alert("Erro ao criar skill.");
+    }
+  };
+
+  const handleRunSkill = async (skill: AdminSkill) => {
+    try {
+      await hermesAdminRunSkill(skill.id);
+      alert("Skill executada!");
+    } catch (e) {
+      console.error(e);
+      alert("Erro ao executar skill.");
+    }
+  };
+
+  const handleSuggestSkill = async () => {
+    const lastMessage = messages[messages.length - 1];
+    if (!lastMessage || lastMessage.role !== "assistant") {
+      alert("Primeiro converse com o Hermes Admin!");
+      return;
+    }
+
+    try {
+      const suggestions = await hermesAdminSuggestSkill(lastMessage.content);
+      if (suggestions.length > 0) {
+        const suggestion = suggestions[0];
+        const confirmCreate = confirm(
+          `Criar skill "${suggestion.name}"?\n\nDescrição: ${suggestion.description}\n\nInstruções: ${suggestion.instructions}`
+        );
+        if (confirmCreate) {
+          await hermesAdminCreateSkill({
+            name: suggestion.name,
+            description: suggestion.description,
+            trigger_type: "manual",
+            trigger_value: "",
+            instructions: suggestion.instructions,
+          });
+          loadSkills();
+          alert("Skill criada!");
+        }
+      } else {
+        alert("Nenhuma sugestão de skill encontrada.");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Erro ao sugerir skill.");
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="h-[90vh] w-full max-w-6xl overflow-hidden rounded-3xl bg-white shadow-2xl">
+        <div className="flex h-full">
+          <div className="flex w-64 flex-col border-r border-slate-200 bg-slate-50 p-4">
+            <div className="mb-6">
+              <h2 className="text-xl font-bold text-slate-900">🤖 Hermes Admin</h2>
+              <p className="text-xs text-slate-500">Assistente de gerenciamento</p>
+            </div>
+
+            <nav className="space-y-1">
+              {[
+                { id: "chat" as const, label: "💬 Chat", icon: "💬" },
+                { id: "tasks" as const, label: "📋 Tarefas", icon: "📋" },
+                { id: "projects" as const, label: "📁 Projetos", icon: "📁" },
+                { id: "routines" as const, label: "⚙️ Rotinas", icon: "⚙️" },
+                { id: "memory" as const, label: "🧠 Memória", icon: "🧠" },
+                { id: "logs" as const, label: "📊 Logs", icon: "📊" },
+              ].map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id)}
+                  className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition ${
+                    activeTab === item.id
+                      ? "bg-violet-100 text-violet-900"
+                      : "text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  <span className="text-lg">{item.icon}</span>
+                  {item.label}
+                </button>
+              ))}
+            </nav>
+
+            <div className="mt-auto space-y-2">
+              <button
+                onClick={handleSuggestSkill}
+                className="w-full rounded-xl bg-emerald-100 px-4 py-2 text-xs font-semibold text-emerald-900 hover:bg-emerald-200"
+              >
+                ✨ Criar Skill do Chat
+              </button>
+              <button
+                onClick={onClose}
+                className="w-full rounded-xl bg-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-300"
+              >
+                ✕ Fechar
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <div className="border-b border-slate-200 p-4">
+              {activeTab === "chat" && (
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">Conversa</h3>
+                  <p className="text-sm text-slate-500">
+                    Converse com o Hermes Admin para gerenciar sua plataforma
+                  </p>
+                </div>
+              )}
+              {activeTab === "tasks" && (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900">Tarefas</h3>
+                    <p className="text-sm text-slate-500">{tasks.length} tarefas</p>
+                  </div>
+                  <button
+                    onClick={handleCreateTask}
+                    className="rounded-full bg-violet-600 px-4 py-2 text-xs font-semibold text-white hover:bg-violet-700"
+                  >
+                    + Nova Tarefa
+                  </button>
+                </div>
+              )}
+              {activeTab === "projects" && (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900">Projetos</h3>
+                    <p className="text-sm text-slate-500">{projects.length} projetos</p>
+                  </div>
+                  <button
+                    onClick={handleCreateProject}
+                    className="rounded-full bg-violet-600 px-4 py-2 text-xs font-semibold text-white hover:bg-violet-700"
+                  >
+                    + Novo Projeto
+                  </button>
+                </div>
+              )}
+              {activeTab === "routines" && (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900">Rotinas</h3>
+                    <p className="text-sm text-slate-500">{routines.length} rotinas</p>
+                  </div>
+                  <button
+                    onClick={handleCreateRoutine}
+                    className="rounded-full bg-violet-600 px-4 py-2 text-xs font-semibold text-white hover:bg-violet-700"
+                  >
+                    + Nova Rotina
+                  </button>
+                </div>
+              )}
+              {activeTab === "memory" && (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900">Memória</h3>
+                    <p className="text-sm text-slate-500">{memories.length} memórias</p>
+                  </div>
+                  <button
+                    onClick={handleCreateMemory}
+                    className="rounded-full bg-violet-600 px-4 py-2 text-xs font-semibold text-white hover:bg-violet-700"
+                  >
+                    + Nova Memória
+                  </button>
+                </div>
+              )}
+              {activeTab === "logs" && (
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">Logs de Ações</h3>
+                  <p className="text-sm text-slate-500">{logs.length} ações registradas</p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              {activeTab === "chat" && (
+                <div className="flex h-full flex-col">
+                  <div className="flex-1 space-y-4 overflow-y-auto">
+                    {messages.map((msg, idx) => (
+                      <div
+                        key={idx}
+                        className={`rounded-2xl p-4 ${
+                          msg.role === "user"
+                            ? "bg-violet-600 text-white"
+                            : "bg-slate-100 text-slate-900"
+                        }`}
+                      >
+                        <div className="text-sm font-semibold">
+                          {msg.role === "user" ? "Você" : "Hermes Admin"}
+                        </div>
+                        <div className="mt-1 whitespace-pre-wrap">{msg.content}</div>
+                      </div>
+                    ))}
+                    {loading && (
+                      <div className="rounded-2xl bg-slate-100 p-4 text-slate-500">
+                        Hermes Admin está pensando...
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-4 flex gap-2">
+                    <input
+                      type="text"
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyPress={(e) => e.key === "Enter" && handleSend()}
+                      placeholder="Digite sua mensagem..."
+                      className="flex-1 rounded-xl border border-slate-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                      disabled={loading}
+                    />
+                    <button
+                      onClick={handleSend}
+                      disabled={loading}
+                      className="rounded-xl bg-violet-600 px-6 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
+                    >
+                      Enviar
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "tasks" && (
+                <div className="space-y-3">
+                  {tasks.length === 0 ? (
+                    <div className="text-center text-sm text-slate-500">
+                      Nenhuma tarefa ainda
+                    </div>
+                  ) : (
+                    tasks.map((task) => (
+                      <div
+                        key={task.id}
+                        className="rounded-xl border border-slate-200 bg-white p-4"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-semibold text-slate-900">{task.title}</h4>
+                            <p className="text-sm text-slate-600">{task.description}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase ${
+                                task.status === "completed"
+                                  ? "bg-emerald-100 text-emerald-900"
+                                  : task.status === "in_progress"
+                                    ? "bg-amber-100 text-amber-900"
+                                    : "bg-slate-100 text-slate-900"
+                              }`}
+                            >
+                              {task.status}
+                            </span>
+                            <button
+                              onClick={() => handleUpdateTask(task)}
+                              className="rounded-lg bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200"
+                            >
+                              Editar
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {activeTab === "projects" && (
+                <div className="space-y-3">
+                  {projects.length === 0 ? (
+                    <div className="text-center text-sm text-slate-500">
+                      Nenhum projeto ainda
+                    </div>
+                  ) : (
+                    projects.map((project) => (
+                      <div
+                        key={project.id}
+                        className="rounded-xl border border-slate-200 bg-white p-4"
+                      >
+                        <h4 className="font-semibold text-slate-900">{project.name}</h4>
+                        <p className="text-sm text-slate-600">{project.description}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {activeTab === "routines" && (
+                <div className="space-y-3">
+                  {routines.length === 0 ? (
+                    <div className="text-center text-sm text-slate-500">
+                      Nenhuma rotina ainda
+                    </div>
+                  ) : (
+                    routines.map((routine) => (
+                      <div
+                        key={routine.id}
+                        className="rounded-xl border border-slate-200 bg-white p-4"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-semibold text-slate-900">{routine.name}</h4>
+                            <p className="text-sm text-slate-600">{routine.description}</p>
+                            <p className="text-xs text-slate-500">
+                              Agendamento: {routine.schedule}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => handleRunRoutine(routine)}
+                            className="rounded-lg bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-900 hover:bg-emerald-200"
+                          >
+                            ▶ Executar
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {activeTab === "memory" && (
+                <div className="space-y-3">
+                  {memories.length === 0 ? (
+                    <div className="text-center text-sm text-slate-500">
+                      Nenhuma memória ainda
+                    </div>
+                  ) : (
+                    memories.map((memory) => (
+                      <div
+                        key={memory.id}
+                        className="rounded-xl border border-slate-200 bg-white p-4"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h4 className="font-semibold text-slate-900">{memory.key}</h4>
+                            <p className="text-sm text-slate-600">{memory.value}</p>
+                          </div>
+                          <span className="text-[10px] text-slate-500">
+                            {new Date(memory.created_at).toLocaleDateString("pt-BR")}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {activeTab === "logs" && (
+                <div className="space-y-2">
+                  {logs.length === 0 ? (
+                    <div className="text-center text-sm text-slate-500">
+                      Nenhum log ainda
+                    </div>
+                  ) : (
+                    logs.map((log) => (
+                      <div
+                        key={log.id}
+                        className="rounded-xl bg-slate-50 px-4 py-2 text-xs"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-slate-900">
+                            {log.action_type}
+                          </span>
+                          <span className="text-slate-500">
+                            {new Date(log.created_at).toLocaleString("pt-BR")}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-slate-600">{log.description}</div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
