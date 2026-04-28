@@ -561,6 +561,9 @@ class CrmWhatsAppConnectionOut(BaseModel):
     connected_phone: str | None
     qr_code_base64: str | None
     last_error: str | None
+    last_webhook_event: str | None = None
+    last_webhook_payload: str | None = None
+    last_webhook_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -573,3 +576,370 @@ class CrmWhatsAppStatusOut(BaseModel):
     connected_phone: str | None = None
     qr_code_base64: str | None = None
     raw: dict | list | None = None
+
+
+class GitHubCommitRequest(BaseModel):
+    message: str = Field(min_length=1)
+    files: list[str] | None = None
+    author_name: str | None = None
+    author_email: str | None = None
+
+
+class GitHubPushRequest(BaseModel):
+    branch: str = "main"
+
+
+class GitHubPullRequestRequest(BaseModel):
+    title: str = Field(min_length=1)
+    body: str = Field(min_length=1)
+    head: str = Field(min_length=1)
+    base: str = "main"
+
+
+class FileListRequest(BaseModel):
+    path: str = "./"
+    pattern: str | None = None
+
+
+class FileReadRequest(BaseModel):
+    path: str = Field(min_length=1)
+    encoding: str = "utf-8"
+
+
+class FileWriteRequest(BaseModel):
+    path: str = Field(min_length=1)
+    content: str
+    encoding: str = "utf-8"
+    create_dirs: bool = True
+
+
+class FileDeleteRequest(BaseModel):
+    path: str = Field(min_length=1)
+
+
+class CoolifyDeployRequest(BaseModel):
+    application_id: str = Field(min_length=1)
+    branch: str | None = None
+    force_rebuild: bool = False
+
+
+class CoolifyTriggerRequest(BaseModel):
+    webhook_url: str = Field(min_length=1)
+    payload: dict | None = None
+
+
+class CoolifyStatusRequest(BaseModel):
+    application_id: str = Field(min_length=1)
+
+
+class CoolifyDeploymentsRequest(BaseModel):
+    application_id: str = Field(min_length=1)
+    limit: int = 10
+
+
+class SocialFileListRequest(BaseModel):
+    pattern: str | None = None
+    subfolder: str | None = None
+
+
+class SocialFileReadRequest(BaseModel):
+    filename: str = Field(min_length=1)
+    subfolder: str | None = None
+    encoding: str = "utf-8"
+
+
+class SocialFileWriteRequest(BaseModel):
+    filename: str = Field(min_length=1)
+    content: str
+    subfolder: str | None = None
+    encoding: str = "utf-8"
+
+
+class SocialFileDeleteRequest(BaseModel):
+    filename: str = Field(min_length=1)
+    subfolder: str | None = None
+
+
+class RoutineExecuteRequest(BaseModel):
+    routine_name: str = Field(min_length=1)
+    input_data: str | None = None
+
+
+class RoutineScheduleRequest(BaseModel):
+    routine_name: str = Field(min_length=1)
+    interval: str = Field(min_length=1)
+    interval_value: int = Field(gt=0)
+
+
+class RoutineCancelRequest(BaseModel):
+    job_id: str = Field(min_length=1)
+
+
+class SkillExecutionOut(BaseModel):
+    id: int
+    tenant_id: int
+    skill_name: str
+    status: str
+    input_data: str | None
+    output_data: str | None
+    error_message: str | None
+    started_at: datetime | None
+    completed_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SkillExecutionsListOut(BaseModel):
+    executions: list[SkillExecutionOut]
+    total: int
+
+
+class HermesAdminChatRequest(BaseModel):
+    message: str = Field(min_length=1)
+
+
+class HermesAdminChatResponse(BaseModel):
+    response: str
+    actions: list[str] = []
+    context: dict = {}
+
+
+class AdminTaskCreate(BaseModel):
+    title: str = Field(min_length=1)
+    description: str | None = None
+    priority: str = "normal"
+    assigned_user_id: int | None = None
+    related_tenant_id: int | None = None
+    due_date: datetime | None = None
+
+
+class AdminTaskUpdate(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    status: str | None = None
+    priority: str | None = None
+    assigned_user_id: int | None = None
+    due_date: datetime | None = None
+
+
+class AdminTaskOut(BaseModel):
+    id: int
+    title: str
+    description: str | None
+    status: str
+    priority: str
+    assigned_user_id: int | None
+    related_tenant_id: int | None
+    due_date: datetime | None
+    completed_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AdminTaskListOut(BaseModel):
+    tasks: list[AdminTaskOut]
+    total: int
+
+
+class AdminProjectCreate(BaseModel):
+    name: str = Field(min_length=1)
+    description: str | None = None
+    priority: str = "normal"
+    due_date: datetime | None = None
+
+
+class AdminProjectUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    status: str | None = None
+    priority: str | None = None
+    due_date: datetime | None = None
+
+
+class AdminProjectOut(BaseModel):
+    id: int
+    name: str
+    description: str | None
+    status: str
+    priority: str
+    due_date: datetime | None
+    completed_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AdminProjectListOut(BaseModel):
+    projects: list[AdminProjectOut]
+    total: int
+
+
+class AdminRoutineCreate(BaseModel):
+    name: str = Field(min_length=1)
+    description: str | None = None
+    schedule_type: str = Field(min_length=1)
+    schedule_value: int = Field(gt=0)
+
+
+class AdminRoutineUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    schedule_type: str | None = None
+    schedule_value: int | None = None
+    is_active: bool | None = None
+
+
+class AdminRoutineOut(BaseModel):
+    id: int
+    name: str
+    description: str | None
+    schedule_type: str
+    schedule_value: int
+    last_run_at: datetime | None
+    next_run_at: datetime | None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AdminRoutineListOut(BaseModel):
+    routines: list[AdminRoutineOut]
+    total: int
+
+
+class AdminMemoryCreate(BaseModel):
+    category: str = Field(min_length=1)
+    key: str = Field(min_length=1)
+    value: str = Field(min_length=1)
+    metadata: str | None = None
+
+
+class AdminMemoryUpdate(BaseModel):
+    category: str | None = None
+    key: str | None = None
+    value: str | None = None
+    metadata: str | None = None
+
+
+class AdminMemoryOut(BaseModel):
+    id: int
+    category: str
+    key: str
+    value: str
+    metadata: str | None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AdminMemoryListOut(BaseModel):
+    memories: list[AdminMemoryOut]
+    total: int
+
+
+class AdminActionLogOut(BaseModel):
+    id: int
+    action: str
+    entity_type: str
+    entity_id: int | None
+    details: str | None
+    performed_by_user_id: int | None
+    tenant_id: int | None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AdminActionLogListOut(BaseModel):
+    logs: list[AdminActionLogOut]
+    total: int
+
+
+class HermesAdminDashboardOut(BaseModel):
+    active_tenants: int
+    blocked_tenants: int
+    pending_payments: int
+    messages_used_month: int
+    open_tasks: int
+    active_projects: int
+    active_routines: int
+    total_revenue: float
+
+
+
+class AdminSkillCreate(BaseModel):
+    name: str = Field(min_length=1)
+    description: str | None = None
+    trigger_type: str = 'manual'
+    trigger_value: str | None = None
+    instructions: str = Field(min_length=1)
+    expected_result: str | None = None
+    active: bool = True
+
+
+class AdminSkillUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    trigger_type: str | None = None
+    trigger_value: str | None = None
+    instructions: str | None = None
+    expected_result: str | None = None
+    active: bool | None = None
+
+
+class AdminSkillOut(BaseModel):
+    id: int
+    name: str
+    description: str | None
+    trigger_type: str
+    trigger_value: str | None
+    instructions: str
+    expected_result: str | None
+    active: bool
+    last_run_at: datetime | None
+    last_run_result: str | None
+    last_run_status: str | None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AdminSkillListOut(BaseModel):
+    skills: list[AdminSkillOut]
+    total: int
+
+
+class AdminSkillRunRequest(BaseModel):
+    parameters: dict | None = None
+
+
+class AdminSkillRunResponse(BaseModel):
+    skill_id: int
+    skill_name: str
+    status: str
+    result: str | None
+    error: str | None
+    execution_time: float
+    executed_at: datetime
+
+
+class SkillSuggestionResponse(BaseModel):
+    suggestion: AdminSkillCreate
+    confidence: float
+    reason: str

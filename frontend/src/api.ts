@@ -20,6 +20,15 @@ import type {
   MeResponse,
   Message,
   Task,
+  HermesAdminChatResponse,
+  HermesAdminDashboard,
+  AdminTask,
+  AdminProject,
+  AdminRoutine,
+  AdminMemory,
+  AdminActionLog,
+  AdminSkill,
+  SkillSuggestion,
 } from "./types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
@@ -421,3 +430,211 @@ export async function deleteAdminTenant(tenantId: number) {
 }
 
 export const setAdminTenantModules = updateAdminTenantModules;
+
+
+export async function hermesAdminChat(message: string) {
+  return request<HermesAdminChatResponse>('/admin/hermes/chat', {
+    method: 'POST',
+    body: JSON.stringify({ message }),
+  });
+}
+
+export async function getHermesAdminDashboard() {
+  return request<HermesAdminDashboard>('/admin/hermes/dashboard');
+}
+
+export async function getAdminTasks(status?: string, limit = 50, offset = 0) {
+  const search = status ? `?status=${status}&limit=${limit}&offset=${offset}` : `?limit=${limit}&offset=${offset}`;
+  const data = await request<{ tasks: AdminTask[]; total: number }>(`/admin/hermes/tasks${search}`);
+  return { tasks: data.tasks, total: data.total };
+}
+
+export async function createAdminTask(payload: {
+  title: string;
+  description?: string;
+  priority?: string;
+  assigned_user_id?: number;
+  related_tenant_id?: number;
+  due_date?: string;
+}) {
+  return request<AdminTask>('/admin/hermes/tasks', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateAdminTask(taskId: number, payload: Partial<AdminTask>) {
+  return request<AdminTask>(`/admin/hermes/tasks/${taskId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteAdminTask(taskId: number) {
+  return request<void>(`/admin/hermes/tasks/${taskId}`, {
+    method: 'DELETE',
+  });
+}
+
+
+export async function getAdminProjects(status?: string, limit = 50, offset = 0) {
+  const search = status ? `?status=${status}&limit=${limit}&offset=${offset}` : `?limit=${limit}&offset=${offset}`;
+  const data = await request<{ projects: AdminProject[]; total: number }>(`/admin/hermes/projects${search}`);
+  return { projects: data.projects, total: data.total };
+}
+
+export async function createAdminProject(payload: {
+  name: string;
+  description?: string;
+  priority?: string;
+  due_date?: string;
+}) {
+  return request<AdminProject>('/admin/hermes/projects', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateAdminProject(projectId: number, payload: Partial<AdminProject>) {
+  return request<AdminProject>(`/admin/hermes/projects/${projectId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteAdminProject(projectId: number) {
+  return request<void>(`/admin/hermes/projects/${projectId}`, {
+    method: 'DELETE',
+  });
+}
+
+
+export async function getAdminRoutines(limit = 50, offset = 0) {
+  const search = `?limit=${limit}&offset=${offset}`;
+  const data = await request<{ routines: AdminRoutine[]; total: number }>(`/admin/hermes/routines${search}`);
+  return { routines: data.routines, total: data.total };
+}
+
+export async function createAdminRoutine(payload: {
+  name: string;
+  description?: string;
+  schedule_type: string;
+  schedule_value: number;
+}) {
+  return request<AdminRoutine>('/admin/hermes/routines', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateAdminRoutine(routineId: number, payload: Partial<AdminRoutine>) {
+  return request<AdminRoutine>(`/admin/hermes/routines/${routineId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteAdminRoutine(routineId: number) {
+  return request<void>(`/admin/hermes/routines/${routineId}`, {
+    method: 'DELETE',
+  });
+}
+
+
+export async function getAdminMemory(category?: string, key?: string, limit = 100, offset = 0) {
+  const params = new URLSearchParams({ limit: limit.toString(), offset: offset.toString() });
+  if (category) params.set('category', category);
+  if (key) params.set('key', key);
+  const data = await request<{ memories: AdminMemory[]; total: number }>(`/admin/hermes/memory?${params.toString()}`);
+  return { memories: data.memories, total: data.total };
+}
+
+export async function createAdminMemory(payload: {
+  category: string;
+  key: string;
+  value: string;
+  metadata?: string;
+}) {
+  return request<AdminMemory>('/admin/hermes/memory', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateAdminMemory(memoryId: number, payload: Partial<AdminMemory>) {
+  return request<AdminMemory>(`/admin/hermes/memory/${memoryId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteAdminMemory(memoryId: number) {
+  return request<void>(`/admin/hermes/memory/${memoryId}`, {
+    method: 'DELETE',
+  });
+}
+
+
+export async function getAdminActionLogs(limit = 100, offset = 0) {
+  const search = `?limit=${limit}&offset=${offset}`;
+  const data = await request<{ logs: AdminActionLog[]; total: number }>(`/admin/hermes/logs${search}`);
+  return { logs: data.logs, total: data.total };
+}
+
+
+export async function getAdminSkills(activeOnly = false, limit = 50, offset = 0) {
+  const search = `?active_only=${activeOnly}&limit=${limit}&offset=${offset}`;
+  const data = await request<{ skills: AdminSkill[]; total: number }>(`/admin/hermes/skills${search}`);
+  return { skills: data.skills, total: data.total };
+}
+
+export async function createAdminSkill(payload: {
+  name: string;
+  description?: string;
+  trigger_type?: string;
+  trigger_value?: string;
+  instructions: string;
+  expected_result?: string;
+  active?: boolean;
+}) {
+  return request<AdminSkill>('/admin/hermes/skills', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateAdminSkill(skillId: number, payload: Partial<AdminSkill>) {
+  return request<AdminSkill>(`/admin/hermes/skills/${skillId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteAdminSkill(skillId: number) {
+  return request<void>(`/admin/hermes/skills/${skillId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function runAdminSkill(skillId: number, parameters?: Record<string, unknown>) {
+  return request<{
+    skill_id: number;
+    skill_name: string;
+    status: string;
+    result: unknown;
+    error: string | null;
+    execution_time: number;
+    executed_at: string;
+  }>(`/admin/hermes/skills/${skillId}/run`, {
+    method: 'POST',
+    body: JSON.stringify({ parameters }),
+  });
+}
+
+export async function suggestAdminSkill(message: string) {
+  return request<SkillSuggestion>('/admin/hermes/skills/suggest', {
+    method: 'POST',
+    body: JSON.stringify({ message }),
+  });
+}
+

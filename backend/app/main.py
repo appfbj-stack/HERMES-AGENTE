@@ -5,6 +5,7 @@ from sqlalchemy import text
 from app.core.config import get_settings
 from app.core.database import Base, engine
 from app.routes.admin import router as admin_router
+from app.routes.admin_hermes import router as admin_hermes_router
 from app.routes.auth import router as auth_router
 from app.routes.billing import router as billing_router
 from app.routes.chats import router as chats_router
@@ -15,6 +16,7 @@ from app.routes.leads import router as leads_router
 from app.routes.messages import router as messages_router
 from app.routes.public import router as public_router
 from app.routes.tasks import router as tasks_router
+from app.routes.tools import router as tools_router
 from app.routes.webhook import router as webhook_router
 
 settings = get_settings()
@@ -56,6 +58,9 @@ MIGRATIONS = [
     "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS lead_id INTEGER REFERENCES leads(id)",
     "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assigned_user_id INTEGER REFERENCES users(id)",
     "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()",
+    "ALTER TABLE crm_whatsapp_connections ADD COLUMN IF NOT EXISTS last_webhook_event VARCHAR(100)",
+    "ALTER TABLE crm_whatsapp_connections ADD COLUMN IF NOT EXISTS last_webhook_payload TEXT",
+    "ALTER TABLE crm_whatsapp_connections ADD COLUMN IF NOT EXISTS last_webhook_at TIMESTAMPTZ",
     # ===== Seed de planos default =====
     """INSERT INTO plans (code, name, monthly_credits, price_cents, description, active)
        VALUES ('starter', 'Starter', 1000, 9700, '1.000 mensagens/mês • 1 canal • IA com nicho', true)
@@ -83,6 +88,7 @@ def on_startup() -> None:
 app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(admin_router)
+app.include_router(admin_hermes_router)
 app.include_router(chats_router)
 app.include_router(messages_router)
 app.include_router(leads_router)
@@ -92,3 +98,4 @@ app.include_router(webhook_router)
 app.include_router(public_router)
 app.include_router(billing_router)
 app.include_router(crm_router)
+app.include_router(tools_router)

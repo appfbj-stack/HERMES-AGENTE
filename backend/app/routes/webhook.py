@@ -2,6 +2,7 @@
 Webhook do Telegram e WhatsApp (Evolution Go) com suporte multi-tenant.
 """
 import re
+import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -18,6 +19,8 @@ from app.services.telegram import send_telegram_message
 from app.services.whatsapp_provider import WhatsAppProviderError, get_provider
 
 router = APIRouter(prefix="/webhook", tags=["webhook"])
+
+MAX_STORED_WEBHOOK_PAYLOAD_CHARS = 12000
 
 
 def _extract_start_tenant(text: str) -> int | None:
@@ -124,6 +127,27 @@ def _extract_push_name(payload: dict) -> str | None:
             if isinstance(value, str) and value.strip():
                 return value.strip()
     return None
+
+
+def _serialize_webhook_payload(payload: dict) -> str:
+    try:
+        text = json.dumps(payload, ensure_ascii=True)
+    except (TypeError, ValueError):
+        text = str(payload)
+    if len(text) <= MAX_STORED_WEBHOOK_PAYLOAD_CHARS:
+        return text
+    return text[: MAX_STORED_WEBHOOK_PAYLOAD_CHARS - 3] + "..."
+
+
+def _track_whatsapp_webhook(
+    connection: CrmWhatsAppConnection,
+    payload: dict,
+    *,
+    event: str | None,
+) -> None:
+    connection.last_webhook_event = event or "unknown"
+    connection.last_webhook_payload = _serialize_webhook_payload(payload)
+    connection.last_webhook_at = datetime.now(timezone.utc)
 
 
 def _normalize_whatsapp_number(raw: str | None) -> str | None:
@@ -287,14 +311,17 @@ async def evolution_go_webhook(
     connection = connection_query.first()
     if not connection:
         return {"status": "ignored", "reason": "connection_not_found"}
+    _track_whatsapp_webhook(connection, payload, event=event)
 
     key_data = _extract_evolution_key(payload)
     if key_data.get("fromMe") is True:
+        db.commit()
         return {"status": "ignored", "reason": "from_me"}
 
     message_root = _extract_evolution_message(payload)
     inbound_text = _extract_evolution_text(message_root)
     if not inbound_text:
+        db.commit()
         return {"status": "ignored", "reason": "unsupported_message"}
 
     tenant_id = connection.tenant_id
@@ -304,6 +331,7 @@ async def evolution_go_webhook(
         or (payload.get("data") or {}).get("remoteJid")
     )
     if not remote_jid:
+        db.commit()
         return {"status": "ignored", "reason": "missing_remote_jid"}
 
     contact_name = _extract_push_name(payload)
@@ -382,6 +410,8 @@ async def evolution_go_webhook(
     try:
         await get_provider(connection).send_text(connection, remote_jid, clean_reply)
     except (WhatsAppProviderError, Exception):
+        connection.last_error = "Webhook processed but outbound WhatsApp reply failed"
+        db.commit()
         return {"status": "partial", "reason": "reply_not_sent"}
 
     return {"status": "ok"}

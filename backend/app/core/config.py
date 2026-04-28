@@ -41,6 +41,14 @@ class Settings(BaseSettings):
         default_factory=lambda: ["http://localhost:5173", "http://localhost:8080"]
     )
 
+    coolify_api_base_url: str = ""
+    coolify_api_key: str = ""
+    github_token: str = ""
+    github_owner: str = ""
+    github_repo: str = ""
+    social_files_path: str = "./social"
+    admin_telegram_id: str = ""
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def split_origins(cls, value: str | list[str]) -> list[str]:

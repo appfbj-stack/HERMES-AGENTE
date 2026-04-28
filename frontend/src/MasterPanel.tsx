@@ -12,10 +12,199 @@ import {
   setAdminTenantModules,
   updateAdminTenant,
   type MasterBotInfo,
+  hermesAdminChat,
+  getHermesAdminDashboard,
 } from "./api";
 import { NICHE_TEMPLATES } from "./niches";
-import type { AdminTenant, NicheTemplate } from "./types";
+import type { AdminTenant, NicheTemplate, HermesAdminDashboard } from "./types";
 
+
+
+function HermesAdminPanel({ show, tab, setTab, onClose }: { show: boolean, tab: string, setTab: (tab: any) => void, onClose: () => void }) {
+  const [messages, setMessages] = useState<Array<{role: string, content: string}>>([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  async function sendMessage() {
+    if (!input.trim()) return;
+    setLoading(true);
+    try {
+      const userMsg = { role: 'user', content: input };
+      const newMessages = [...messages, userMsg];
+      setMessages(newMessages);
+      setInput('');
+      const response = await hermesAdminChat(input);
+      setMessages([...newMessages, { role: 'assistant', content: response.response }]);
+    } catch (e) {
+      setMessages([...messages, { role: 'assistant', content: 'Erro ao processar mensagem.' }]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (!show) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="h-[85vh] w-full max-w-4xl overflow-hidden rounded-[32px] bg-white shadow-2xl">
+        <div className="flex h-full">
+          <div className="w-64 border-r border-black/5 bg-panel">
+            <div className="flex items-center justify-between border-b border-black/5 p-4">
+              <h3 className="font-serif text-lg">Hermes Admin</h3>
+              <button onClick={onClose} className="text-2xl text-slate-400 hover:text-slate-600">×</button>
+            </div>
+            <nav className="p-2 space-y-1">
+              <button
+                onClick={() => setTab('chat')}
+                className={`w-full rounded-xl px-4 py-2 text-left text-sm transition ${tab === 'chat' ? 'bg-emerald-100 text-emerald-700' : 'hover:bg-slate-100'}`}
+              >
+                💬 Chat
+              </button>
+              <button
+                onClick={() => setTab('tasks')}
+                className={`w-full rounded-xl px-4 py-2 text-left text-sm transition ${tab === 'tasks' ? 'bg-emerald-100 text-emerald-700' : 'hover:bg-slate-100'}`}
+              >
+                ✅ Tarefas
+              </button>
+              <button
+                onClick={() => setTab('projects')}
+                className={`w-full rounded-xl px-4 py-2 text-left text-sm transition ${tab === 'projects' ? 'bg-emerald-100 text-emerald-700' : 'hover:bg-slate-100'}`}
+              >
+                📁 Projetos
+              </button>
+              <button
+                onClick={() => setTab('routines')}
+                className={`w-full rounded-xl px-4 py-2 text-left text-sm transition ${tab === 'routines' ? 'bg-emerald-100 text-emerald-700' : 'hover:bg-slate-100'}`}
+              >
+                ⏰ Rotinas
+              </button>
+              <button
+                onClick={() => setTab('memory')}
+                className={`w-full rounded-xl px-4 py-2 text-left text-sm transition ${tab === 'memory' ? 'bg-emerald-100 text-emerald-700' : 'hover:bg-slate-100'}`}
+              >
+                🧠 Memória
+              </button>
+              <button
+                onClick={() => setTab('logs')}
+                className={`w-full rounded-xl px-4 py-2 text-left text-sm transition ${tab === 'logs' ? 'bg-emerald-100 text-emerald-700' : 'hover:bg-slate-100'}`}
+              >
+                📋 Logs
+              </button>
+            </nav>
+          </div>
+
+          <div className="flex-1 overflow-hidden">
+            {tab === 'chat' && (
+              <div className="flex h-full flex-col">
+                <div className="flex-1 overflow-y-auto p-6">
+                  <div className="space-y-4">
+                    {messages.length === 0 && (
+                      <div className="rounded-2xl bg-panel p-6 text-center text-slate-500">
+                        <div className="text-4xl mb-2">🤖</div>
+                        <div>Olá! Sou o Hermes Admin Master.</div>
+                        <div className="mt-2 text-sm">Posso ajudar você a:</div>
+                        <ul className="mt-4 inline-block text-left text-sm space-y-2">
+                          <li>• Listar clientes ativos/bloqueados</li>
+                          <li>• Ver pagamentos pendentes</li>
+                          <li>• Criar tarefas e rotinas</li>
+                          <li>• Consultar memória da empresa</li>
+                        </ul>
+                      </div>
+                    )}
+                    {messages.map((msg, i) => (
+                      <div
+                        key={i}
+                        className={`rounded-2xl p-4 ${msg.role === 'user' ? 'bg-emerald-600 text-white ml-12' : 'bg-panel text-ink mr-12'}`}
+                      >
+                        {msg.content}
+                      </div>
+                    ))}
+                    {loading && (
+                      <div className="rounded-2xl bg-panel p-4 text-slate-500 mr-12">Digitando...</div>
+                    )}
+                  </div>
+                </div>
+                <div className="border-t border-black/5 p-4">
+                  <div className="flex gap-2">
+                    <input
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                      placeholder="Digite sua mensagem..."
+                      className="flex-1 rounded-full border-2 border-black/10 px-4 py-2 focus:border-emerald-500 focus:outline-none"
+                    />
+                    <button
+                      onClick={sendMessage}
+                      disabled={loading || !input.trim()}
+                      className="rounded-full bg-emerald-600 px-6 py-2 text-white hover:bg-emerald-700 disabled:opacity-50"
+                    >
+                      Enviar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {tab === 'tasks' && (
+              <div className="h-full overflow-y-auto p-6">
+                <h3 className="mb-4 font-serif text-xl">Tarefas Internas</h3>
+                <div className="rounded-2xl bg-panel p-8 text-center text-slate-500">
+                  <div className="text-4xl mb-2">📋</div>
+                  <div>Gerenciamento de tarefas administrativas</div>
+                  <div className="mt-2 text-sm">Em breve: CRUD completo de tarefas</div>
+                </div>
+              </div>
+            )}
+
+            {tab === 'projects' && (
+              <div className="h-full overflow-y-auto p-6">
+                <h3 className="mb-4 font-serif text-xl">Projetos</h3>
+                <div className="rounded-2xl bg-panel p-8 text-center text-slate-500">
+                  <div className="text-4xl mb-2">📁</div>
+                  <div>Gerenciamento de projetos administrativos</div>
+                  <div className="mt-2 text-sm">Em breve: CRUD completo de projetos</div>
+                </div>
+              </div>
+            )}
+
+            {tab === 'routines' && (
+              <div className="h-full overflow-y-auto p-6">
+                <h3 className="mb-4 font-serif text-xl">Rotinas</h3>
+                <div className="rounded-2xl bg-panel p-8 text-center text-slate-500">
+                  <div className="text-4xl mb-2">⏰</div>
+                  <div>Gerenciamento de rotinas agendadas</div>
+                  <div className="mt-2 text-sm">Em breve: CRUD completo de rotinas</div>
+                </div>
+              </div>
+            )}
+
+            {tab === 'memory' && (
+              <div className="h-full overflow-y-auto p-6">
+                <h3 className="mb-4 font-serif text-xl">Memória da Empresa</h3>
+                <div className="rounded-2xl bg-panel p-8 text-center text-slate-500">
+                  <div className="text-4xl mb-2">🧠</div>
+                  <div>Memória corporativa do Hermes Admin</div>
+                  <div className="mt-2 text-sm">Em breve: CRUD completo de memória</div>
+                </div>
+              </div>
+            )}
+
+            {tab === 'logs' && (
+              <div className="h-full overflow-y-auto p-6">
+                <h3 className="mb-4 font-serif text-xl">Logs de Ações</h3>
+                <div className="rounded-2xl bg-panel p-8 text-center text-slate-500">
+                  <div className="text-4xl mb-2">📋</div>
+                  <div>Log de ações administrativas</div>
+                  <div className="mt-2 text-sm">Em breve: Listagem completa de logs</div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 function genPassword(): string {
   return "Senha" + Math.floor(1000 + Math.random() * 9000) + "!";
 }
@@ -43,17 +232,25 @@ export default function MasterPanel() {
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [qrTenant, setQrTenant] = useState<AdminTenant | null>(null);
+  const [showHermesAdmin, setShowHermesAdmin] = useState(false);
+  const [hermesTab, setHermesTab] = useState<'chat' | 'tasks' | 'projects' | 'routines' | 'memory' | 'logs'>('chat');
+  const [hermesMessages, setHermesMessages] = useState<Array<{role: string, content: string}>>([]);
+  const [hermesInput, setHermesInput] = useState('');
+  const [hermesDashboard, setHermesDashboard] = useState<HermesAdminDashboard | null>(null);
+  const [hermesLoading, setHermesLoading] = useState(false);
 
   async function load() {
     setLoading(true);
     setError("");
     try {
-      const [tenantsData, botData] = await Promise.all([
+      const [tenantsData, botData, hermesData] = await Promise.all([
         getAdminTenants(),
         getMasterBotInfo().catch(() => null),
+        getHermesAdminDashboard().catch(() => null),
       ]);
       setTenants(tenantsData);
       setMasterBot(botData);
+      setHermesDashboard(hermesData);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro");
     } finally {
@@ -111,6 +308,32 @@ export default function MasterPanel() {
         />
       </div>
 
+      <div className="rounded-[32px] bg-gradient-to-r from-violet-50 to-purple-50 p-6">
+        <h3 className="mb-4 font-serif text-xl">⚡ Atalhos Rápidos</h3>
+        <div className="grid gap-3 md:grid-cols-4">
+          <button
+            onClick={() => setShowHermesAdmin(true)}
+            className="rounded-xl bg-white px-4 py-3 text-left text-sm transition hover:shadow-md"
+          >
+            <div className="font-medium text-emerald-700">🤖 Chat com Hermes</div>
+            <div className="text-xs text-slate-500">Perguntar ao assistente</div>
+          </button>
+          <div className="rounded-xl bg-white px-4 py-3 text-left text-sm transition hover:shadow-md">
+            <div className="font-medium text-emerald-700">✅ Clientes ativos</div>
+            <div className="text-xs text-slate-500">{tenants.filter((t) => t.active).length} clientes</div>
+          </div>
+          <div className="rounded-xl bg-white px-4 py-3 text-left text-sm transition hover:shadow-md">
+            <div className="font-medium text-red-700">⚠️ Bloqueados</div>
+            <div className="text-xs text-slate-500">{tenants.filter((t) => t.credits_remaining <= 0).length} clientes</div>
+          </div>
+          <div className="rounded-xl bg-white px-4 py-3 text-left text-sm transition hover:shadow-md">
+            <div className="font-medium text-amber-700">💰 Mensagens</div>
+            <div className="text-xs text-slate-500">{totalUsedMessages.toLocaleString("pt-BR")} este mês</div>
+          </div>
+        </div>
+      </div>
+
+
       <div className="rounded-[32px] bg-white p-6 shadow-soft">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-serif text-2xl">Clientes (Tenants)</h2>
@@ -119,6 +342,12 @@ export default function MasterPanel() {
             className="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
           >
             + Novo cliente
+          </button>
+          <button
+            onClick={() => setShowHermesAdmin(true)}
+            className="rounded-full bg-violet-600 px-5 py-2 text-sm font-semibold text-white hover:bg-violet-700"
+          >
+            🤖 Hermes Admin
           </button>
         </div>
 
@@ -285,8 +514,7 @@ export default function MasterPanel() {
         />
       )}
     </div>
-  );
-}
+      <HermesAdminPanel
 
 function Stat({ label, value, color }: { label: string; value: string | number; color?: "red" | "emerald" }) {
   return (
@@ -409,6 +637,136 @@ function CreateTenantModal({
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 required
               />
+
+  );
+        show={showHermesAdmin}
+        tab={hermesTab}
+        setTab={setHermesTab}
+        onClose={() => setShowHermesAdmin(false)}
+      />
+
+}
+
+function Stat({ label, value, color }: { label: string; value: string | number; color?: "red" | "emerald" }) {
+  return (
+    <div
+      className={`rounded-[28px] p-6 shadow-soft backdrop-blur ${
+        color === "red" ? "bg-red-50" : color === "emerald" ? "bg-emerald-50" : "bg-white/80"
+      }`}
+    >
+      <div className="text-sm text-slate-500">{label}</div>
+      <div
+        className={`mt-3 text-3xl font-semibold ${
+          color === "red" ? "text-red-600" : color === "emerald" ? "text-emerald-700" : "text-ink"
+        }`}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function CreateTenantModal({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [niche, setNiche] = useState<NicheTemplate | null>(null);
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    plan: "starter",
+    credits: 1000,
+    user_name: "",
+    user_email: "",
+    user_password: genPassword(),
+    telegram_bot_token: "",
+    telegram_bot_username: "",
+    system_prompt: "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  function pickNiche(n: NicheTemplate) {
+    setNiche(n);
+    setForm((f) => ({
+      ...f,
+      plan: n.defaultPlan,
+      credits: n.defaultCredits,
+      system_prompt: n.systemPrompt,
+    }));
+    setStep(2);
+  }
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      await createAdminTenant({
+        name: form.name,
+        email: form.email,
+        plan: form.plan,
+        niche: niche?.id || null,
+        system_prompt: form.system_prompt || null,
+        telegram_bot_token: form.telegram_bot_token || null,
+        telegram_bot_username: form.telegram_bot_username || null,
+        credits: form.credits,
+        user_name: form.user_name || form.name,
+        user_email: form.user_email,
+        user_password: form.user_password,
+      });
+      setStep(3);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erro");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-[32px] bg-white p-6 shadow-2xl">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="font-serif text-2xl">
+            {step === 1 && "Escolha o nicho"}
+            {step === 2 && `Configurar ${niche?.label}`}
+            {step === 3 && "✅ Cliente criado!"}
+          </h2>
+          <button onClick={onClose} className="text-2xl text-slate-400 hover:text-slate-600">
+            ×
+          </button>
+        </div>
+
+        {step === 1 && (
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+            {NICHE_TEMPLATES.map((n) => (
+              <button
+                key={n.id}
+                onClick={() => pickNiche(n)}
+                className="flex flex-col items-center gap-1 rounded-2xl border-2 border-slate-100 p-4 text-center transition hover:border-emerald-500 hover:bg-emerald-50"
+              >
+                <div className="text-3xl">{n.emoji}</div>
+                <div className="text-sm font-medium">{n.label}</div>
+                <div className="text-xs text-slate-500">{n.defaultCredits.toLocaleString("pt-BR")} msgs</div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {step === 2 && niche && (
+          <form onSubmit={submit} className="space-y-4">
+            <div>
+              <label className="text-xs font-semibold uppercase text-slate-500">Empresa</label>
+              <input
+                className="input mt-1"
+                placeholder="ex: Barbearia Corte Real"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                required
             </div>
             <div className="grid gap-3 md:grid-cols-2">
               <div>

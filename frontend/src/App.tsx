@@ -1444,7 +1444,18 @@ function CrmWorkspace({ profile }: { profile: MeResponse }) {
               <div className="mt-1">Instância: {whatsAppConnection?.instance_name || "-"}</div>
               <div className="mt-1">Telefone: {whatsAppStatus?.connected_phone || whatsAppConnection?.connected_phone || "-"}</div>
               <div className="mt-1">Erro: {whatsAppConnection?.last_error || "-"}</div>
+              <div className="mt-1">Último evento webhook: {whatsAppConnection?.last_webhook_event || "-"}</div>
+              <div className="mt-1">Último webhook em: {formatDateTime(whatsAppConnection?.last_webhook_at) || "-"}</div>
             </div>
+
+            {whatsAppConnection?.last_webhook_payload ? (
+              <div className="mt-5 rounded-[28px] border border-black/5 bg-white p-4">
+                <div className="mb-3 text-xs uppercase tracking-[0.2em] text-slate-400">Último payload recebido</div>
+                <pre className="max-h-72 overflow-auto rounded-2xl bg-slate-950 p-4 text-xs leading-5 text-slate-100">
+                  {whatsAppConnection.last_webhook_payload}
+                </pre>
+              </div>
+            ) : null}
 
             {whatsAppQrCodeSrc ? (
               <div className="mt-5 rounded-[28px] border border-black/5 bg-white p-4">

@@ -189,6 +189,9 @@ export type CrmWhatsAppConnection = {
   connected_phone: string | null;
   qr_code_base64: string | null;
   last_error: string | null;
+  last_webhook_event: string | null;
+  last_webhook_payload: string | null;
+  last_webhook_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -280,4 +283,113 @@ export type MeResponse = {
     crm: boolean;
     whatsapp?: boolean;
   };
+};
+
+
+export type HermesAdminChatResponse = {
+  response: string;
+  actions: string[];
+  context: Record<string, unknown>;
+};
+
+export type AdminTask = {
+  id: number;
+  title: string;
+  description: string | null;
+  status: string;
+  priority: string;
+  assigned_user_id: number | null;
+  related_tenant_id: number | null;
+  due_date: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AdminProject = {
+  id: number;
+  name: string;
+  description: string | null;
+  status: string;
+  priority: string;
+  due_date: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AdminRoutine = {
+  id: number;
+  name: string;
+  description: string | null;
+  schedule_type: string;
+  schedule_value: number;
+  last_run_at: string | null;
+  next_run_at: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AdminMemory = {
+  id: number;
+  category: string;
+  key: string;
+  value: string;
+  metadata: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AdminActionLog = {
+  id: number;
+  action: string;
+  entity_type: string;
+  entity_id: number | null;
+  details: string | null;
+  performed_by_user_id: number | null;
+  tenant_id: number | null;
+  created_at: string;
+};
+
+export type HermesAdminDashboard = {
+  active_tenants: number;
+  blocked_tenants: number;
+  pending_payments: number;
+  messages_used_month: number;
+  open_tasks: number;
+  active_projects: number;
+  active_routines: number;
+  total_revenue: number;
+};
+
+
+export type AdminSkill = {
+  id: number;
+  name: string;
+  description: string | null;
+  trigger_type: string;
+  trigger_value: string | null;
+  instructions: string;
+  expected_result: string | null;
+  active: boolean;
+  last_run_at: string | null;
+  last_run_result: string | null;
+  last_run_status: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SkillSuggestion = {
+  suggestion: {
+    name: string;
+    description: string | null;
+    trigger_type: string;
+    trigger_value: string | null;
+    instructions: string;
+    expected_result: string | null;
+    active: boolean;
+  };
+  confidence: number;
+  reason: string;
 };

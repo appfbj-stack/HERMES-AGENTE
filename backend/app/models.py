@@ -358,7 +358,101 @@ class CrmWhatsAppConnection(Base, TimestampMixin):
     connected_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     qr_code_base64: Mapped[str | None] = mapped_column(Text, nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_webhook_event: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    last_webhook_payload: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_webhook_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 CrmFollowup = CrmFollowUp
 CrmSettings = CrmSetting
+
+
+class SkillExecution(Base, TimestampMixin):
+    __tablename__ = "skill_executions"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    skill_name: Mapped[str] = mapped_column(String(100), index=True)
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    input_data: Mapped[str | None] = mapped_column(Text, nullable=True)
+    output_data: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class AdminTask(Base, TimestampMixin):
+    __tablename__ = "admin_tasks"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    title: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(50), default="open")
+    priority: Mapped[str] = mapped_column(String(20), default="normal")
+    assigned_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    related_tenant_id: Mapped[int | None] = mapped_column(ForeignKey("tenants.id"), nullable=True)
+    due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class AdminProject(Base, TimestampMixin):
+    __tablename__ = "admin_projects"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(50), default="active")
+    priority: Mapped[str] = mapped_column(String(20), default="normal")
+    due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class AdminRoutine(Base, TimestampMixin):
+    __tablename__ = "admin_routines"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    schedule_type: Mapped[str] = mapped_column(String(50))
+    schedule_value: Mapped[int]
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class AdminMemory(Base, TimestampMixin):
+    __tablename__ = "admin_memory"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    category: Mapped[str] = mapped_column(String(100))
+    key: Mapped[str] = mapped_column(String(255))
+    value: Mapped[str] = mapped_column(Text)
+    metadata: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class AdminActionLog(Base, TimestampMixin):
+    __tablename__ = "admin_action_logs"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    action: Mapped[str] = mapped_column(String(100))
+    entity_type: Mapped[str] = mapped_column(String(50))
+    entity_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    details: Mapped[str | None] = mapped_column(Text, nullable=True)
+    performed_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    tenant_id: Mapped[int | None] = mapped_column(ForeignKey("tenants.id"), nullable=True)
+
+
+class AdminSkill(Base, TimestampMixin):
+    __tablename__ = "admin_skills"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    trigger_type: Mapped[str] = mapped_column(String(50), default="manual")
+    trigger_value: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    instructions: Mapped[str] = mapped_column(Text)
+    expected_result: Mapped[str | None] = mapped_column(Text, nullable=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_run_result: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_run_status: Mapped[str | None] = mapped_column(String(20), nullable=True)

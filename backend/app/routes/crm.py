@@ -89,6 +89,9 @@ def _serialize_whatsapp_connection(connection: CrmWhatsAppConnection) -> CrmWhat
         connected_phone=connection.connected_phone,
         qr_code_base64=connection.qr_code_base64,
         last_error=connection.last_error,
+        last_webhook_event=connection.last_webhook_event,
+        last_webhook_payload=connection.last_webhook_payload,
+        last_webhook_at=connection.last_webhook_at,
         created_at=connection.created_at,
         updated_at=connection.updated_at,
     )
