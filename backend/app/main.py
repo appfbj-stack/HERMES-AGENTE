@@ -93,6 +93,113 @@ MIGRATIONS = [
     """INSERT INTO plans (code, name, monthly_credits, price_cents, description, active)
        VALUES ('enterprise', 'Enterprise', 20000, 89700, '20.000 mensagens/mês • Canais ilimitados • Bot dedicado • Suporte', true)
        ON CONFLICT (code) DO NOTHING""",
+    # ===== Tools/Skills Module =====
+    """CREATE TABLE IF NOT EXISTS skill_executions (
+        id SERIAL PRIMARY KEY,
+        tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        skill_name VARCHAR(100) NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'pending',
+        input_data TEXT,
+        output_data TEXT,
+        error_message TEXT,
+        started_at TIMESTAMPTZ,
+        completed_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+    )""",
+    """CREATE INDEX IF NOT EXISTS ix_skill_executions_tenant_id ON skill_executions(tenant_id)""",
+    """CREATE INDEX IF NOT EXISTS ix_skill_executions_status ON skill_executions(status)""",
+    """CREATE INDEX IF NOT EXISTS ix_skill_executions_skill_name ON skill_executions(skill_name)""",
+    """CREATE INDEX IF NOT EXISTS ix_skill_executions_created_at ON skill_executions(created_at DESC)""",
+    # ===== Hermes Admin Module =====
+    """CREATE TABLE IF NOT EXISTS admin_tasks (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        status VARCHAR(50) DEFAULT 'open',
+        priority VARCHAR(20) DEFAULT 'normal',
+        assigned_user_id INTEGER REFERENCES users(id),
+        related_tenant_id INTEGER REFERENCES tenants(id),
+        due_date TIMESTAMPTZ,
+        completed_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+    )""",
+    """CREATE TABLE IF NOT EXISTS admin_projects (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        status VARCHAR(50) DEFAULT 'active',
+        priority VARCHAR(20) DEFAULT 'normal',
+        due_date TIMESTAMPTZ,
+        completed_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+    )""",
+    """CREATE TABLE IF NOT EXISTS admin_routines (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        schedule_type VARCHAR(50) NOT NULL,
+        schedule_value INTEGER NOT NULL,
+        last_run_at TIMESTAMPTZ,
+        next_run_at TIMESTAMPTZ,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+    )""",
+    """CREATE TABLE IF NOT EXISTS admin_memory (
+        id SERIAL PRIMARY KEY,
+        category VARCHAR(100) NOT NULL,
+        key VARCHAR(255) NOT NULL,
+        value TEXT NOT NULL,
+        meta_data TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+    )""",
+    """CREATE TABLE IF NOT EXISTS admin_action_logs (
+        id SERIAL PRIMARY KEY,
+        action VARCHAR(100) NOT NULL,
+        entity_type VARCHAR(50) NOT NULL,
+        entity_id INTEGER,
+        details TEXT,
+        performed_by_user_id INTEGER REFERENCES users(id),
+        tenant_id INTEGER REFERENCES tenants(id),
+        created_at TIMESTAMPTZ DEFAULT NOW()
+    )""",
+    """CREATE INDEX IF NOT EXISTS ix_admin_tasks_status ON admin_tasks(status)""",
+    """CREATE INDEX IF NOT EXISTS ix_admin_tasks_assigned_user_id ON admin_tasks(assigned_user_id)""",
+    """CREATE INDEX IF NOT EXISTS ix_admin_tasks_related_tenant_id ON admin_tasks(related_tenant_id)""",
+    """CREATE INDEX IF NOT EXISTS ix_admin_projects_status ON admin_projects(status)""",
+    """CREATE INDEX IF NOT EXISTS ix_admin_routines_is_active ON admin_routines(is_active)""",
+    """CREATE INDEX IF NOT EXISTS ix_admin_routines_next_run_at ON admin_routines(next_run_at)""",
+    """CREATE INDEX IF NOT EXISTS ix_admin_memory_category ON admin_memory(category)""",
+    """CREATE INDEX IF NOT EXISTS ix_admin_memory_key ON admin_memory(key)""",
+    """CREATE UNIQUE INDEX IF NOT EXISTS uq_admin_memory ON admin_memory(category, key)""",
+    """CREATE INDEX IF NOT EXISTS ix_admin_action_logs_action ON admin_action_logs(action)""",
+    """CREATE INDEX IF NOT EXISTS ix_admin_action_logs_entity_type ON admin_action_logs(entity_type)""",
+    """CREATE INDEX IF NOT EXISTS ix_admin_action_logs_performed_by_user_id ON admin_action_logs(performed_by_user_id)""",
+    """CREATE INDEX IF NOT EXISTS ix_admin_action_logs_tenant_id ON admin_action_logs(tenant_id)""",
+    """CREATE INDEX IF NOT EXISTS ix_admin_action_logs_created_at ON admin_action_logs(created_at DESC)""",
+    # ===== Admin Skills =====
+    """CREATE TABLE IF NOT EXISTS admin_skills (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        trigger_type VARCHAR(50) DEFAULT 'manual',
+        trigger_value VARCHAR(100),
+        instructions TEXT NOT NULL,
+        expected_result TEXT,
+        active BOOLEAN DEFAULT TRUE,
+        last_run_at TIMESTAMPTZ,
+        last_run_result TEXT,
+        last_run_status VARCHAR(20),
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+    )""",
+    """CREATE INDEX IF NOT EXISTS ix_admin_skills_active ON admin_skills(active)""",
+    """CREATE INDEX IF NOT EXISTS ix_admin_skills_trigger_type ON admin_skills(trigger_type)""",
+    """CREATE INDEX IF NOT EXISTS ix_admin_skills_last_run_at ON admin_skills(last_run_at DESC)""",
 ]
 
 
