@@ -76,3 +76,12 @@ def maybe_create_task(db: Session, tenant_id: int, inbound_text: str) -> None:
         status="pending",
     )
     db.add(task)
+
+
+def maybe_create_lead(db: Session, tenant_id: int, chat: Chat, inbound_text: str) -> None:
+    """Delega ao CRM (cria/vincula lead pelo telefone) se o módulo estiver ativo.
+
+    Importação local evita ciclo agent <-> crm_agent.
+    """
+    from app.services.crm_agent import get_or_create_lead_from_chat
+    get_or_create_lead_from_chat(db, tenant_id, chat, inbound_text)
