@@ -43,12 +43,12 @@ def _is_crm_active(db: Session, tenant_id: int) -> bool:
     return bool(mod and mod.crm)
 
 
-def _log(db: Session, tenant_id: int, lead_id: int, action: str, detail: str) -> None:
+def _log(db: Session, tenant_id: int, lead_id: int, action: str, description: str) -> None:
     db.add(CrmActivityLog(
         tenant_id=tenant_id,
         lead_id=lead_id,
         action=action,
-        detail=detail,
+        description=description,
     ))
 
 
@@ -142,8 +142,8 @@ def build_crm_context_block(db: Session, tenant_id: int, lead: Lead | None) -> s
         db.query(CrmFollowup)
         .filter(
             CrmFollowup.lead_id == lead.id,
-            CrmFollowup.data_hora >= today_start,
-            CrmFollowup.data_hora <= today_end,
+            CrmFollowup.due_at >= today_start,
+            CrmFollowup.due_at <= today_end,
             CrmFollowup.status == "pendente",
         )
         .all()
@@ -166,7 +166,7 @@ def build_crm_context_block(db: Session, tenant_id: int, lead: Lead | None) -> s
     cols_list = " | ".join(f'"{c.name}"' for c in all_cols) if all_cols else "(nenhuma configurada)"
 
     followup_lines = "\n".join(
-        f"  - {fu.titulo} às {fu.data_hora.strftime('%H:%M') if hasattr(fu.data_hora, 'strftime') else fu.data_hora}"
+        f"  - {fu.title} às {fu.due_at.strftime('%H:%M') if hasattr(fu.due_at, 'strftime') else fu.due_at}"
         for fu in followups_hoje
     ) or "  (nenhum hoje)"
 
@@ -301,9 +301,9 @@ def _cmd_followup(db: Session, tenant_id: int, lead: Lead, args: str) -> None:
     fu = CrmFollowup(
         tenant_id=tenant_id,
         lead_id=lead.id,
-        titulo=titulo,
-        data_hora=dt,
-        canal="whatsapp",
+        title=titulo,
+        due_at=dt,
+        channel="whatsapp",
         status="pendente",
     )
     db.add(fu)
