@@ -396,7 +396,7 @@ export async function getAdminTenants() {
   return request<AdminTenant[]>("/admin/tenants");
 }
 
-export async function updateAdminTenantModules(tenantId: number, payload: Partial<{ crm: boolean; whatsapp: boolean; kanban: boolean; agenda: boolean; instagram: boolean; youtube: boolean }>) {
+export async function updateAdminTenantModules(tenantId: number, payload: Partial<{ crm: boolean; whatsapp: boolean; kanban: boolean; agenda: boolean; instagram: boolean; youtube: boolean; content_publisher: boolean }>) {
   return request<AdminTenant>(`/admin/tenants/${tenantId}/modules`, {
     method: "PUT",
     body: JSON.stringify(payload),

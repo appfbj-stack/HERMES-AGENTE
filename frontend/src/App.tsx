@@ -115,6 +115,7 @@ function Layout({
     ...(profile.modules.agenda ? [{ label: "Agenda", path: "/agenda" }] : []),
     ...(profile.modules.instagram ? [{ label: "Instagram", path: "/instagram" }] : []),
     ...(profile.modules.youtube ? [{ label: "YouTube", path: "/youtube" }] : []),
+    ...(profile.modules.instagram || profile.modules.youtube ? [{ label: "Publicador", path: "/publisher" }] : []),
     ...(profile.user.is_super_admin ? [{ label: "Master", path: "/master" }] : []),
     { label: "Leads", path: "/leads" },
     { label: "Tarefas", path: "/tasks" },
@@ -476,14 +477,134 @@ function SettingsPage({ profile }: { profile: MeResponse }) {
 // Old CrmWorkspace replaced by modular components (see crm/CrmWorkspace.tsx)
 // Kept for reference only - now using CrmWorkspace.tsx with separate pages
 
-function CrmWhatsAppPage() {
+function InstagramPage() {
   return (
     <div className="space-y-6">
       <div className="rounded-[32px] bg-white p-6 shadow-soft">
-        <h2 className="font-serif text-2xl">WhatsApp Integration</h2>
-        <p className="mt-3 text-slate-600">Conecte e gerencie sua integração com WhatsApp Business API.</p>
-        <div className="mt-6 rounded-2xl bg-panel p-4">
-          <p className="text-sm text-slate-500">⚠️ Funcionalidade em desenvolvimento</p>
+        <h2 className="font-serif text-2xl">Instagram Integration</h2>
+        <p className="mt-3 text-slate-600">Conecte e gerencie sua conta do Instagram Business.</p>
+        
+        <div className="mt-6 space-y-4">
+          <div className="rounded-2xl bg-panel p-4">
+            <h3 className="font-semibold text-slate-900">Conectar Conta</h3>
+            <p className="mt-2 text-sm text-slate-600">Use o OAuth oficial do Meta para conectar sua conta.</p>
+            <div className="mt-4 flex gap-3">
+              <button 
+                className="rounded-2xl bg-gradient-to-r from-purple-500 to-pink-500 px-6 py-3 text-sm font-semibold text-white hover:opacity-90"
+              >
+                <span className="mr-2">📷</span>
+                Conectar Instagram
+              </button>
+              <button className="rounded-2xl bg-slate-100 px-6 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-200">
+                Ver Contas Conectadas
+              </button>
+            </div>
+          </div>
+          
+          <div className="rounded-2xl bg-panel p-4">
+            <h3 className="font-semibold text-slate-900">Funcionalidades</h3>
+            <ul className="mt-3 space-y-2 text-sm text-slate-600">
+              <li>✅ Publicar posts e Reels</li>
+              <li>✅ Responder mensagens</li>
+              <li>✅ Criar leads automaticamente</li>
+              <li>✅ Integração com CRM</li>
+              <li>✅ Responder via Hermes</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function YouTubePage() {
+  return (
+    <div className="space-y-6">
+      <div className="rounded-[32px] bg-white p-6 shadow-soft">
+        <h2 className="font-serif text-2xl">YouTube Integration</h2>
+        <p className="mt-3 text-slate-600">Conecte e gerencie seu canal do YouTube.</p>
+        
+        <div className="mt-6 space-y-4">
+          <div className="rounded-2xl bg-panel p-4">
+            <h3 className="font-semibold text-slate-900">Conectar Canal</h3>
+            <p className="mt-2 text-sm text-slate-600">Use o OAuth oficial do Google para conectar seu canal.</p>
+            <div className="mt-4 flex gap-3">
+              <button 
+                className="rounded-2xl bg-gradient-to-r from-red-500 to-red-600 px-6 py-3 text-sm font-semibold text-white hover:opacity-90"
+              >
+                <span className="mr-2">▶️</span>
+                Conectar YouTube
+              </button>
+              <button className="rounded-2xl bg-slate-100 px-6 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-200">
+                Ver Canais Conectados
+              </button>
+            </div>
+          </div>
+          
+          <div className="rounded-2xl bg-panel p-4">
+            <h3 className="font-semibold text-slate-900">Funcionalidades</h3>
+            <ul className="mt-3 space-y-2 text-sm text-slate-600">
+              <li>✅ Publicar vídeos e Shorts</li>
+              <li>✅ Capturar mensagens do live chat</li>
+              <li>✅ Salvar conversas no CRM</li>
+              <li>✅ Responder manual ou via Hermes</li>
+              <li>✅ Criar leads automaticamente</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ContentPublisherPage() {
+  return (
+    <div className="space-y-6">
+      <div className="rounded-[32px] bg-white p-6 shadow-soft">
+        <h2 className="font-serif text-2xl">Publicador de Conteúdo</h2>
+        <p className="mt-3 text-slate-600">Publique e agende conteúdo para Instagram e YouTube.</p>
+        
+        <div className="mt-6 space-y-4">
+          <div className="rounded-2xl bg-panel p-4">
+            <h3 className="font-semibold text-slate-900">Criar Publicação</h3>
+            <p className="mt-2 text-sm text-slate-600">Selecione plataformas, faça upload de mídia e publique.</p>
+            <div className="mt-4 flex gap-3">
+              <button className="rounded-2xl bg-brand px-6 py-3 text-sm font-semibold text-white hover:bg-brand/90">
+                <span className="mr-2">📤</span>
+                Upload de Vídeo
+              </button>
+              <button className="rounded-2xl bg-slate-100 px-6 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-200">
+                <span className="mr-2">📸</span>
+                Upload de Imagem
+              </button>
+            </div>
+          </div>
+          
+          <div className="rounded-2xl bg-panel p-4">
+            <h3 className="font-semibold text-slate-900">Histórico de Publicações</h3>
+            <p className="mt-2 text-sm text-slate-600">Veja todas as publicações agendadas e publicadas.</p>
+            <div className="mt-4 flex gap-3">
+              <button className="rounded-2xl bg-slate-100 px-6 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-200">
+                Ver Histórico
+              </button>
+            </div>
+          </div>
+          
+          <div className="rounded-2xl bg-panel p-4">
+            <h3 className="font-semibold text-slate-900">Plataformas Suportadas</h3>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <div className="rounded-xl border-2 border-purple-200 bg-purple-50 p-3 text-center">
+                <div className="text-2xl">📷</div>
+                <div className="text-sm font-semibold text-purple-900">Instagram</div>
+                <div className="text-xs text-purple-700">Posts, Reels, Stories</div>
+              </div>
+              <div className="rounded-xl border-2 border-red-200 bg-red-50 p-3 text-center">
+                <div className="text-2xl">▶️</div>
+                <div className="text-sm font-semibold text-red-900">YouTube</div>
+                <div className="text-xs text-red-700">Vídeos, Shorts, Lives</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -575,16 +696,17 @@ function MasterPage({ profile }: { profile: MeResponse }) {
           <table className="min-w-full text-left text-sm">
             <thead className="text-slate-400">
               <tr>
-                <th className="px-3 py-3 font-medium">Tenant</th>
-                <th className="px-3 py-3 font-medium">Plano</th>
-                <th className="px-3 py-3 font-medium">Status</th>
-                <th className="px-3 py-3 font-medium">CRM</th>
-                <th className="px-3 py-3 font-medium">WhatsApp</th>
-                <th className="px-3 py-3 font-medium">Kanban</th>
-                <th className="px-3 py-3 font-medium">Agenda</th>
-                <th className="px-3 py-3 font-medium">Instagram</th>
-                <th className="px-3 py-3 font-medium">YouTube</th>
-                <th className="px-3 py-3 font-medium">Criado em</th>
+              <th className="px-3 py-3 font-medium">Tenant</th>
+              <th className="px-3 py-3 font-medium">Plano</th>
+              <th className="px-3 py-3 font-medium">Status</th>
+              <th className="px-3 py-3 font-medium">CRM</th>
+              <th className="px-3 py-3 font-medium">WhatsApp</th>
+              <th className="px-3 py-3 font-medium">Kanban</th>
+              <th className="px-3 py-3 font-medium">Agenda</th>
+              <th className="px-3 py-3 font-medium">Instagram</th>
+              <th className="px-3 py-3 font-medium">YouTube</th>
+              <th className="px-3 py-3 font-medium">Content Publisher</th>
+              <th className="px-3 py-3 font-medium">Criado em</th>
               </tr>
             </thead>
             <tbody>
@@ -744,6 +866,30 @@ function MasterPage({ profile }: { profile: MeResponse }) {
                       <span className="text-slate-700">{tenant.youtube_enabled ? "habilitado" : "desligado"}</span>
                     </label>
                   </td>
+                  <td className="px-3 py-4">
+                    <label className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={tenant.content_publisher_enabled}
+                        disabled={savingTenantId === tenant.id}
+                        onChange={async (event) => {
+                          setSavingTenantId(tenant.id);
+                          setError("");
+                          try {
+                            const updated = await updateAdminTenantModules(tenant.id, { content_publisher: event.target.checked });
+                            setTenants((current) =>
+                              current.map((item) => (item.id === updated.id ? updated : item)),
+                            );
+                          } catch (err) {
+                            setError(err instanceof Error ? err.message : "Falha ao atualizar tenant");
+                          } finally {
+                            setSavingTenantId(null);
+                          }
+                        }}
+                      />
+                      <span className="text-slate-700">{tenant.content_publisher_enabled ? "habilitado" : "desligado"}</span>
+                    </label>
+                  </td>
                   <td className="px-3 py-4 text-slate-700">{formatDateTime(tenant.created_at)}</td>
                 </tr>
               ))}
@@ -832,6 +978,7 @@ function ProtectedApp() {
         <Route path="/agenda" element={<AgendaPage />} />
         <Route path="/instagram" element={<InstagramPage />} />
         <Route path="/youtube" element={<YouTubePage />} />
+        <Route path="/publisher" element={<ContentPublisherPage />} />
         <Route path="/master" element={<MasterPage profile={profile} />} />
         <Route path="/leads" element={<TablePage title="Leads" rows={leads} render={(row) => [row.name, row.phone || "-", row.interest || "-", row.status]} />} />
         <Route path="/tasks" element={<TablePage title="Tarefas" rows={tasks} render={(row) => [row.title, row.description || "-", row.status, row.due_date || "-"]} />} />

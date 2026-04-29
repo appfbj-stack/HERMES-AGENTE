@@ -20,6 +20,7 @@ from app.routes.chats import router as chats_router
 from app.routes.credits import router as credits_router
 from app.routes.crm import router as crm_router
 from app.routes.health import router as health_router
+from app.routes.integrations import router as integrations_router
 from app.routes.leads import router as leads_router
 from app.routes.messages import router as messages_router
 from app.routes.public import router as public_router
@@ -377,6 +378,59 @@ MIGRATIONS = [
     """ALTER TABLE tenant_modules ADD COLUMN IF NOT EXISTS agenda BOOLEAN NOT NULL DEFAULT FALSE""",
     """ALTER TABLE tenant_modules ADD COLUMN IF NOT EXISTS instagram BOOLEAN NOT NULL DEFAULT FALSE""",
     """ALTER TABLE tenant_modules ADD COLUMN IF NOT EXISTS youtube BOOLEAN NOT NULL DEFAULT FALSE""",
+    """ALTER TABLE tenant_modules ADD COLUMN IF NOT EXISTS content_publisher BOOLEAN NOT NULL DEFAULT FALSE""",
+    # ===== Social Integrations (Instagram, YouTube) =====
+    """CREATE TABLE IF NOT EXISTS social_integration_accounts (
+        id SERIAL PRIMARY KEY,
+        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+        provider VARCHAR(50) NOT NULL,
+        provider_user_id VARCHAR(255),
+        username VARCHAR(255),
+        display_name VARCHAR(255),
+        avatar_url TEXT,
+        access_token TEXT NOT NULL,
+        refresh_token TEXT,
+        token_expires_at TIMESTAMPTZ,
+        scope TEXT,
+        status VARCHAR(50) DEFAULT 'active',
+        last_error TEXT,
+        webhook_url TEXT,
+        last_webhook_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+    )""",
+    """CREATE TABLE IF NOT EXISTS social_posts (
+        id SERIAL PRIMARY KEY,
+        tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        integration_account_id INTEGER REFERENCES social_integration_accounts(id) ON DELETE SET NULL,
+        title VARCHAR(255) NOT NULL,
+        content TEXT,
+        media_type VARCHAR(50) NOT NULL,
+        media_url TEXT,
+        thumbnail_url TEXT,
+        hashtags TEXT,
+        caption TEXT,
+        platforms TEXT NOT NULL,
+        scheduled_at TIMESTAMPTZ,
+        published_at TIMESTAMPTZ,
+        status VARCHAR(50) DEFAULT 'draft',
+        instagram_post_id VARCHAR(255),
+        instagram_media_url TEXT,
+        youtube_video_id VARCHAR(255),
+        youtube_video_url TEXT,
+        error_message TEXT,
+        error_details TEXT,
+        created_by_user_id INTEGER REFERENCES users(id),
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+    )""",
+    """CREATE INDEX IF NOT EXISTS ix_social_integration_accounts_tenant_id ON social_integration_accounts(tenant_id)""",
+    """CREATE INDEX IF NOT EXISTS ix_social_integration_accounts_provider ON social_integration_accounts(provider)""",
+    """CREATE INDEX IF NOT EXISTS ix_social_integration_accounts_status ON social_integration_accounts(status)""",
+    """CREATE INDEX IF NOT EXISTS ix_social_posts_tenant_id ON social_posts(tenant_id)""",
+    """CREATE INDEX IF NOT EXISTS ix_social_posts_status ON social_posts(status)""",
+    """CREATE INDEX IF NOT EXISTS ix_social_posts_scheduled_at ON social_posts(scheduled_at)""",
+    """CREATE INDEX IF NOT EXISTS ix_social_posts_created_at ON social_posts(created_at DESC)""",
 ]
 
 
@@ -395,6 +449,7 @@ app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(admin_hermes_router)
+app.include_router(integrations_router)
 app.include_router(chats_router)
 app.include_router(messages_router)
 app.include_router(leads_router)

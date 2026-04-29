@@ -223,6 +223,7 @@ export type AdminTenant = {
   agenda_enabled: boolean;
   instagram_enabled: boolean;
   youtube_enabled: boolean;
+  content_publisher_enabled: boolean;
 };
 
 export type CreateTenantPayload = {
@@ -291,6 +292,7 @@ export type MeResponse = {
     agenda: boolean;
     instagram: boolean;
     youtube: boolean;
+    content_publisher: boolean;
   };
 };
 

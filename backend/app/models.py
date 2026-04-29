@@ -210,6 +210,7 @@ class TenantModule(Base, TimestampMixin):
     agenda: Mapped[bool] = mapped_column(Boolean, default=False)
     instagram: Mapped[bool] = mapped_column(Boolean, default=False)
     youtube: Mapped[bool] = mapped_column(Boolean, default=False)
+    content_publisher: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class CrmLead(Base, TimestampMixin):
@@ -460,3 +461,70 @@ class AdminSkill(Base, TimestampMixin):
     last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_run_result: Mapped[str | None] = mapped_column(Text, nullable=True)
     last_run_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+
+class SocialIntegrationAccount(Base, TimestampMixin):
+    """Contas de redes sociais conectadas (Instagram, YouTube, etc.)"""
+    __tablename__ = "social_integration_accounts"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), nullable=True, index=True)
+    provider: Mapped[str] = mapped_column(String(50), nullable=False)  # instagram, youtube
+    provider_user_id: Mapped[str] = mapped_column(String(255), nullable=True)  # ID do usuário na plataforma
+    username: Mapped[str] = mapped_column(String(255), nullable=True)
+    display_name: Mapped[str] = mapped_column(String(255), nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    
+    # Tokens OAuth
+    access_token: Mapped[str] = mapped_column(Text, nullable=False)
+    refresh_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    
+    # Escopo e status
+    scope: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(50), default="active")  # active, inactive, error
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    
+    # Webhook info
+    webhook_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_webhook_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class SocialPost(Base, TimestampMixin):
+    """Publicações agendadas ou publicadas"""
+    __tablename__ = "social_posts"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    integration_account_id: Mapped[int] = mapped_column(ForeignKey("social_integration_accounts.id"), nullable=True)
+    
+    # Conteúdo da publicação
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=True)
+    media_type: Mapped[str] = mapped_column(String(50), nullable=False)  # image, video, reel, short
+    media_url: Mapped[str] = mapped_column(Text, nullable=True)  # URL do arquivo
+    thumbnail_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    
+    # Hashtags e legenda
+    hashtags: Mapped[str] = mapped_column(Text, nullable=True)
+    caption: Mapped[str] = mapped_column(Text, nullable=True)
+    
+    # Plataformas para publicar
+    platforms: Mapped[str] = mapped_column(Text, nullable=False)  # JSON: ["instagram", "youtube"]
+    
+    # Agendamento e status
+    scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(String(50), default="draft")  # draft, scheduled, published, failed, cancelled
+    
+    # IDs das publicações nas plataformas
+    instagram_post_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    instagram_media_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    youtube_video_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    youtube_video_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    
+    # Erros e logs
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_details: Mapped[str | None] = mapped_column(Text, nullable=True)
+    
+    created_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=True)

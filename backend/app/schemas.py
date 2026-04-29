@@ -60,6 +60,7 @@ class TenantModulesOut(BaseModel):
     agenda: bool = False
     instagram: bool = False
     youtube: bool = False
+    content_publisher: bool = False
 
 
 class MeResponse(BaseModel):

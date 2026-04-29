@@ -68,6 +68,7 @@ def _to_admin_out(db: Session, tenant: Tenant) -> dict:
         "agenda_enabled": mod.agenda if mod else False,
         "instagram_enabled": mod.instagram if mod else False,
         "youtube_enabled": mod.youtube if mod else False,
+        "content_publisher_enabled": mod.content_publisher if mod else False,
     }
 
 
