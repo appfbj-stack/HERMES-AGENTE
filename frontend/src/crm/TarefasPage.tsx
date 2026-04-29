@@ -4,16 +4,16 @@ import {
   createCrmTask,
   updateCrmTask,
   deleteCrmTask,
-  type CrmTask,
 } from "../api";
-import type { Priority } from "../types";
+
+type Priority = "baixa" | "media" | "alta";
 
 export default function TarefasPage() {
-  const [tasks, setTasks] = useState<CrmTask[]>([]);
+  const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
-  const [editingTask, setEditingTask] = useState<CrmTask | null>(null);
+  const [editingTask, setEditingTask] = useState<any>(null);
   const [filterStatus, setFilterStatus] = useState<"todos" | "pendente" | "em_andamento" | "concluida">("todos");
   const [filterPriority, setFilterPriority] = useState<"todos" | "baixa" | "media" | "alta">("todos");
 
@@ -99,7 +99,7 @@ export default function TarefasPage() {
     }
   }
 
-  function handleEdit(task: CrmTask) {
+  function handleEdit(task: any) {
     setEditingTask(task);
     setForm({
       title: task.title,

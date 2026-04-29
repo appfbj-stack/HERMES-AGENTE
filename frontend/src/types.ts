@@ -296,7 +296,9 @@ export type MeResponse = {
 
 
 export type HermesAdminChatResponse = {
-  response: string;
+  message: string;
+  dashboard?: HermesAdminDashboard | null;
+  suggested_skills?: SkillSuggestion[] | null;
   actions: string[];
   context: Record<string, unknown>;
 };
@@ -333,6 +335,7 @@ export type AdminRoutine = {
   description: string | null;
   schedule_type: string;
   schedule_value: number;
+  schedule?: string;
   last_run_at: string | null;
   next_run_at: string | null;
   is_active: boolean;
@@ -353,9 +356,11 @@ export type AdminMemory = {
 export type AdminActionLog = {
   id: number;
   action: string;
+  action_type?: string;
   entity_type: string;
   entity_id: number | null;
   details: string | null;
+  description?: string;
   performed_by_user_id: number | null;
   tenant_id: number | null;
   created_at: string;

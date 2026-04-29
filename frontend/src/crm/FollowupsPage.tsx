@@ -20,7 +20,8 @@ function toLocalDatetime(iso: string) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function formatDatetime(iso: string) {
+function formatDatetime(iso: string | undefined) {
+  if (!iso) return { date: "-", time: "-", isToday: false, isPast: false };
   const d = new Date(iso);
   const today = new Date();
   const isToday = d.toDateString() === today.toDateString();
@@ -61,10 +62,10 @@ function FollowupModal({
     try {
       await createFollowup({
         lead_id: parseInt(form.lead_id, 10),
-        titulo: form.titulo,
-        descricao: form.descricao || undefined,
-        data_hora: new Date(form.data_hora).toISOString(),
-        canal: form.canal,
+        title: form.titulo,
+        description: form.descricao || undefined,
+        due_at: form.data_hora,
+        channel: form.canal,
       });
       onSaved();
     } catch (e) {
@@ -168,7 +169,7 @@ export default function FollowupsPage() {
     setLoading(true);
     try {
       const [fuData, leadsData] = await Promise.all([
-        getFollowups({ status: filterStatus || undefined }),
+        getFollowups(filterStatus === "hoje" ? true : false),
         getLeads(),
       ]);
       setFollowups(fuData);
@@ -199,9 +200,9 @@ export default function FollowupsPage() {
   const now = new Date();
   const todayStr = now.toDateString();
   const groups = {
-    atrasados: followups.filter((f) => f.status !== "feito" && new Date(f.data_hora) < now && new Date(f.data_hora).toDateString() !== todayStr),
-    hoje: followups.filter((f) => new Date(f.data_hora).toDateString() === todayStr),
-    futuros: followups.filter((f) => f.status !== "feito" && new Date(f.data_hora) > now && new Date(f.data_hora).toDateString() !== todayStr),
+    atrasados: followups.filter((f) => f.status !== "feito" && new Date(f.data_hora || new Date().toISOString()) < now && new Date(f.data_hora || new Date().toISOString()).toDateString() !== todayStr),
+    hoje: followups.filter((f) => new Date(f.data_hora || new Date().toISOString()).toDateString() === todayStr),
+    futuros: followups.filter((f) => f.status !== "feito" && new Date(f.data_hora || new Date().toISOString()) > now && new Date(f.data_hora || new Date().toISOString()).toDateString() !== todayStr),
     feitos: followups.filter((f) => f.status === "feito"),
   };
 
@@ -233,7 +234,7 @@ export default function FollowupsPage() {
                 <div className="min-w-0 flex-1">
                   <div className="font-medium text-ink">{fu.titulo}</div>
                   <div className="text-xs text-slate-500">
-                    {CANAL_ICON[fu.canal]} {fu.canal} · {leadName(fu.lead_id)}
+                    {CANAL_ICON[fu.canal || "whatsapp"]} {fu.canal} · {leadName(fu.lead_id)}
                   </div>
                   {fu.descricao && <div className="mt-0.5 text-xs text-slate-400">{fu.descricao}</div>}
                 </div>

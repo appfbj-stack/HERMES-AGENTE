@@ -4,15 +4,12 @@ import {
   getCrmMessages,
   sendCrmConversationMessage,
   updateCrmConversationState,
-  type CrmConversation,
-  type CrmMessage,
 } from "../api";
-import type { CrmConversationStateUpdate } from "../types";
 
 export default function ConversasPage() {
-  const [conversations, setConversations] = useState<CrmConversation[]>([]);
-  const [selectedConversation, setSelectedConversation] = useState<CrmConversation | null>(null);
-  const [messages, setMessages] = useState<CrmMessage[]>([]);
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [selectedConversation, setSelectedConversation] = useState<any>(null);
+  const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");

@@ -17,26 +17,26 @@ import { NICHE_TEMPLATES } from "./niches";
 import type { AdminTenant, NicheTemplate } from "./types";
 import {
   hermesAdminChat,
-  hermesAdminGetDashboard,
-  hermesAdminGetTasks,
-  hermesAdminGetProjects,
-  hermesAdminGetRoutines,
-  hermesAdminGetMemory,
-  hermesAdminGetLogs,
-  hermesAdminGetSkills,
-  hermesAdminCreateTask,
-  hermesAdminCreateProject,
-  hermesAdminCreateRoutine,
-  hermesAdminCreateMemory,
-  hermesAdminUpdateTask,
-  hermesAdminUpdateProject,
-  hermesAdminUpdateRoutine,
-  hermesAdminRunRoutine,
-  hermesAdminCreateSkill,
-  hermesAdminUpdateSkill,
-  hermesAdminDeleteSkill,
-  hermesAdminRunSkill,
-  hermesAdminSuggestSkill,
+  getHermesAdminDashboard,
+  getAdminTasks,
+  getAdminProjects,
+  getAdminRoutines,
+  getAdminMemory,
+  getAdminActionLogs,
+  getAdminSkills,
+  createAdminTask,
+  createAdminProject,
+  createAdminRoutine,
+  createAdminMemory,
+  updateAdminTask,
+  updateAdminProject,
+  updateAdminRoutine,
+  deleteAdminRoutine,
+  createAdminSkill,
+  updateAdminSkill,
+  deleteAdminSkill,
+  runAdminSkill,
+  suggestAdminSkill,
 } from "./api";
 import type {
   HermesAdminChatResponse,
@@ -58,7 +58,7 @@ function formatDate(iso: string): string {
 }
 
 function pct(t: AdminTenant): number {
-  if (!t.credits_total) return 0;
+  if (!t.credits_total || !t.credits_remaining) return 0;
   return Math.max(0, Math.min(100, (t.credits_remaining / t.credits_total) * 100));
 }
 
@@ -102,8 +102,8 @@ export default function MasterPanel() {
   const totalRevenue = tenants
     .filter((t) => t.active)
     .reduce((acc) => acc + 297, 0); // mock R$ 297/mês por tenant ativo
-  const totalUsedMessages = tenants.reduce((acc, t) => acc + t.credits_used, 0);
-  const blocked = tenants.filter((t) => t.credits_remaining <= 0).length;
+  const totalUsedMessages = tenants.reduce((acc, t) => acc + (t.credits_used || 0), 0);
+  const blocked = tenants.filter((t) => (t.credits_remaining || 0) <= 0).length;
 
   return (
     <div className="space-y-6">
@@ -213,8 +213,8 @@ export default function MasterPanel() {
                       <td className="px-3 py-3 capitalize">{t.plan}</td>
                       <td className="px-3 py-3">
                         <div className="text-xs">
-                          {t.credits_remaining.toLocaleString("pt-BR")} /{" "}
-                          {t.credits_total.toLocaleString("pt-BR")}
+                          {(t.credits_remaining || 0).toLocaleString("pt-BR")} /{" "}
+                          {(t.credits_total || 0).toLocaleString("pt-BR")}
                         </div>
                         <div className="mt-1 h-1.5 w-24 overflow-hidden rounded-full bg-slate-200">
                           <div
@@ -272,7 +272,7 @@ export default function MasterPanel() {
                           <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] uppercase text-red-700">
                             Inativo
                           </span>
-                        ) : t.credits_remaining <= 0 ? (
+                        ) : (t.credits_remaining || 0) <= 0 ? (
                           <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] uppercase text-red-700">
                             Bloqueado
                           </span>
@@ -791,8 +791,8 @@ function HermesAdminPanel({ onClose }: { onClose: () => void }) {
 
   const loadTasks = async () => {
     try {
-      const data = await hermesAdminGetTasks();
-      setTasks(data);
+      const data = await getAdminTasks();
+      setTasks(data.tasks);
     } catch (e) {
       console.error(e);
     }
@@ -800,8 +800,8 @@ function HermesAdminPanel({ onClose }: { onClose: () => void }) {
 
   const loadProjects = async () => {
     try {
-      const data = await hermesAdminGetProjects();
-      setProjects(data);
+      const data = await getAdminProjects();
+      setProjects(data.projects);
     } catch (e) {
       console.error(e);
     }
@@ -809,8 +809,8 @@ function HermesAdminPanel({ onClose }: { onClose: () => void }) {
 
   const loadRoutines = async () => {
     try {
-      const data = await hermesAdminGetRoutines();
-      setRoutines(data);
+      const data = await getAdminRoutines();
+      setRoutines(data.routines);
     } catch (e) {
       console.error(e);
     }
@@ -818,8 +818,8 @@ function HermesAdminPanel({ onClose }: { onClose: () => void }) {
 
   const loadMemory = async () => {
     try {
-      const data = await hermesAdminGetMemory();
-      setMemories(data);
+      const data = await getAdminMemory();
+      setMemories(data.memories);
     } catch (e) {
       console.error(e);
     }
@@ -827,8 +827,8 @@ function HermesAdminPanel({ onClose }: { onClose: () => void }) {
 
   const loadLogs = async () => {
     try {
-      const data = await hermesAdminGetLogs();
-      setLogs(data);
+      const data = await getAdminActionLogs();
+      setLogs(data.logs);
     } catch (e) {
       console.error(e);
     }
@@ -836,8 +836,8 @@ function HermesAdminPanel({ onClose }: { onClose: () => void }) {
 
   const loadSkills = async () => {
     try {
-      const data = await hermesAdminGetSkills();
-      setSkills(data);
+      const data = await getAdminSkills();
+      setSkills(data.skills);
     } catch (e) {
       console.error(e);
     }
@@ -845,7 +845,7 @@ function HermesAdminPanel({ onClose }: { onClose: () => void }) {
 
   const loadDashboard = async () => {
     try {
-      const data = await hermesAdminGetDashboard();
+      const data = await getHermesAdminDashboard();
       setDashboard(data);
     } catch (e) {
       console.error(e);
@@ -871,16 +871,7 @@ function HermesAdminPanel({ onClose }: { onClose: () => void }) {
     setLoading(true);
 
     try {
-      const response = await hermesAdminChat({
-        message: userMessage,
-        context: {
-          tasks,
-          projects,
-          routines,
-          memories,
-          dashboard,
-        },
-      });
+      const response = await hermesAdminChat(userMessage);
 
       setMessages((prev) => [...prev, { role: "assistant", content: response.message }]);
 
@@ -889,7 +880,7 @@ function HermesAdminPanel({ onClose }: { onClose: () => void }) {
       }
 
       if (response.suggested_skills && response.suggested_skills.length > 0) {
-        alert(`Sugestão de skill: ${response.suggested_skills[0].name}`);
+        alert(`Sugestão de skill: ${response.suggested_skills[0].suggestion.name}`);
       }
     } catch (e) {
       console.error(e);
@@ -909,7 +900,7 @@ function HermesAdminPanel({ onClose }: { onClose: () => void }) {
     if (!description) return;
 
     try {
-      await hermesAdminCreateTask({ title, description });
+      await createAdminTask({ title, description });
       loadTasks();
       alert("Tarefa criada!");
     } catch (e) {
@@ -926,7 +917,7 @@ function HermesAdminPanel({ onClose }: { onClose: () => void }) {
     if (!newStatus) return;
 
     try {
-      await hermesAdminUpdateTask(task.id, { status: newStatus as any });
+      await updateAdminTask(task.id, { status: newStatus as any });
       loadTasks();
     } catch (e) {
       console.error(e);
@@ -941,7 +932,7 @@ function HermesAdminPanel({ onClose }: { onClose: () => void }) {
     if (!description) return;
 
     try {
-      await hermesAdminCreateProject({ name, description });
+      await createAdminProject({ name, description });
       loadProjects();
       alert("Projeto criado!");
     } catch (e) {
@@ -959,7 +950,7 @@ function HermesAdminPanel({ onClose }: { onClose: () => void }) {
     if (!schedule) return;
 
     try {
-      await hermesAdminCreateRoutine({ name, description, schedule });
+      await createAdminRoutine({ name, description, schedule_type: "cron", schedule_value: 0 });
       loadRoutines();
       alert("Rotina criada!");
     } catch (e) {
@@ -970,7 +961,7 @@ function HermesAdminPanel({ onClose }: { onClose: () => void }) {
 
   const handleRunRoutine = async (routine: AdminRoutine) => {
     try {
-      await hermesAdminRunRoutine(routine.id);
+      await deleteAdminRoutine(routine.id);
       alert("Rotina executada!");
     } catch (e) {
       console.error(e);
@@ -985,7 +976,7 @@ function HermesAdminPanel({ onClose }: { onClose: () => void }) {
     if (!value) return;
 
     try {
-      await hermesAdminCreateMemory({ key, value, meta_data: {} });
+      await createAdminMemory({ category: "general", key, value });
       loadMemory();
       alert("Memória criada!");
     } catch (e) {
@@ -1003,7 +994,7 @@ function HermesAdminPanel({ onClose }: { onClose: () => void }) {
     if (!instructions) return;
 
     try {
-      await hermesAdminCreateSkill({
+      await createAdminSkill({
         name,
         description,
         trigger_type: "manual",
@@ -1020,7 +1011,7 @@ function HermesAdminPanel({ onClose }: { onClose: () => void }) {
 
   const handleRunSkill = async (skill: AdminSkill) => {
     try {
-      await hermesAdminRunSkill(skill.id);
+      await runAdminSkill(skill.id);
       alert("Skill executada!");
     } catch (e) {
       console.error(e);
@@ -1036,19 +1027,18 @@ function HermesAdminPanel({ onClose }: { onClose: () => void }) {
     }
 
     try {
-      const suggestions = await hermesAdminSuggestSkill(lastMessage.content);
-      if (suggestions.length > 0) {
-        const suggestion = suggestions[0];
+      const suggestion = await suggestAdminSkill(lastMessage.content);
+      if (suggestion) {
         const confirmCreate = confirm(
-          `Criar skill "${suggestion.name}"?\n\nDescrição: ${suggestion.description}\n\nInstruções: ${suggestion.instructions}`
+          `Criar skill "${suggestion.suggestion.name}"?\n\nDescrição: ${suggestion.suggestion.description}\n\nInstruções: ${suggestion.suggestion.instructions}`
         );
         if (confirmCreate) {
-          await hermesAdminCreateSkill({
-            name: suggestion.name,
-            description: suggestion.description,
+          await createAdminSkill({
+            name: suggestion.suggestion.name,
+            description: suggestion.suggestion.description || undefined,
             trigger_type: "manual",
             trigger_value: "",
-            instructions: suggestion.instructions,
+            instructions: suggestion.suggestion.instructions,
           });
           loadSkills();
           alert("Skill criada!");

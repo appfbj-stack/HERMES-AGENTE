@@ -45,11 +45,8 @@ export default function CrmSettingsPage() {
     setSaving(true);
     try {
       const updated = await updateCrmSettings({
-        mensagem_inicial: settings.mensagem_inicial,
-        horario_inicio: settings.horario_inicio,
-        horario_fim: settings.horario_fim,
-        hermes_ativo: settings.hermes_ativo,
-        notificar_followup_telegram: settings.notificar_followup_telegram,
+        initial_auto_message: settings.mensagem_inicial || "",
+        hermes_enabled: settings.hermes_ativo,
       });
       setSettings(updated);
       setSaved(true);

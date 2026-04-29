@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
 import {
   getCrmDashboard,
-  type CrmDashboard,
 } from "../api";
 
 export default function DashboardCRMPage() {
-  const [dashboard, setDashboard] = useState<CrmDashboard | null>(null);
+  const [dashboard, setDashboard] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 

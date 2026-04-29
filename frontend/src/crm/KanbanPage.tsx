@@ -38,7 +38,7 @@ function LeadCard({
           </div>
           <span className="text-sm font-medium text-ink leading-tight">{lead.name}</span>
         </div>
-        <span className="text-sm">{ORIGEM_ICON[lead.origem] ?? ""}</span>
+        <span className="text-sm">{ORIGEM_ICON[lead.origem || "manual"] || ""}</span>
       </div>
       {lead.phone && (
         <div className="mt-1.5 flex items-center gap-1 text-xs text-slate-400">
