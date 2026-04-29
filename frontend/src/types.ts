@@ -298,7 +298,8 @@ export type MeResponse = {
 
 
 export type HermesAdminChatResponse = {
-  message: string;
+  response: string;
+  message?: string;
   dashboard?: HermesAdminDashboard | null;
   suggested_skills?: SkillSuggestion[] | null;
   actions: string[];

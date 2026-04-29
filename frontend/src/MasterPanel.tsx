@@ -873,7 +873,7 @@ function HermesAdminPanel({ onClose }: { onClose: () => void }) {
     try {
       const response = await hermesAdminChat(userMessage);
 
-      setMessages((prev) => [...prev, { role: "assistant", content: response.message }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: response.response || response.message || "Sem resposta" }]);
 
       if (response.dashboard) {
         setDashboard(response.dashboard);

@@ -27,6 +27,8 @@ import {
   getLeads,
   getMessages,
   getTasks,
+  getHermesAdminDashboard,
+  hermesAdminChat,
   login,
   me,
   moveCrmKanban,
@@ -625,6 +627,131 @@ function AgendaPage() {
   );
 }
 
+function HermesAdminChatPage({ profile }: { profile: MeResponse }) {
+  const [content, setContent] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [dashboard, setDashboard] = useState<HermesAdminDashboard | null>(null);
+  const [messages, setMessages] = useState<Array<{ id: string; sender: "user" | "assistant"; content: string }>>([
+    {
+      id: "welcome",
+      sender: "assistant",
+      content:
+        "Olá, Fernando! Eu sou o Hermes Admin. Posso verificar status do sistema, módulos, erros, projeto e próximos passos.",
+    },
+  ]);
+
+  useEffect(() => {
+    getHermesAdminDashboard().then(setDashboard).catch(() => setDashboard(null));
+  }, []);
+
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    const prompt = content.trim();
+    if (!prompt || loading) return;
+
+    const userMessage = { id: `${Date.now()}-user`, sender: "user" as const, content: prompt };
+    setMessages((current) => [...current, userMessage]);
+    setContent("");
+    setLoading(true);
+    setError("");
+
+    try {
+      const result = await hermesAdminChat(prompt);
+      setMessages((current) => [
+        ...current,
+        {
+          id: `${Date.now()}-assistant`,
+          sender: "assistant",
+          content: result.response,
+        },
+      ]);
+      const nextDashboard = await getHermesAdminDashboard().catch(() => null);
+      setDashboard(nextDashboard);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao falar com Hermes Admin");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="grid h-[calc(100vh-3rem)] gap-4 xl:grid-cols-[320px,1fr]">
+      <section className="rounded-[32px] bg-white p-6 shadow-soft">
+        <div className="text-xs uppercase tracking-[0.3em] text-brand/70">Super Admin</div>
+        <h2 className="mt-2 font-serif text-3xl">Hermes Admin</h2>
+        <p className="mt-3 text-sm text-slate-600">
+          Chat operacional global do SaaS para {profile.user.name}.
+        </p>
+
+        <div className="mt-6 space-y-3 text-sm">
+          <div className="rounded-2xl bg-panel p-4">
+            <div className="text-slate-500">Clientes ativos</div>
+            <div className="mt-1 text-2xl font-semibold text-ink">{dashboard?.active_tenants ?? "-"}</div>
+          </div>
+          <div className="rounded-2xl bg-panel p-4">
+            <div className="text-slate-500">Clientes bloqueados</div>
+            <div className="mt-1 text-2xl font-semibold text-ink">{dashboard?.blocked_tenants ?? "-"}</div>
+          </div>
+          <div className="rounded-2xl bg-panel p-4">
+            <div className="text-slate-500">Tarefas abertas</div>
+            <div className="mt-1 text-2xl font-semibold text-ink">{dashboard?.open_tasks ?? "-"}</div>
+          </div>
+        </div>
+
+        <div className="mt-6 rounded-2xl bg-ink p-4 text-sm text-white">
+          <div className="text-white/60">Comandos úteis</div>
+          <div className="mt-2">status do sistema</div>
+          <div>listar módulos</div>
+          <div>ver erros</div>
+          <div>analisar projeto</div>
+          <div>o que falta fazer</div>
+        </div>
+      </section>
+
+      <section className="flex flex-col overflow-hidden rounded-[32px] bg-[#efeae2] shadow-soft">
+        <div className="border-b border-black/5 bg-white/90 px-6 py-4 backdrop-blur">
+          <div className="font-medium">Hermes Super Admin</div>
+          <div className="text-sm text-slate-500">Acesso global ao sistema</div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top_right,rgba(27,127,107,0.10),transparent_25%),linear-gradient(180deg,#efeae2,#e7dfd3)] p-6">
+          <div className="space-y-4">
+            {messages.map((message) => (
+              <div
+                key={message.id}
+                className={`max-w-[80%] whitespace-pre-wrap rounded-[22px] px-4 py-3 text-sm shadow ${
+                  message.sender === "user" ? "bg-white" : "ml-auto bg-bubble"
+                }`}
+              >
+                {message.content}
+              </div>
+            ))}
+            {error ? <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div> : null}
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="border-t border-black/5 bg-white/90 p-4 backdrop-blur">
+          <div className="flex gap-3">
+            <input
+              className="input flex-1"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="Pergunte sobre status, módulos, erros ou projeto"
+            />
+            <button
+              disabled={loading}
+              className="rounded-2xl bg-brand px-5 py-3 font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {loading ? "Enviando..." : "Enviar"}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  );
+}
+
 function CrmWhatsAppPage() {
   return (
     <div className="space-y-6">
@@ -937,25 +1064,29 @@ function ProtectedApp() {
         <Route
           path="/chat"
           element={
-            <ChatPage
-              chats={chats}
-              selectedChat={selectedChat}
-              messages={messages}
-              onSelectChat={(chat) => setSelectedChatId(chat.id)}
-              onSendMessage={async (content) => {
-                if (!selectedChat) return;
-                await sendMessage(selectedChat.id, content);
-                const items = await getMessages(selectedChat.id);
-                setMessages(items);
-                await refreshChats();
-                setCredits(await getCredits());
-              }}
-              onToggleAi={async () => {
-                if (!selectedChat) return;
-                await toggleAi(selectedChat.id, !selectedChat.ai_paused);
-                await refreshChats();
-              }}
-            />
+            profile.user.is_super_admin ? (
+              <HermesAdminChatPage profile={profile} />
+            ) : (
+              <ChatPage
+                chats={chats}
+                selectedChat={selectedChat}
+                messages={messages}
+                onSelectChat={(chat) => setSelectedChatId(chat.id)}
+                onSendMessage={async (content) => {
+                  if (!selectedChat) return;
+                  await sendMessage(selectedChat.id, content);
+                  const items = await getMessages(selectedChat.id);
+                  setMessages(items);
+                  await refreshChats();
+                  setCredits(await getCredits());
+                }}
+                onToggleAi={async () => {
+                  if (!selectedChat) return;
+                  await toggleAi(selectedChat.id, !selectedChat.ai_paused);
+                  await refreshChats();
+                }}
+              />
+            )
           }
         />
         <Route path="/crm" element={<CrmWorkspace profile={profile} />} />
