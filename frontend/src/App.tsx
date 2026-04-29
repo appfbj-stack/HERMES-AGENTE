@@ -625,28 +625,14 @@ function AgendaPage() {
   );
 }
 
-function InstagramPage() {
+function CrmWhatsAppPage() {
   return (
     <div className="space-y-6">
       <div className="rounded-[32px] bg-white p-6 shadow-soft">
-        <h2 className="font-serif text-2xl">Instagram Integration</h2>
-        <p className="mt-3 text-slate-600">Conecte e gerencie sua presença no Instagram.</p>
+        <h2 className="font-serif text-2xl">WhatsApp CRM</h2>
+        <p className="mt-3 text-slate-600">A conexão do WhatsApp CRM está disponível no backend atual e a tela dedicada ainda precisa ser refinada.</p>
         <div className="mt-6 rounded-2xl bg-panel p-4">
-          <p className="text-sm text-slate-500">⚠️ Funcionalidade em desenvolvimento</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function YouTubePage() {
-  return (
-    <div className="space-y-6">
-      <div className="rounded-[32px] bg-white p-6 shadow-soft">
-        <h2 className="font-serif text-2xl">YouTube Integration</h2>
-        <p className="mt-3 text-slate-600">Gerencie seu conteúdo e canal no YouTube.</p>
-        <div className="mt-6 rounded-2xl bg-panel p-4">
-          <p className="text-sm text-slate-500">⚠️ Funcionalidade em desenvolvimento</p>
+          <p className="text-sm text-slate-500">Use o módulo CRM e as integrações existentes enquanto a interface específica é finalizada.</p>
         </div>
       </div>
     </div>
