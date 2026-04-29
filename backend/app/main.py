@@ -25,6 +25,7 @@ from app.routes.leads import router as leads_router
 from app.routes.messages import router as messages_router
 from app.routes.public import router as public_router
 from app.routes.tasks import router as tasks_router
+from app.routes.telegram_admin import router as telegram_admin_router
 from app.routes.tools import router as tools_router
 from app.routes.webhook import router as webhook_router
 
@@ -456,6 +457,7 @@ app.include_router(leads_router)
 app.include_router(tasks_router)
 app.include_router(credits_router)
 app.include_router(webhook_router)
+app.include_router(telegram_admin_router)
 app.include_router(public_router)
 app.include_router(billing_router)
 app.include_router(crm_router)

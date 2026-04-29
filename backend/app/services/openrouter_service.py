@@ -40,7 +40,7 @@ async def call_glm_47(
     
     headers = {
         "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
         "HTTP-Referer": "https://hermes.fbautomacao.space"
     }
     
@@ -90,7 +90,7 @@ async def call_glm_flash(
     
     headers = {
         "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
     
     try:
@@ -156,7 +156,7 @@ async def call_openrouter(
     
     headers = {
         "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
     
     try:

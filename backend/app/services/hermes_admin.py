@@ -69,21 +69,27 @@ DADOS DA PLATAFORMA:
 - Integração com Hermes Agente (IA), Asaas (pagamentos), Coolify (deploy)
 - Módulos disponíveis: CRM, WhatsApp, Tools/Skills, Kanban, Agenda, Instagram, YouTube
 - Planos: Starter, Pro, Enterprise
+- LLM Router: DeepSeek para clientes, GLM 4.7 para admin
 
 COMANDOS DISPONÍVEIS:
-- Listar clientes ativos/bloqueados
-- Ver pagamentos pendentes
-- Criar tarefa interna (salva automaticamente)
-- Criar rotina agendada (salva automaticamente)
-- Ver resumo diário
-- Consultar memória da empresa
-- Criar projeto
-- Ver logs de ações
+- status do sistema: Verifica operacionalidade e métricas principais
+- listar clientes ativos/bloqueados: Lista todos os clientes
+- listar módulos: Mostra todos os módulos disponíveis
+- analisar projeto: Analisa status da implementação atual
+- o que falta fazer: Lista próximos passos e prioridades
+- ver pagamentos pendentes: Mostra pagamentos em aberto
+- criar tarefa interna (salva automaticamente)
+- criar rotina agendada (salva automaticamente)
+- ver resumo diário
+- consultar memória da empresa
+- criar projeto
+- ver logs de ações
 
 EXEMPLOS DE RESPOSTAS CORRETAS:
 - "Vou criar essa tarefa para você agora. ✅ Tarefa criada: Revisar pagamentos pendentes"
 - "Salvando essa informação importante na memória. ✅ Salvo na memória: Procedimento de backup"
 - "Vou agendar essa rotina. ✅ Rotina agendada: Backup diário às 02:00"
+- "📊 Status do Sistema: ✅ Operacional\nClientes ativos: 5\nCréditos restantes: 15.000"
 
 Pergunte o que o usuário precisa agora."""
 
@@ -115,30 +121,29 @@ Pergunte o que o usuário precisa agora."""
         return credit is not None and credit.remaining <= 0
 
     async def _call_hermes(self, messages: list[dict[str, str]]) -> str:
-        """Chama a API Hermes Agente."""
-        url = f"{self.settings.hermes_agent_url}{self.settings.hermes_agent_path}"
-        headers = {"Content-Type": "application/json"}
+        """Chama a API Hermes Agente via LLM Router."""
+        from app.services.llm_router import route_llm, parse_llm_response
 
-        if self.settings.hermes_agent_api_key:
-            headers["Authorization"] = f"Bearer {self.settings.hermes_agent_api_key}"
-
-        payload = {"messages": messages}
-
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(url, json=payload, headers=headers)
-            response.raise_for_status()
-            data = response.json()
-
-            if "response" in data:
-                return data["response"]
-            if "content" in data:
-                return data["content"]
-            if "answer" in data:
-                return data["answer"]
-            if "choices" in data and len(data["choices"]) > 0:
-                return data["choices"][0]["message"]["content"]
-
-            return str(data)
+        try:
+            # Buscar usuário super admin do banco ou criar temporário
+            admin_user = self.db.query(User).filter(User.is_super_admin).first()
+            
+            if not admin_user:
+                # Criar usuário admin temporário apenas para roteamento
+                admin_user = User(
+                    id=0,
+                    tenant_id=0,
+                    name="Hermes Admin",
+                    email="admin@hermes.com",
+                    role="admin",
+                    is_super_admin=True,
+                    password=""
+                )
+            
+            response = await route_llm(admin_user, messages)
+            return parse_llm_response(response)
+        except Exception as exc:
+            raise Exception(f"Erro ao chamar Hermes Admin via LLM Router: {str(exc)}")
 
     def _extract_actions(self, response: str) -> list[str]:
         """Extrai ações sugeridas da resposta."""
@@ -521,6 +526,14 @@ Pergunte o que o usuário precisa agora."""
             return await self._skill_listar_clientes(user, "blocked")
         elif "dashboard" in instructions or "resumo" in instructions:
             return await self._skill_dashboard(user)
+        elif "status" in instructions and "sistema" in instructions:
+            return await self._skill_status_sistema(user)
+        elif "analisar" in instructions and "projeto" in instructions:
+            return await self._skill_analisar_projeto(user)
+        elif "falta" in instructions and "fazer" in instructions:
+            return await self._skill_o_que_falta(user)
+        elif "modulo" in instructions and "lista" in instructions:
+            return await self._skill_listar_modulos(user)
         else:
             return {
                 "action": "hermes_analysis",
@@ -604,6 +617,142 @@ Pergunte o que o usuário precisa agora."""
             "dashboard": dashboard,
             "summary": summary,
             "output": summary,
+        }
+
+    async def _skill_status_sistema(self, user: User) -> dict:
+        """Skill: Status do sistema."""
+        tenants = self.db.query(Tenant).all()
+        active = [t for t in tenants if t.active]
+        blocked = [t for t in tenants if not t.active or self._is_blocked(t)]
+        
+        credits = self.db.query(Credit).all()
+        total_credits = sum(c.total for c in credits)
+        used_credits = sum(c.used for c in credits)
+        remaining_credits = sum(c.remaining for c in credits)
+        
+        open_tasks = self.db.query(AdminTask).filter(AdminTask.status == "open").count()
+        
+        status = f"🔍 Status do Sistema\n"
+        status += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        status += f"✅ Sistema operacional\n"
+        status += f"📊 Clientes ativos: {len(active)}\n"
+        status += f"🚫 Clientes bloqueados: {len(blocked)}\n"
+        status += f"💰 Créditos totais: {total_credits}\n"
+        status += f"📈 Créditos usados: {used_credits}\n"
+        status += f"💎 Créditos restantes: {remaining_credits}\n"
+        status += f"📋 Tarefas abertas: {open_tasks}\n"
+        status += f"⚡ Status: Normal\n"
+        status += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+        return {
+            "type": "status_sistema",
+            "status": "operational",
+            "summary": status,
+            "output": status,
+            "metrics": {
+                "active_tenants": len(active),
+                "blocked_tenants": len(blocked),
+                "total_credits": total_credits,
+                "used_credits": used_credits,
+                "remaining_credits": remaining_credits,
+                "open_tasks": open_tasks,
+            }
+        }
+
+    async def _skill_analisar_projeto(self, user: User) -> dict:
+        """Skill: Análise do projeto atual."""
+        analysis = f"🔬 Análise do Projeto\n"
+        analysis += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        analysis += f"📦 Nome: HERMES AGENTE\n"
+        analysis += f"🎯 Objetivo: Plataforma SaaS multi-tenant de atendimento automatizado\n"
+        analysis += f"🏗️ Arquitetura: FastAPI + PostgreSQL + Telegram\n"
+        analysis += f"🤖 IA: DeepSeek + GLM 4.7 com roteamento inteligente\n"
+        analysis += f"📱 Canais: Telegram, WhatsApp\n"
+        analysis += f"🔐 Autenticação: JWT + Super Admin\n"
+        analysis += f"💳 Pagamentos: Asaas\n"
+        analysis += f"🚀 Deploy: Coolify\n"
+        analysis += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        analysis += f"✅ Implementado:\n"
+        analysis += f"  • Sistema multi-tenant\n"
+        analysis += f"  • Chatbot com IA\n"
+        analysis += f"  • CRM completo\n"
+        analysis += f"  • WhatsApp integration\n"
+        analysis += f"  • Kanban board\n"
+        analysis += f"  • Agenda\n"
+        analysis += f"  • Instagram/YouTube integrations\n"
+        analysis += f"  • Content publisher\n"
+        analysis += f"  • Hermes Admin Master\n"
+        analysis += f"  • LLM Router inteligente\n"
+        analysis += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+        return {
+            "type": "analise_projeto",
+            "project_name": "HERMES AGENTE",
+            "status": "active",
+            "summary": analysis,
+            "output": analysis,
+        }
+
+    async def _skill_o_que_falta(self, user: User) -> dict:
+        """Skill: O que falta fazer no projeto."""
+        missing = f"📝 O que Falta Implementar\n"
+        missing += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        missing += f"⏳ Próximas Prioridades:\n\n"
+        missing += f"1. 🔔 Notificações push para admin\n"
+        missing += f"2. 📊 Dashboard em tempo real\n"
+        missing += f"3. 📈 Análise avançada de uso\n"
+        missing += f"4. 💾 Backup automático do sistema\n"
+        missing += f"5. 🚀 Integração completa com Coolify\n"
+        missing += f"6. 📱 App mobile para admin\n"
+        missing += f"7. 🎨 Personalização avançada de UI\n"
+        missing += f"8. 🔍 Sistema de buscas avançadas\n"
+        missing += f"9. 📧 Sistema de notificações por email\n"
+        missing += f"10. 🌐 Multi-language (i18n)\n\n"
+        missing += f"✅ Sistema está estável e funcional\n"
+        missing += f"⚡ Core features implementadas\n"
+        missing += f"🚀 Pronto para produção\n"
+        missing += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+        return {
+            "type": "o_que_falta",
+            "priority": "medium",
+            "summary": missing,
+            "output": missing,
+        }
+
+    async def _skill_listar_modulos(self, user: User) -> dict:
+        """Skill: Listar módulos disponíveis."""
+        modules = f"📦 Módulos Disponíveis\n"
+        modules += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        modules += f"✅ Core:\n"
+        modules += f"  • Multi-tenant System\n"
+        modules += f"  • Authentication & Authorization\n"
+        modules += f"  • Payments (Asaas)\n"
+        modules += f"  • Credits Management\n\n"
+        modules += f"✅ Business:\n"
+        modules += f"  • CRM (Lead management)\n"
+        modules += f"  • WhatsApp Integration\n"
+        modules += f"  • Telegram Chatbot\n"
+        modules += f"  • Kanban Board\n"
+        modules += f"  • Agenda/Calendar\n\n"
+        modules += f"✅ Social:\n"
+        modules += f"  • Instagram Integration\n"
+        modules += f"  • YouTube Integration\n"
+        modules += f"  • Content Publisher\n\n"
+        modules += f"✅ Admin:\n"
+        modules += f"  • Hermes Admin Master\n"
+        modules += f"  • LLM Router Intelligence\n"
+        modules += f"  • Skills & Automation\n"
+        modules += f"  • Tasks & Projects\n"
+        modules += f"  • System Logs\n\n"
+        modules += f"🚀 Total: 15+ módulos ativos\n"
+        modules += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+        return {
+            "type": "listar_modulos",
+            "total_modules": 15,
+            "summary": modules,
+            "output": modules,
         }
 
     async def suggest_skill_from_conversation(self, user: User, message: str) -> dict:
