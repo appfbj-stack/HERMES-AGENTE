@@ -165,21 +165,28 @@ function Layout({
 }
 
 function LoginPage({ onLogged }: { onLogged: () => void }) {
-  const [tenantEmail, setTenantEmail] = useState("contato@empresa.com");
-  const [email, setEmail] = useState("admin@empresa.com");
-  const [password, setPassword] = useState("123456");
+  const [tenantEmail, setTenantEmail] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError("");
+    setLoading(true);
 
     try {
+      console.log("Tentando login com:", { email, tenantEmail: tenantEmail.trim() || undefined, password: "***" });
       const result = await login(email, password, tenantEmail.trim() || undefined);
+      console.log("Login bem-sucedido:", result);
       localStorage.setItem("hermes_token", result.access_token);
       onLogged();
     } catch (err) {
+      console.error("Erro no login:", err);
       setError(err instanceof Error ? err.message : "Falha no login");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -190,23 +197,54 @@ function LoginPage({ onLogged }: { onLogged: () => void }) {
         <h1 className="mt-3 font-serif text-4xl font-semibold text-ink">Entrar</h1>
         <p className="mt-3 text-sm text-slate-500">Painel estilo chat com CRM, atendimento e operação multi-tenant.</p>
         <div className="mt-8 space-y-4">
-          <input
-            className="input"
-            value={tenantEmail}
-            onChange={(e) => setTenantEmail(e.target.value)}
-            placeholder="Email da empresa / tenant"
-          />
-          <input className="input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
-          <input
-            className="input"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Senha"
-            type="password"
-          />
+          <div>
+            <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">Email</label>
+            <input
+              className="input"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="seu@email.com"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">Senha</label>
+            <input
+              className="input"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              type="password"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">
+              Email da empresa (opcional)
+            </label>
+            <input
+              className="input"
+              value={tenantEmail}
+              onChange={(e) => setTenantEmail(e.target.value)}
+              placeholder="empresa@email.com"
+            />
+            <p className="text-xs text-slate-400 mt-1">Preencha apenas se tiver múltiplos tenants</p>
+          </div>
         </div>
-        {error ? <div className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div> : null}
-        <button className="mt-6 w-full rounded-2xl bg-brand px-4 py-3 font-medium text-white">Acessar painel</button>
+        {error ? (
+          <div className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">
+            <strong>Erro:</strong> {error}
+            <div className="mt-2 text-xs text-red-500">
+              Dica: Tente usar apenas o email e senha, sem o email da empresa.
+            </div>
+          </div>
+        ) : null}
+        <button
+          disabled={loading}
+          className="mt-6 w-full rounded-2xl bg-brand px-4 py-3 font-medium text-white disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {loading ? "Entrando..." : "Acessar painel"}
+        </button>
       </form>
     </div>
   );
