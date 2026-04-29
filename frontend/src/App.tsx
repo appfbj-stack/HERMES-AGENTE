@@ -42,6 +42,7 @@ import {
   upsertCrmWhatsAppConnection,
 } from "./api";
 import CrmWorkspace from "./crm/CrmWorkspace";
+import CrmKanbanPage from "./crm/KanbanPage";
 import type {
   AdminTenant,
   Chat,
@@ -475,6 +476,62 @@ function SettingsPage({ profile }: { profile: MeResponse }) {
 // Old CrmWorkspace replaced by modular components (see crm/CrmWorkspace.tsx)
 // Kept for reference only - now using CrmWorkspace.tsx with separate pages
 
+function CrmWhatsAppPage() {
+  return (
+    <div className="space-y-6">
+      <div className="rounded-[32px] bg-white p-6 shadow-soft">
+        <h2 className="font-serif text-2xl">WhatsApp Integration</h2>
+        <p className="mt-3 text-slate-600">Conecte e gerencie sua integração com WhatsApp Business API.</p>
+        <div className="mt-6 rounded-2xl bg-panel p-4">
+          <p className="text-sm text-slate-500">⚠️ Funcionalidade em desenvolvimento</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AgendaPage() {
+  return (
+    <div className="space-y-6">
+      <div className="rounded-[32px] bg-white p-6 shadow-soft">
+        <h2 className="font-serif text-2xl">Agenda</h2>
+        <p className="mt-3 text-slate-600">Gerencie seus compromissos e agendamentos.</p>
+        <div className="mt-6 rounded-2xl bg-panel p-4">
+          <p className="text-sm text-slate-500">⚠️ Funcionalidade em desenvolvimento</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InstagramPage() {
+  return (
+    <div className="space-y-6">
+      <div className="rounded-[32px] bg-white p-6 shadow-soft">
+        <h2 className="font-serif text-2xl">Instagram Integration</h2>
+        <p className="mt-3 text-slate-600">Conecte e gerencie sua presença no Instagram.</p>
+        <div className="mt-6 rounded-2xl bg-panel p-4">
+          <p className="text-sm text-slate-500">⚠️ Funcionalidade em desenvolvimento</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function YouTubePage() {
+  return (
+    <div className="space-y-6">
+      <div className="rounded-[32px] bg-white p-6 shadow-soft">
+        <h2 className="font-serif text-2xl">YouTube Integration</h2>
+        <p className="mt-3 text-slate-600">Gerencie seu conteúdo e canal no YouTube.</p>
+        <div className="mt-6 rounded-2xl bg-panel p-4">
+          <p className="text-sm text-slate-500">⚠️ Funcionalidade em desenvolvimento</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MasterPage({ profile }: { profile: MeResponse }) {
   const [tenants, setTenants] = useState<AdminTenant[]>([]);
   const [savingTenantId, setSavingTenantId] = useState<number | null>(null);
@@ -770,6 +827,11 @@ function ProtectedApp() {
           }
         />
         <Route path="/crm" element={<CrmWorkspace profile={profile} />} />
+        <Route path="/crm/whatsapp" element={<CrmWhatsAppPage />} />
+        <Route path="/crm/kanban" element={<CrmKanbanPage />} />
+        <Route path="/agenda" element={<AgendaPage />} />
+        <Route path="/instagram" element={<InstagramPage />} />
+        <Route path="/youtube" element={<YouTubePage />} />
         <Route path="/master" element={<MasterPage profile={profile} />} />
         <Route path="/leads" element={<TablePage title="Leads" rows={leads} render={(row) => [row.name, row.phone || "-", row.interest || "-", row.status]} />} />
         <Route path="/tasks" element={<TablePage title="Tarefas" rows={tasks} render={(row) => [row.title, row.description || "-", row.status, row.due_date || "-"]} />} />
