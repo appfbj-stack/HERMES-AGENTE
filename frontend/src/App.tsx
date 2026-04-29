@@ -509,7 +509,7 @@ function MasterPage({ profile }: { profile: MeResponse }) {
 
       {error ? <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div> : null}
 
-      <div className="rounded-[32px] bg-white p-6 shadow-soft">
+        <div className="rounded-[32px] bg-white p-6 shadow-soft">
         <div className="flex items-center justify-between gap-4">
           <h3 className="font-serif text-2xl">Tenants</h3>
           <div className="text-sm text-slate-500">{tenants.length} clientes</div>
@@ -522,6 +522,11 @@ function MasterPage({ profile }: { profile: MeResponse }) {
                 <th className="px-3 py-3 font-medium">Plano</th>
                 <th className="px-3 py-3 font-medium">Status</th>
                 <th className="px-3 py-3 font-medium">CRM</th>
+                <th className="px-3 py-3 font-medium">WhatsApp</th>
+                <th className="px-3 py-3 font-medium">Kanban</th>
+                <th className="px-3 py-3 font-medium">Agenda</th>
+                <th className="px-3 py-3 font-medium">Instagram</th>
+                <th className="px-3 py-3 font-medium">YouTube</th>
                 <th className="px-3 py-3 font-medium">Criado em</th>
               </tr>
             </thead>
@@ -560,6 +565,126 @@ function MasterPage({ profile }: { profile: MeResponse }) {
                         }}
                       />
                       <span className="text-slate-700">{tenant.crm_enabled ? "habilitado" : "desligado"}</span>
+                    </label>
+                  </td>
+                  <td className="px-3 py-4">
+                    <label className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={tenant.whatsapp_enabled}
+                        disabled={savingTenantId === tenant.id}
+                        onChange={async (event) => {
+                          setSavingTenantId(tenant.id);
+                          setError("");
+                          try {
+                            const updated = await updateAdminTenantModules(tenant.id, { whatsapp: event.target.checked });
+                            setTenants((current) =>
+                              current.map((item) => (item.id === updated.id ? updated : item)),
+                            );
+                          } catch (err) {
+                            setError(err instanceof Error ? err.message : "Falha ao atualizar tenant");
+                          } finally {
+                            setSavingTenantId(null);
+                          }
+                        }}
+                      />
+                      <span className="text-slate-700">{tenant.whatsapp_enabled ? "habilitado" : "desligado"}</span>
+                    </label>
+                  </td>
+                  <td className="px-3 py-4">
+                    <label className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={tenant.kanban_enabled}
+                        disabled={savingTenantId === tenant.id}
+                        onChange={async (event) => {
+                          setSavingTenantId(tenant.id);
+                          setError("");
+                          try {
+                            const updated = await updateAdminTenantModules(tenant.id, { kanban: event.target.checked });
+                            setTenants((current) =>
+                              current.map((item) => (item.id === updated.id ? updated : item)),
+                            );
+                          } catch (err) {
+                            setError(err instanceof Error ? err.message : "Falha ao atualizar tenant");
+                          } finally {
+                            setSavingTenantId(null);
+                          }
+                        }}
+                      />
+                      <span className="text-slate-700">{tenant.kanban_enabled ? "habilitado" : "desligado"}</span>
+                    </label>
+                  </td>
+                  <td className="px-3 py-4">
+                    <label className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={tenant.agenda_enabled}
+                        disabled={savingTenantId === tenant.id}
+                        onChange={async (event) => {
+                          setSavingTenantId(tenant.id);
+                          setError("");
+                          try {
+                            const updated = await updateAdminTenantModules(tenant.id, { agenda: event.target.checked });
+                            setTenants((current) =>
+                              current.map((item) => (item.id === updated.id ? updated : item)),
+                            );
+                          } catch (err) {
+                            setError(err instanceof Error ? err.message : "Falha ao atualizar tenant");
+                          } finally {
+                            setSavingTenantId(null);
+                          }
+                        }}
+                      />
+                      <span className="text-slate-700">{tenant.agenda_enabled ? "habilitado" : "desligado"}</span>
+                    </label>
+                  </td>
+                  <td className="px-3 py-4">
+                    <label className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={tenant.instagram_enabled}
+                        disabled={savingTenantId === tenant.id}
+                        onChange={async (event) => {
+                          setSavingTenantId(tenant.id);
+                          setError("");
+                          try {
+                            const updated = await updateAdminTenantModules(tenant.id, { instagram: event.target.checked });
+                            setTenants((current) =>
+                              current.map((item) => (item.id === updated.id ? updated : item)),
+                            );
+                          } catch (err) {
+                            setError(err instanceof Error ? err.message : "Falha ao atualizar tenant");
+                          } finally {
+                            setSavingTenantId(null);
+                          }
+                        }}
+                      />
+                      <span className="text-slate-700">{tenant.instagram_enabled ? "habilitado" : "desligado"}</span>
+                    </label>
+                  </td>
+                  <td className="px-3 py-4">
+                    <label className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={tenant.youtube_enabled}
+                        disabled={savingTenantId === tenant.id}
+                        onChange={async (event) => {
+                          setSavingTenantId(tenant.id);
+                          setError("");
+                          try {
+                            const updated = await updateAdminTenantModules(tenant.id, { youtube: event.target.checked });
+                            setTenants((current) =>
+                              current.map((item) => (item.id === updated.id ? updated : item)),
+                            );
+                          } catch (err) {
+                            setError(err instanceof Error ? err.message : "Falha ao atualizar tenant");
+                          } finally {
+                            setSavingTenantId(null);
+                          }
+                        }}
+                      />
+                      <span className="text-slate-700">{tenant.youtube_enabled ? "habilitado" : "desligado"}</span>
                     </label>
                   </td>
                   <td className="px-3 py-4 text-slate-700">{formatDateTime(tenant.created_at)}</td>
