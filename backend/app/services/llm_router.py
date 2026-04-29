@@ -13,12 +13,10 @@ Hermes Admin Master:
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy.orm import Session
-
 from app.core.logging import get_logger
 from app.models import User
-from app.services.deepseek_service import call_deepseek, call_deepseek_with_fallback
-from app.services.openrouter_service import call_glm_47, call_glm_flash, call_openrouter_with_fallback
+from app.services.deepseek_service import call_deepseek
+from app.services.openrouter_service import call_glm_47, call_glm_flash
 
 logger = get_logger(__name__)
 
@@ -160,9 +158,9 @@ def log_llm_usage(
     used_tokens: int,
     fallback_used: bool,
     success: bool,
-    error_message: str | None = None,
     duration_ms: float,
     user_role: str,
+    error_message: str | None = None,
 ) -> None:
     """
     Registra uso de LLM para análise e logs

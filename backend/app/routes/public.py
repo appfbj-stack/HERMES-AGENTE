@@ -195,7 +195,7 @@ async def public_chat_send(
 
     # Chama IA
     context = build_context(db, tenant_id, chat)
-    reply_text, tokens_used = await generate_reply(context)
+    reply_text, tokens_used = await generate_reply(context, tenant_id=tenant_id)
 
     bot_msg = Message(
         tenant_id=tenant_id,

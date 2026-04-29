@@ -24,13 +24,21 @@ async def call_hermes(messages: list[dict[str, str]]) -> tuple[str, int]:
         raise
 
 
-async def generate_reply(messages: list[dict[str, str]]) -> tuple[str, int]:
+async def generate_reply(messages: list[dict[str, str]], tenant_id: int | None = None) -> tuple[str, int]:
     """Gera resposta usando o LLM Router"""
     from app.models import User
 
-    user = User(is_super_admin=False, tenant_id=1, name="system", email="system@hermes.com", role="system", password="")
+    resolved_tenant_id = tenant_id or 1
+    user = User(
+        is_super_admin=False,
+        tenant_id=resolved_tenant_id,
+        name="system",
+        email="system@hermes.com",
+        role="system",
+        password="",
+    )
     try:
-        response = await route_llm(user, messages, tenant_id=1)
+        response = await route_llm(user, messages, tenant_id=resolved_tenant_id)
         content = parse_llm_response(response)
         tokens = response.get("usage", {}).get("total_tokens", 0)
         return content, tokens

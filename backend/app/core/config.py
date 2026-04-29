@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,9 +17,14 @@ class Settings(BaseSettings):
     deepseek_model: str = "deepseek-chat"
     deepseek_base_url: str = "https://api.deepseek.com"
     openrouter_api_key: str = ""
-    telegram_bot_token: str = ""
+    telegram_bot_token: str = Field(
+        default="",
+        validation_alias=AliasChoices("TELEGRAM_BOT_TOKEN", "TELEGRAM_CLIENT_TOKEN"),
+    )
     telegram_admin_token: str = ""
+    telegram_admin_webhook_secret: str = ""
     hermes_master_bot_token: str = ""
+    hermes_master_webhook_secret: str = ""
     hermes_master_bot_username: str = ""
     public_panel_url: str = "https://meuchat.fbautomacao.space"
     evolution_api_base_url: str = ""
@@ -52,6 +57,10 @@ class Settings(BaseSettings):
     admin_telegram_id: str = ""
 
     log_level: str = "INFO"
+
+    @property
+    def telegram_client_token(self) -> str:
+        return self.telegram_bot_token
 
     @field_validator("cors_origins", mode="before")
     @classmethod

@@ -9,9 +9,10 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.core.database import get_db
 from app.core.security import get_password_hash, verify_password
 from app.deps import get_current_tenant, get_current_user
-from app.models import SocialIntegrationAccount, SocialPost, User
+from app.models import SocialIntegrationAccount, SocialPost, Tenant, User
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
 
@@ -130,7 +131,7 @@ async def instagram_callback(
     client_id: str = Query(...),
     redirect_uri: str = Query(...),
     client_secret: str = Query(...),
-    db: Session = Depends(lambda: None = None),
+    db: Session = Depends(get_db),
 ):
     """Callback OAuth do Instagram"""
     try:
@@ -233,7 +234,7 @@ async def youtube_callback(
     client_id: str = Query(...),
     redirect_uri: str = Query(...),
     client_secret: str = Query(...),
-    db: Session = Depends(lambda: None = None),
+    db: Session = Depends(get_db),
 ):
     """Callback OAuth do YouTube"""
     try:
@@ -310,10 +311,11 @@ async def youtube_callback(
 @router.get("/accounts")
 def list_accounts(
     provider: str | None = Query(None),
-    db: Session = Depends(lambda: None = None),
+    db: Session = Depends(get_db),
+    tenant=Depends(get_current_tenant),
 ):
     """Listar contas conectadas"""
-    query = db.query(SocialIntegrationAccount)
+    query = db.query(SocialIntegrationAccount).filter(SocialIntegrationAccount.tenant_id == tenant.id)
     
     if provider:
         query = query.filter(SocialIntegrationAccount.provider == provider)
@@ -340,11 +342,13 @@ def list_accounts(
 @router.delete("/disconnect/{account_id}")
 def disconnect_account(
     account_id: int,
-    db: Session = Depends(lambda: None = None),
+    db: Session = Depends(get_db),
+    tenant=Depends(get_current_tenant),
 ):
     """Desconectar conta social"""
     account = db.query(SocialIntegrationAccount).filter(
-        SocialIntegrationAccount.id == account_id
+        SocialIntegrationAccount.id == account_id,
+        SocialIntegrationAccount.tenant_id == tenant.id,
     ).first()
     
     if not account:
@@ -362,10 +366,11 @@ def disconnect_account(
 def list_posts(
     status: str | None = Query(None),
     platform: str | None = Query(None),
-    db: Session = Depends(lambda: None = None),
+    db: Session = Depends(get_db),
+    tenant=Depends(get_current_tenant),
 ):
     """Listar publicações"""
-    query = db.query(SocialPost)
+    query = db.query(SocialPost).filter(SocialPost.tenant_id == tenant.id)
     
     if status:
         query = query.filter(SocialPost.status == status)
@@ -405,11 +410,13 @@ def list_posts(
 @router.post("/posts")
 def create_post(
     payload: SocialPostCreate,
-    db: Session = Depends(lambda: None = None),
+    db: Session = Depends(get_db),
+    tenant=Depends(get_current_tenant),
+    current_user: User = Depends(get_current_user),
 ):
     """Criar nova publicação"""
     post = SocialPost(
-        tenant_id=1,  # TODO: pegar do tenant atual
+        tenant_id=tenant.id,
         title=payload.title,
         content=payload.content,
         media_type=payload.media_type,
@@ -420,6 +427,7 @@ def create_post(
         platforms=json.dumps(payload.platforms),
         scheduled_at=datetime.fromisoformat(payload.scheduled_at) if payload.scheduled_at else None,
         status="scheduled" if payload.scheduled_at else "draft",
+        created_by_user_id=current_user.id,
     )
     
     db.add(post)
@@ -438,10 +446,11 @@ def create_post(
 @router.post("/posts/{post_id}/publish")
 async def publish_post(
     post_id: int,
-    db: Session = Depends(lambda: None = None),
+    db: Session = Depends(get_db),
+    tenant=Depends(get_current_tenant),
 ):
     """Publicar post"""
-    post = db.query(SocialPost).filter(SocialPost.id == post_id).first()
+    post = db.query(SocialPost).filter(SocialPost.id == post_id, SocialPost.tenant_id == tenant.id).first()
     
     if not post:
         raise HTTPException(status_code=404, detail="Post não encontrado")
@@ -453,7 +462,8 @@ async def publish_post(
         # Publicar no Instagram
         if "instagram" in platforms:
             integration = db.query(SocialIntegrationAccount).filter(
-                SocialIntegrationAccount.provider == "instagram"
+                SocialIntegrationAccount.provider == "instagram",
+                SocialIntegrationAccount.tenant_id == tenant.id,
             ).first()
             
             if integration:
@@ -485,7 +495,8 @@ async def publish_post(
         # Publicar no YouTube
         if "youtube" in platforms:
             integration = db.query(SocialIntegrationAccount).filter(
-                SocialIntegrationAccount.provider == "youtube"
+                SocialIntegrationAccount.provider == "youtube",
+                SocialIntegrationAccount.tenant_id == tenant.id,
             ).first()
             
             if integration:
@@ -553,10 +564,11 @@ async def publish_post(
 def update_post(
     post_id: int,
     payload: SocialPostUpdate,
-    db: Session = Depends(lambda: None = None),
+    db: Session = Depends(get_db),
+    tenant=Depends(get_current_tenant),
 ):
     """Atualizar publicação"""
-    post = db.query(SocialPost).filter(SocialPost.id == post_id).first()
+    post = db.query(SocialPost).filter(SocialPost.id == post_id, SocialPost.tenant_id == tenant.id).first()
     
     if not post:
         raise HTTPException(status_code=404, detail="Post não encontrado")
@@ -581,10 +593,11 @@ def update_post(
 @router.delete("/posts/{post_id}")
 def delete_post(
     post_id: int,
-    db: Session = Depends(lambda: None = None),
+    db: Session = Depends(get_db),
+    tenant=Depends(get_current_tenant),
 ):
     """Deletar publicação"""
-    post = db.query(SocialPost).filter(SocialPost.id == post_id).first()
+    post = db.query(SocialPost).filter(SocialPost.id == post_id, SocialPost.tenant_id == tenant.id).first()
     
     if not post:
         raise HTTPException(status_code=404, detail="Post não encontrado")
@@ -597,27 +610,33 @@ def delete_post(
 
 @router.get("/stats")
 def get_stats(
-    db: Session = Depends(lambda: None = None),
+    db: Session = Depends(get_db),
+    tenant=Depends(get_current_tenant),
 ):
     """Estatísticas das integrações"""
-    total_accounts = db.query(SocialIntegrationAccount).count()
+    total_accounts = db.query(SocialIntegrationAccount).filter(SocialIntegrationAccount.tenant_id == tenant.id).count()
     active_accounts = db.query(SocialIntegrationAccount).filter(
+        SocialIntegrationAccount.tenant_id == tenant.id,
         SocialIntegrationAccount.status == "active"
     ).count()
     
     instagram_accounts = db.query(SocialIntegrationAccount).filter(
+        SocialIntegrationAccount.tenant_id == tenant.id,
         SocialIntegrationAccount.provider == "instagram"
     ).count()
     
     youtube_accounts = db.query(SocialIntegrationAccount).filter(
+        SocialIntegrationAccount.tenant_id == tenant.id,
         SocialIntegrationAccount.provider == "youtube"
     ).count()
     
-    total_posts = db.query(SocialPost).count()
+    total_posts = db.query(SocialPost).filter(SocialPost.tenant_id == tenant.id).count()
     published_posts = db.query(SocialPost).filter(
+        SocialPost.tenant_id == tenant.id,
         SocialPost.status == "published"
     ).count()
     scheduled_posts = db.query(SocialPost).filter(
+        SocialPost.tenant_id == tenant.id,
         SocialPost.status == "scheduled"
     ).count()
     

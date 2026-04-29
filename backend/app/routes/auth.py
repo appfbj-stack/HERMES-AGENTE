@@ -82,6 +82,7 @@ def me(
             agenda=modules.agenda,
             instagram=modules.instagram,
             youtube=modules.youtube,
+            content_publisher=modules.content_publisher,
         ),
     )
 
@@ -99,4 +100,5 @@ def get_modules(
         agenda=modules.agenda,
         instagram=modules.instagram,
         youtube=modules.youtube,
+        content_publisher=modules.content_publisher,
     )

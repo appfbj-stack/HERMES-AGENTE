@@ -22,6 +22,42 @@ Exemplo:
 https://api.seudominio.com/webhook/telegram?tenant_id=<TENANT_ID>
 ```
 
+### Webhooks Telegram deste projeto
+
+Para o ambiente padrão deste repositório, o backend público fica em:
+
+```text
+https://api.meuchat.fbautomacao.space
+```
+
+Use estas URLs:
+
+```text
+Bot Admin (super admin):
+https://api.meuchat.fbautomacao.space/webhook/telegram-admin
+
+Bot Master legado:
+https://api.meuchat.fbautomacao.space/webhook/telegram-master
+
+Bot Cliente global:
+https://api.meuchat.fbautomacao.space/webhook/telegram
+
+Bot Cliente por tenant:
+https://api.meuchat.fbautomacao.space/webhook/telegram?tenant_id=<TENANT_ID>
+```
+
+Headers recomendados no Telegram:
+
+```text
+X-Telegram-Bot-Api-Secret-Token: <TOKEN_DO_BOT>
+```
+
+Mapeamento:
+
+- `TELEGRAM_ADMIN_TOKEN`: usar com `/webhook/telegram-admin`
+- `HERMES_MASTER_BOT_TOKEN`: usar com `/webhook/telegram-master`
+- `TELEGRAM_CLIENT_TOKEN` ou `TELEGRAM_BOT_TOKEN`: usar com `/webhook/telegram`
+
 ### Opção 2: Serviços separados
 
 - `backend`: Dockerfile em `backend/Dockerfile`

@@ -28,9 +28,13 @@ class HermesAdminService:
 
     async def chat(self, user: User, message: str) -> dict:
         """Processa mensagem do chat com Hermes Admin."""
+        context = self._gather_context()
+        shortcut = await self._handle_builtin_command(user, message)
+        if shortcut is not None:
+            await self._log_action("hermes_chat", "chat", None, details=f"Builtin command: {message}", user_id=user.id)
+            return shortcut
 
         prompt = self._build_system_prompt(user)
-        context = self._gather_context()
 
         messages = [
             {"role": "system", "content": prompt},
@@ -46,6 +50,30 @@ class HermesAdminService:
             return {"response": response, "actions": actions, "context": context}
         except Exception as exc:
             return {"response": f"Erro: {str(exc)}", "actions": [], "context": context}
+
+    async def _handle_builtin_command(self, user: User, message: str) -> dict | None:
+        normalized = (message or "").strip().lower()
+        if not normalized:
+            return None
+
+        if "status do sistema" in normalized:
+            result = await self._skill_status_sistema(user)
+        elif "listar módulos" in normalized or "listar modulos" in normalized:
+            result = await self._skill_listar_modulos(user)
+        elif "ver erros" in normalized:
+            result = await self._skill_ver_erros(user)
+        elif "analisar projeto" in normalized:
+            result = await self._skill_analisar_projeto(user)
+        elif "o que falta fazer" in normalized:
+            result = await self._skill_o_que_falta(user)
+        else:
+            return None
+
+        return {
+            "response": result["output"],
+            "actions": [],
+            "context": self._gather_context(),
+        }
 
     def _build_system_prompt(self, user: User) -> str:
         return f"""Você é o Hermes Admin Master, assistente interno da plataforma HERMES AGENTE.
@@ -312,7 +340,7 @@ Pergunte o que o usuário precisa agora."""
 
         for key, value in data.items():
             if value is not None and hasattr(routine, key):
-                setattr(routine, key)
+                setattr(routine, key, value)
 
         if data.get("schedule_type") and data.get("schedule_value"):
             routine.next_run_at = self._calculate_next_run(routine.schedule_type, routine.schedule_value, get_utcnow())
@@ -341,7 +369,7 @@ Pergunte o que o usuário precisa agora."""
             category=data.get("category"),
             key=data.get("key"),
             value=data.get("value"),
-            meta_data=data.get("metadata"),
+            meta_data=data.get("meta_data") or data.get("metadata"),
         )
         self.db.add(memory)
         self.db.commit()
@@ -358,7 +386,7 @@ Pergunte o que o usuário precisa agora."""
 
         for key, value in data.items():
             if value is not None and hasattr(memory, key):
-                setattr(memory, key)
+                setattr(memory, key, value)
 
         self.db.commit()
         self.db.refresh(memory)
@@ -631,6 +659,8 @@ Pergunte o que o usuário precisa agora."""
         remaining_credits = sum(c.remaining for c in credits)
         
         open_tasks = self.db.query(AdminTask).filter(AdminTask.status == "open").count()
+        open_projects = self.db.query(AdminProject).filter(AdminProject.status == "active").count()
+        active_routines = self.db.query(AdminRoutine).filter(AdminRoutine.is_active.is_(True)).count()
         
         status = f"🔍 Status do Sistema\n"
         status += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -641,6 +671,8 @@ Pergunte o que o usuário precisa agora."""
         status += f"📈 Créditos usados: {used_credits}\n"
         status += f"💎 Créditos restantes: {remaining_credits}\n"
         status += f"📋 Tarefas abertas: {open_tasks}\n"
+        status += f"📁 Projetos ativos: {open_projects}\n"
+        status += f"⏱️ Rotinas ativas: {active_routines}\n"
         status += f"⚡ Status: Normal\n"
         status += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
@@ -656,7 +688,54 @@ Pergunte o que o usuário precisa agora."""
                 "used_credits": used_credits,
                 "remaining_credits": remaining_credits,
                 "open_tasks": open_tasks,
+                "active_projects": open_projects,
+                "active_routines": active_routines,
             }
+        }
+
+    async def _skill_ver_erros(self, user: User) -> dict:
+        """Skill: resumo de erros recentes do sistema."""
+        recent_logs = (
+            self.db.query(AdminActionLog)
+            .filter(
+                (AdminActionLog.action.ilike("%error%"))
+                | (AdminActionLog.details.ilike("%erro%"))
+                | (AdminActionLog.details.ilike("%exception%"))
+                | (AdminActionLog.details.ilike("%traceback%"))
+            )
+            .order_by(AdminActionLog.created_at.desc())
+            .limit(10)
+            .all()
+        )
+
+        if not recent_logs:
+            summary = (
+                "🧾 Erros Recentes\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                "Nenhum erro administrativo recente foi encontrado nos logs internos.\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            )
+            return {
+                "type": "ver_erros",
+                "count": 0,
+                "summary": summary,
+                "output": summary,
+            }
+
+        lines = [
+            "🧾 Erros Recentes",
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        ]
+        for log in recent_logs:
+            detail = (log.details or "Sem detalhes").replace("\n", " ")[:180]
+            lines.append(f"• {log.created_at:%d/%m %H:%M} | {log.action} | {detail}")
+        lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        summary = "\n".join(lines)
+        return {
+            "type": "ver_erros",
+            "count": len(recent_logs),
+            "summary": summary,
+            "output": summary,
         }
 
     async def _skill_analisar_projeto(self, user: User) -> dict:

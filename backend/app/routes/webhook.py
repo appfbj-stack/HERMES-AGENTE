@@ -5,18 +5,19 @@ import re
 import json
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.database import get_db
-from app.models import Chat, Credit, CrmSetting, CrmWhatsAppConnection, Message, Tenant, TenantModule, UsageLog
+from app.models import Chat, Credit, CrmSetting, CrmWhatsAppConnection, Message, Tenant, TenantModule, UsageLog, User
 from app.services.agent import build_context, maybe_create_task
 from app.services.billing_rules import can_use_ai, count_message
 from app.services.crm import ensure_crm_conversation, ensure_crm_defaults, ensure_crm_lead, sync_crm_message
 from app.services.crm_agent import get_or_create_lead_from_chat, parse_and_execute_crm_commands
 from app.services.deepseek import generate_reply
-from app.services.telegram import send_telegram_message
+from app.services.hermes_admin import HermesAdminService
+from app.services.telegram import is_admin_token, send_telegram_message
 from app.services.whatsapp_provider import WhatsAppProviderError, get_provider
 
 router = APIRouter(prefix="/webhook", tags=["webhook"])
@@ -29,6 +30,40 @@ def _extract_start_tenant(text: str) -> int | None:
         return None
     match = re.match(r"^/start\s+(?:tenant_)?(\d+)$", text.strip(), flags=re.IGNORECASE)
     return int(match.group(1)) if match else None
+
+
+def _build_runtime_admin_user(name: str | None, *, role: str) -> User:
+    return User(
+        id=0,
+        tenant_id=0,
+        name=name or "Hermes Admin",
+        email=f"{role}@hermes.local",
+        role=role,
+        is_super_admin=True,
+        password="",
+    )
+
+
+async def _handle_admin_telegram_message(payload: dict, db: Session, token: str) -> dict:
+    message_data = payload.get("message") or payload.get("edited_message")
+    if not message_data:
+        return {"status": "ignored", "reason": "no_message"}
+
+    text = (message_data.get("text") or "").strip()
+    if not text:
+        return {"status": "ignored", "reason": "no_text"}
+
+    chat_id = str(message_data["chat"]["id"])
+    user_name = message_data.get("from", {}).get("first_name") or message_data.get("chat", {}).get("title")
+    settings = get_settings()
+    role = "master" if token == settings.hermes_master_bot_token else "super_admin"
+
+    service = HermesAdminService(db)
+    admin_user = _build_runtime_admin_user(user_name, role=role)
+    result = await service.chat(admin_user, text)
+    reply_text = result.get("response", "Erro ao processar mensagem")
+    await send_telegram_message(chat_id, reply_text, force_token=token)
+    return {"status": "ok", "scope": "admin", "response": reply_text}
 
 
 def _resolve_tenant_id(
@@ -177,6 +212,7 @@ async def telegram_webhook(
     payload: dict,
     tenant_id: int | None = Query(default=None),
     bot_token: str | None = Query(default=None),
+    x_telegram_bot_api_secret_token: str | None = Header(default=None, alias="X-Telegram-Bot-Api-Secret-Token"),
     db: Session = Depends(get_db),
 ):
     message_data = payload.get("message") or payload.get("edited_message")
@@ -199,11 +235,15 @@ async def telegram_webhook(
         )
         return {"status": "rejected", "reason": "input_too_long", "len": len(text)}
 
+    token_hint = x_telegram_bot_api_secret_token or bot_token
+    if is_admin_token(token_hint):
+        return await _handle_admin_telegram_message(payload, db, token_hint)
+
     resolved_tenant_id = _resolve_tenant_id(
         db,
         chat_external_id=chat_external_id,
         inbound_text=text,
-        bot_token_received=bot_token,
+        bot_token_received=token_hint,
         fallback_query=tenant_id,
     )
     if not resolved_tenant_id:
@@ -283,7 +323,7 @@ async def telegram_webhook(
             return {"status": "ai_blocked", "reason": reason}
 
     context = build_context(db, resolved_tenant_id, chat, lead=lead)
-    reply_text, tokens_used = await generate_reply(context)
+    reply_text, tokens_used = await generate_reply(context, tenant_id=resolved_tenant_id)
     clean_reply = parse_and_execute_crm_commands(db, resolved_tenant_id, lead, reply_text)
 
     outbound_message = Message(tenant_id=resolved_tenant_id, chat_id=chat.id, sender_type="assistant", content=clean_reply)
@@ -409,7 +449,7 @@ async def evolution_go_webhook(
             return {"status": "ai_blocked", "reason": reason}
 
     context = build_context(db, tenant_id, chat, lead=lead)
-    reply_text, tokens_used = await generate_reply(context)
+    reply_text, tokens_used = await generate_reply(context, tenant_id=tenant_id)
     clean_reply = parse_and_execute_crm_commands(db, tenant_id, lead, reply_text)
 
     outbound_message = Message(tenant_id=tenant_id, chat_id=chat.id, sender_type="assistant", content=clean_reply)

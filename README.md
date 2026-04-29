@@ -185,7 +185,15 @@ buscar QR code e desconectar.
 ### Webhooks de entrada
 
 - `POST /webhook/telegram?tenant_id={tenant_id}`
+- `POST /webhook/telegram-admin`
+- `POST /webhook/telegram-master`
 - `POST /webhook/evolution-go`
+
+Uso recomendado:
+
+- bot cliente: `/webhook/telegram` com `tenant_id` na query quando necessário
+- bot admin super admin: `/webhook/telegram-admin`
+- bot master legado: `/webhook/telegram-master`
 
 Para o `evolution-go`, o backend tenta identificar a conexão por `instance_name`
 no payload ou por query string. Como fallback operacional, você também pode
