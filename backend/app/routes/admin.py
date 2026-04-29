@@ -190,8 +190,16 @@ def set_tenant_modules(
 
     for k, v in payload.model_dump(exclude_unset=True).items():
         setattr(mod, k, v)
-    if mod.crm:
-        ensure_crm_defaults(db, tenant_id)
+
+    try:
+        if mod.crm:
+            from app.services.crm import ensure_crm_defaults
+            ensure_crm_defaults(db, tenant_id)
+    except Exception as e:
+        print(f"Erro ao inicializar CRM: {e}")
+        # Não falhar se houver erro no CRM, os outros módulos devem funcionar
+        import traceback
+        traceback.print_exc()
 
     db.commit()
     db.refresh(tenant)
