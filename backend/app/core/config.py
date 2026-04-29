@@ -49,6 +49,8 @@ class Settings(BaseSettings):
     social_files_path: str = "./social"
     admin_telegram_id: str = ""
 
+    log_level: str = "INFO"
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def split_origins(cls, value: str | list[str]) -> list[str]:

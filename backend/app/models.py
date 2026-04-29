@@ -206,6 +206,10 @@ class TenantModule(Base, TimestampMixin):
     tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), unique=True, index=True)
     crm: Mapped[bool] = mapped_column(Boolean, default=False)
     whatsapp: Mapped[bool] = mapped_column(Boolean, default=False)
+    kanban: Mapped[bool] = mapped_column(Boolean, default=False)
+    agenda: Mapped[bool] = mapped_column(Boolean, default=False)
+    instagram: Mapped[bool] = mapped_column(Boolean, default=False)
+    youtube: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class CrmLead(Base, TimestampMixin):

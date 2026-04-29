@@ -63,6 +63,11 @@ def _to_admin_out(db: Session, tenant: Tenant) -> dict:
         "credits_used": credit.used if credit else 0,
         "credits_remaining": credit.remaining if credit else 0,
         "crm_enabled": mod.crm if mod else False,
+        "whatsapp_enabled": mod.whatsapp if mod else False,
+        "kanban_enabled": mod.kanban if mod else False,
+        "agenda_enabled": mod.agenda if mod else False,
+        "instagram_enabled": mod.instagram if mod else False,
+        "youtube_enabled": mod.youtube if mod else False,
     }
 
 

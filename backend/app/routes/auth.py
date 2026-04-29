@@ -75,5 +75,28 @@ def me(
     return MeResponse(
         user=UserOut.model_validate(current_user),
         tenant=TenantOut.model_validate(tenant),
-        modules=TenantModulesOut(crm=modules.crm),
+        modules=TenantModulesOut(
+            crm=modules.crm,
+            whatsapp=modules.whatsapp,
+            kanban=modules.kanban,
+            agenda=modules.agenda,
+            instagram=modules.instagram,
+            youtube=modules.youtube,
+        ),
+    )
+
+
+@router.get("/modules", response_model=TenantModulesOut)
+def get_modules(
+    current_user: User = Depends(get_current_user),
+    modules: TenantModule = Depends(get_current_modules),
+):
+    """Retorna apenas os módulos ativos do tenant atual."""
+    return TenantModulesOut(
+        crm=modules.crm,
+        whatsapp=modules.whatsapp,
+        kanban=modules.kanban,
+        agenda=modules.agenda,
+        instagram=modules.instagram,
+        youtube=modules.youtube,
     )

@@ -218,6 +218,11 @@ export type AdminTenant = {
   credits_used?: number;
   credits_remaining?: number;
   crm_enabled: boolean;
+  whatsapp_enabled: boolean;
+  kanban_enabled: boolean;
+  agenda_enabled: boolean;
+  instagram_enabled: boolean;
+  youtube_enabled: boolean;
 };
 
 export type CreateTenantPayload = {
@@ -281,7 +286,11 @@ export type MeResponse = {
   };
   modules: {
     crm: boolean;
-    whatsapp?: boolean;
+    whatsapp: boolean;
+    kanban: boolean;
+    agenda: boolean;
+    instagram: boolean;
+    youtube: boolean;
   };
 };
 

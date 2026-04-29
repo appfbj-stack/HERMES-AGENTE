@@ -1,9 +1,17 @@
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import get_settings
 from app.core.database import Base, engine
+from app.core.logging import setup_logging
+from app.middleware import (
+    global_exception_handler,
+    sqlalchemy_exception_handler,
+    validation_exception_handler,
+)
 from app.routes.admin import router as admin_router
 from app.routes.admin_hermes import router as admin_hermes_router
 from app.routes.auth import router as auth_router
@@ -21,7 +29,14 @@ from app.routes.webhook import router as webhook_router
 
 settings = get_settings()
 
+setup_logging(settings.log_level)
+
 app = FastAPI(title="Hermes Agente API", version="0.2.0")
+
+app.add_exception_handler(Exception, global_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(SQLAlchemyError, sqlalchemy_exception_handler)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -200,6 +215,11 @@ MIGRATIONS = [
     """CREATE INDEX IF NOT EXISTS ix_admin_skills_active ON admin_skills(active)""",
     """CREATE INDEX IF NOT EXISTS ix_admin_skills_trigger_type ON admin_skills(trigger_type)""",
     """CREATE INDEX IF NOT EXISTS ix_admin_skills_last_run_at ON admin_skills(last_run_at DESC)""",
+    # ===== Tenant Modules - Add missing columns =====
+    """ALTER TABLE tenant_modules ADD COLUMN IF NOT EXISTS kanban BOOLEAN NOT NULL DEFAULT FALSE""",
+    """ALTER TABLE tenant_modules ADD COLUMN IF NOT EXISTS agenda BOOLEAN NOT NULL DEFAULT FALSE""",
+    """ALTER TABLE tenant_modules ADD COLUMN IF NOT EXISTS instagram BOOLEAN NOT NULL DEFAULT FALSE""",
+    """ALTER TABLE tenant_modules ADD COLUMN IF NOT EXISTS youtube BOOLEAN NOT NULL DEFAULT FALSE""",
 ]
 
 

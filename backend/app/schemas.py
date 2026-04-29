@@ -56,6 +56,10 @@ class TenantOut(BaseModel):
 class TenantModulesOut(BaseModel):
     crm: bool
     whatsapp: bool = False
+    kanban: bool = False
+    agenda: bool = False
+    instagram: bool = False
+    youtube: bool = False
 
 
 class MeResponse(BaseModel):
@@ -71,6 +75,11 @@ class TenantAdminOut(TenantOut):
     credits_used: int = 0
     credits_remaining: int = 0
     crm_enabled: bool = False
+    whatsapp_enabled: bool = False
+    kanban_enabled: bool = False
+    agenda_enabled: bool = False
+    instagram_enabled: bool = False
+    youtube_enabled: bool = False
 
     class Config:
         from_attributes = True
@@ -540,6 +549,10 @@ class CrmModuleUpdate(BaseModel):
 class TenantModuleUpdate(BaseModel):
     crm: bool | None = None
     whatsapp: bool | None = None
+    kanban: bool | None = None
+    agenda: bool | None = None
+    instagram: bool | None = None
+    youtube: bool | None = None
 
 
 class CrmWhatsAppConnectionUpsert(BaseModel):

@@ -396,7 +396,7 @@ export async function getAdminTenants() {
   return request<AdminTenant[]>("/admin/tenants");
 }
 
-export async function updateAdminTenantModules(tenantId: number, payload: { crm: boolean }) {
+export async function updateAdminTenantModules(tenantId: number, payload: Partial<{ crm: boolean; whatsapp: boolean; kanban: boolean; agenda: boolean; instagram: boolean; youtube: boolean }>) {
   return request<AdminTenant>(`/admin/tenants/${tenantId}/modules`, {
     method: "PUT",
     body: JSON.stringify(payload),
@@ -430,6 +430,11 @@ export async function deleteAdminTenant(tenantId: number) {
 }
 
 export const setAdminTenantModules = updateAdminTenantModules;
+
+
+export async function getTenantModules() {
+  return request<{ crm: boolean; whatsapp: boolean; kanban: boolean; agenda: boolean; instagram: boolean; youtube: boolean }>("/auth/modules");
+}
 
 
 export async function hermesAdminChat(message: string) {

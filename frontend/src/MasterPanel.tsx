@@ -239,20 +239,32 @@ export default function MasterPanel() {
                       </td>
                       {/* Módulos */}
                       <td className="px-3 py-3">
-                        <button
-                          onClick={async () => {
-                            await setAdminTenantModules(t.id, { crm: !t.crm_enabled });
-                            load();
-                          }}
-                          title={t.crm_enabled ? "Desativar CRM" : "Ativar CRM"}
-                          className={`flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold uppercase transition ${
-                            t.crm_enabled
-                              ? "bg-violet-100 text-violet-700 hover:bg-violet-200"
-                              : "bg-slate-100 text-slate-400 hover:bg-slate-200"
-                          }`}
-                        >
-                          {t.crm_enabled ? "✓ CRM" : "○ CRM"}
-                        </button>
+                        <div className="flex flex-wrap gap-1">
+                          {[
+                            { key: "crm", label: "CRM" },
+                            { key: "whatsapp", label: "WhatsApp" },
+                            { key: "kanban", label: "Kanban" },
+                            { key: "agenda", label: "Agenda" },
+                            { key: "instagram", label: "Instagram" },
+                            { key: "youtube", label: "YouTube" },
+                          ].map((mod) => (
+                            <button
+                              key={mod.key}
+                              onClick={async () => {
+                                await setAdminTenantModules(t.id, { [mod.key]: !(t as any)[`${mod.key}_enabled`] });
+                                load();
+                              }}
+                              title={(t as any)[`${mod.key}_enabled`] ? `Desativar ${mod.label}` : `Ativar ${mod.label}`}
+                              className={`flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold uppercase transition ${
+                                (t as any)[`${mod.key}_enabled`]
+                                  ? "bg-violet-100 text-violet-700 hover:bg-violet-200"
+                                  : "bg-slate-100 text-slate-400 hover:bg-slate-200"
+                              }`}
+                            >
+                              {(t as any)[`${mod.key}_enabled`] ? `✓ ${mod.label}` : `○ ${mod.label}`}
+                            </button>
+                          ))}
+                        </div>
                       </td>
 
                       <td className="px-3 py-3">
