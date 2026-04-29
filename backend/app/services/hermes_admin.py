@@ -190,12 +190,13 @@ Pergunte o que o usuário precisa agora."""
 
     async def _log_action(self, action: str, entity_type: str, entity_id: int | None = None, details: str | None = None, user_id: int | None = None, tenant_id: int | None = None) -> None:
         """Registra ação administrativa."""
+        safe_user_id = user_id if user_id and user_id > 0 else None
         log = AdminActionLog(
             action=action,
             entity_type=entity_type,
             entity_id=entity_id,
             details=details,
-            performed_by_user_id=user_id,
+            performed_by_user_id=safe_user_id,
             tenant_id=tenant_id,
         )
         self.db.add(log)
