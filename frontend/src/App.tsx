@@ -41,6 +41,7 @@ import {
   updateCrmTask,
   upsertCrmWhatsAppConnection,
 } from "./api";
+import CrmWorkspace from "./crm/CrmWorkspace";
 import type {
   AdminTenant,
   Chat,
@@ -53,13 +54,25 @@ import type {
   CrmLead,
   CrmMessage,
   CrmSettings,
+  CrmTag,
   CrmTask,
   CrmWhatsAppConnection,
   CrmWhatsAppStatus,
+  CreateTenantPayload,
   Lead,
+  LoginResponse,
   MeResponse,
   Message,
   Task,
+  HermesAdminChatResponse,
+  HermesAdminDashboard,
+  AdminTask,
+  AdminProject,
+  AdminRoutine,
+  AdminMemory,
+  AdminActionLog,
+  AdminSkill,
+  SkillSuggestion,
 } from "./types";
 
 function currencyCredits(credits?: Credit) {
@@ -85,7 +98,17 @@ function Layout({
   const nav = [
     { label: "Dashboard", path: "/dashboard" },
     { label: "Chat", path: "/chat" },
-    ...(profile.modules.crm ? [{ label: "CRM", path: "/crm" }] : []),
+    ...(profile.modules.crm
+      ? [
+          { label: "CRM Dashboard", path: "/crm/dashboard" },
+          { label: "CRM Leads", path: "/crm/leads" },
+          { label: "CRM Kanban", path: "/crm/kanban" },
+          { label: "CRM Conversas", path: "/crm/conversations" },
+          { label: "CRM Follow-ups", path: "/crm/followups" },
+          { label: "CRM Tarefas", path: "/crm/tasks" },
+          { label: "CRM Config", path: "/crm/settings" },
+        ]
+      : []),
     ...(profile.modules.whatsapp ? [{ label: "WhatsApp", path: "/crm/whatsapp" }] : []),
     ...(profile.modules.kanban ? [{ label: "Kanban", path: "/crm/kanban" }] : []),
     ...(profile.modules.agenda ? [{ label: "Agenda", path: "/agenda" }] : []),
@@ -411,102 +434,20 @@ function SettingsPage({ profile }: { profile: MeResponse }) {
   );
 }
 
+// Old CrmWorkspace replaced by modular components (see crm/CrmWorkspace.tsx)
+// Kept for reference only
+/*
 function CrmWorkspace({ profile }: { profile: MeResponse }) {
-  const [dashboard, setDashboard] = useState<CrmDashboard | null>(null);
-  const [leads, setLeads] = useState<CrmLead[]>([]);
-  const [kanban, setKanban] = useState<CrmKanbanBoard | null>(null);
-  const [conversations, setConversations] = useState<CrmConversation[]>([]);
-  const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
-  const [crmMessages, setCrmMessages] = useState<CrmMessage[]>([]);
-  const [followups, setFollowups] = useState<CrmFollowup[]>([]);
-  const [crmTasks, setCrmTasks] = useState<CrmTask[]>([]);
-  const [settings, setSettings] = useState<CrmSettings | null>(null);
-  const [whatsAppConnection, setWhatsAppConnection] = useState<CrmWhatsAppConnection | null>(null);
-  const [whatsAppStatus, setWhatsAppStatus] = useState<CrmWhatsAppStatus | null>(null);
-  const [leadActivity, setLeadActivity] = useState<CrmActivityLog[]>([]);
-  const [selectedLeadId, setSelectedLeadId] = useState<number | null>(null);
-  const [filter, setFilter] = useState("");
-  const [messageDraft, setMessageDraft] = useState("");
-  const [dragLeadId, setDragLeadId] = useState<number | null>(null);
-  const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
-  const [leadForm, setLeadForm] = useState({
-    name: "",
-    phone: "",
-    email: "",
-    origin: "manual",
-    status: "Novo lead",
-    notes: "",
-  });
-  const [editingLeadId, setEditingLeadId] = useState<number | null>(null);
-  const [followupForm, setFollowupForm] = useState({
-    title: "",
-    description: "",
-    due_at: "",
-    channel: "whatsapp",
-    status: "pendente",
-  });
-  const [taskForm, setTaskForm] = useState({
-    title: "",
-    description: "",
-    due_at: "",
-    priority: "media",
-    status: "pendente",
-  });
-  const [editingFollowupId, setEditingFollowupId] = useState<number | null>(null);
-  const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
-  const [settingsForm, setSettingsForm] = useState({
-    initial_auto_message: "",
-    status_options: "",
-    tags: "",
-    hermes_enabled: true,
-  });
-  const [whatsAppForm, setWhatsAppForm] = useState({
-    provider: "evolution_go",
-    instance_name: "",
-    api_base_url: "",
-    api_key: "",
-    webhook_url: "",
-  });
-  const [saving, setSaving] = useState("");
-  const [error, setError] = useState("");
-
-  async function loadCrmData() {
-    const [dashboardData, leadsData, kanbanData, conversationsData, followupsData, tasksData, settingsData, whatsAppConnectionData] =
-      await Promise.all([
-        getCrmDashboard(),
-        getCrmLeads(),
-        getCrmKanban(),
-        getCrmConversations(),
-        getCrmFollowups(true),
-        getCrmTasks(),
-        getCrmSettings(),
-        getCrmWhatsAppConnection(),
-      ]);
-
-    setDashboard(dashboardData);
-    setLeads(leadsData);
-    setKanban(kanbanData);
-    setConversations(conversationsData);
-    setFollowups(followupsData);
-    setCrmTasks(tasksData);
-    setSettings(settingsData);
-    setWhatsAppConnection(whatsAppConnectionData);
-    setWhatsAppStatus(
-      whatsAppConnectionData
-        ? {
-            status: whatsAppConnectionData.status,
-            connected_phone: whatsAppConnectionData.connected_phone,
-            qr_code_base64: whatsAppConnectionData.qr_code_base64,
-            raw: null,
-          }
-        : null,
-    );
-    setSettingsForm({
-      initial_auto_message: settingsData.initial_auto_message || "",
-      status_options: settingsData.status_options.join(", "),
-      tags: settingsData.tags.join(", "),
-      hermes_enabled: settingsData.hermes_enabled,
-    });
+  // ... old implementation ...
+  // Replaced by:
+  // - CrmDashboardPage
+  // - CrmLeadsPage
+  // - CrmKanbanPage
+  // - CrmConversasPage
+  // - CrmFollowupsPage
+  // - CrmTasksPage
+  // - CrmSettingsPage
+*/
     setWhatsAppForm({
       provider: whatsAppConnectionData?.provider || "evolution_go",
       instance_name: whatsAppConnectionData?.instance_name || `tenant-${profile.tenant.id}-wa`,

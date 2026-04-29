@@ -402,3 +402,5 @@ export type SkillSuggestion = {
   confidence: number;
   reason: string;
 };
+
+export type Priority = "baixa" | "media" | "alta";

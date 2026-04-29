@@ -12,6 +12,7 @@ from app.core.config import get_settings
 from app.core.database import get_db
 from app.models import Chat, Credit, CrmSetting, CrmWhatsAppConnection, Message, Tenant, TenantModule, UsageLog
 from app.services.agent import build_context, maybe_create_task
+from app.services.billing_rules import can_use_ai, count_message
 from app.services.crm import ensure_crm_conversation, ensure_crm_defaults, ensure_crm_lead, sync_crm_message
 from app.services.crm_agent import get_or_create_lead_from_chat, parse_and_execute_crm_commands
 from app.services.deepseek import generate_reply
@@ -268,6 +269,18 @@ async def telegram_webhook(
         if crm_settings and not crm_settings.hermes_enabled:
             db.commit()
             return {"status": "crm_hermes_disabled"}
+        
+        # Verificar regras de negócio para IA
+        can_use, reason = can_use_ai(db, resolved_tenant_id)
+        if not can_use:
+            db.commit()
+            await send_telegram_message(
+                chat.chat_external_id,
+                f"⚠️ {reason if reason else 'IA temporariamente indisponível'}.",
+                tenant_id=resolved_tenant_id,
+                db=db
+            )
+            return {"status": "ai_blocked", "reason": reason}
 
     context = build_context(db, resolved_tenant_id, chat, lead=lead)
     reply_text, tokens_used = await generate_reply(context)
@@ -282,8 +295,8 @@ async def telegram_webhook(
     if crm_conversation:
         sync_crm_message(db, resolved_tenant_id, crm_conversation, outbound_message, chat.channel)
 
-    credit.used += 1
-    credit.remaining -= 1
+    # Contabilizar mensagem usando serviço de regras de negócio
+    count_message(db, resolved_tenant_id)
     db.add(UsageLog(tenant_id=resolved_tenant_id, message_id=outbound_message.id, tokens_used=tokens_used))
     db.commit()
 
@@ -388,6 +401,12 @@ async def evolution_go_webhook(
         if crm_settings and not crm_settings.hermes_enabled:
             db.commit()
             return {"status": "crm_hermes_disabled"}
+        
+        # Verificar regras de negócio para IA
+        can_use, reason = can_use_ai(db, tenant_id)
+        if not can_use:
+            db.commit()
+            return {"status": "ai_blocked", "reason": reason}
 
     context = build_context(db, tenant_id, chat, lead=lead)
     reply_text, tokens_used = await generate_reply(context)
@@ -402,8 +421,8 @@ async def evolution_go_webhook(
     if crm_conversation:
         sync_crm_message(db, tenant_id, crm_conversation, outbound_message, chat.channel)
 
-    credit.used += 1
-    credit.remaining -= 1
+    # Contabilizar mensagem usando serviço de regras de negócio
+    count_message(db, tenant_id)
     db.add(UsageLog(tenant_id=tenant_id, message_id=outbound_message.id, tokens_used=tokens_used))
     db.commit()
 
