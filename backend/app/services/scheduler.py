@@ -6,11 +6,13 @@ from typing import Optional, Callable, Any
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.logging import get_logger
 from app.models import SkillExecution, User
 
 _scheduled_jobs = {}
 _scheduler_running = False
 _scheduler_thread = None
+logger = get_logger(__name__)
 
 
 def get_utcnow() -> datetime:
@@ -107,7 +109,7 @@ def schedule_routine(
             else:
                 result = routine_func()
         except Exception as exc:
-            print(f"[scheduler] Error in {routine_name}: {exc}")
+            logger.exception("Scheduler error in routine=%s", routine_name)
 
     job_id = f"{routine_name}_{user_id or 'system'}"
 

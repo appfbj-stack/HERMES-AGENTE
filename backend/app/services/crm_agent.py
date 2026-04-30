@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
+from app.core.logging import get_logger
 from app.models import Chat, CrmActivityLog, CrmFollowup, CrmKanbanColumn, Lead, TenantModule
 
 # ─── Constantes ───────────────────────────────────────────────────────────────
@@ -31,6 +32,7 @@ _CRM_CMD_RE = re.compile(
     r"\[\[CRM:(\w+)\s*(.*?)\]\]",
     re.DOTALL | re.IGNORECASE,
 )
+logger = get_logger(__name__)
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -239,7 +241,7 @@ def parse_and_execute_crm_commands(
             elif cmd == "kanban":
                 _cmd_kanban(db, tenant_id, lead, args)
         except Exception as exc:  # noqa: BLE001
-            print(f"[crm_agent] command [[CRM:{cmd} {args}]] failed: {exc}")
+            logger.exception("CRM command failed tenant_id=%s lead_id=%s cmd=%s args=%s", tenant_id, lead.id, cmd, args)
 
     return cleaned
 

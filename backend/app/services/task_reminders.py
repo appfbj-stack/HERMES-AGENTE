@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import schedule
 
 from app.core.database import SessionLocal
+from app.core.logging import get_logger
 from app.models import AssistantMemory, Chat, CrmWhatsAppConnection, Message, Task
 from app.services.agent import find_task_refs, mark_task_reminder_sent, task_reminder_already_sent
 from app.services.scheduler import start_scheduler
@@ -12,6 +13,7 @@ from app.services.whatsapp_provider import WhatsAppProviderError, get_provider
 
 _TASK_REMINDER_JOB_TAG = "system_task_reminders"
 _task_reminder_started = False
+logger = get_logger(__name__)
 
 
 def _utcnow() -> datetime:
@@ -100,6 +102,12 @@ def process_due_task_reminders() -> None:
                 try:
                     delivered = asyncio.run(_deliver_task_reminder(db, task, chat, reminder_text)) or delivered
                 except Exception:
+                    logger.exception(
+                        "Falha ao entregar lembrete de tarefa task_id=%s tenant_id=%s chat_id=%s",
+                        task.id,
+                        task.tenant_id,
+                        chat.id,
+                    )
                     continue
 
             if delivered:
@@ -117,3 +125,4 @@ def start_due_task_reminder_scheduler() -> None:
     schedule.every(1).minutes.do(process_due_task_reminders).tag(_TASK_REMINDER_JOB_TAG)
     start_scheduler()
     _task_reminder_started = True
+    logger.info("Task reminder scheduler started with 1-minute interval")

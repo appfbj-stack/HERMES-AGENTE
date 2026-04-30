@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.database import get_db
+from app.core.logging import get_logger
 from app.core.security import get_password_hash
 from app.deps import get_current_user
 from app.models import Credit, Tenant, TenantModule, User
@@ -20,6 +21,7 @@ from app.schemas import (
 from app.services.crm import ensure_crm_defaults
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+logger = get_logger(__name__)
 
 
 @router.get("/master-bot")
@@ -195,13 +197,9 @@ def set_tenant_modules(
 
     try:
         if mod.crm:
-            from app.services.crm import ensure_crm_defaults
             ensure_crm_defaults(db, tenant_id)
-    except Exception as e:
-        print(f"Erro ao inicializar CRM: {e}")
-        # Não falhar se houver erro no CRM, os outros módulos devem funcionar
-        import traceback
-        traceback.print_exc()
+    except Exception as exc:
+        logger.exception("Erro ao inicializar CRM para tenant_id=%s", tenant_id)
 
     db.commit()
     db.refresh(tenant)

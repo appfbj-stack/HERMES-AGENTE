@@ -6,7 +6,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import get_settings
 from app.core.database import Base, engine
-from app.core.logging import setup_logging
+from app.core.logging import get_logger, setup_logging
 from app.middleware import (
     global_exception_handler,
     sqlalchemy_exception_handler,
@@ -33,6 +33,7 @@ from app.services.task_reminders import start_due_task_reminder_scheduler
 settings = get_settings()
 
 setup_logging(settings.log_level)
+logger = get_logger(__name__)
 
 app = FastAPI(title="Hermes Agente API", version="0.2.0")
 
@@ -444,7 +445,7 @@ def on_startup() -> None:
             try:
                 conn.execute(text(sql))
             except Exception as exc:  # noqa: BLE001
-                print(f"[migration] skip: {sql[:60]}... -> {exc}")
+                logger.warning("Migration skipped: %s... -> %s", sql[:60], exc)
     start_due_task_reminder_scheduler()
 
 

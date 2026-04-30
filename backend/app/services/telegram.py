@@ -11,7 +11,10 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.core.logging import get_logger
 from app.models import Tenant
+
+logger = get_logger(__name__)
 
 
 def get_client_token() -> str | None:
@@ -61,7 +64,7 @@ async def send_telegram_message(
         try:
             await client.post(url, json=payload)
         except Exception as exc:  # noqa: BLE001
-            print(f"[telegram] erro ao enviar: {exc}")
+            logger.exception("Erro ao enviar mensagem Telegram chat_external_id=%s tenant_id=%s", chat_external_id, tenant_id)
 
 
 async def set_webhook(token: str, url: str) -> dict:
