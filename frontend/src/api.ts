@@ -29,6 +29,10 @@ import type {
   AdminActionLog,
   AdminSkill,
   SkillSuggestion,
+  SocialIntegrationAccount,
+  SocialIntegrationStats,
+  SocialOAuthStartResponse,
+  SocialPost,
 } from "./types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
@@ -390,6 +394,89 @@ export async function disconnectCrmWhatsApp() {
   return request<{ status: string }>("/crm/whatsapp/disconnect", {
     method: "POST",
   });
+}
+
+export async function startInstagramConnect(params: {
+  tenant_id: number;
+  user_id: number;
+  client_id: string;
+  redirect_uri: string;
+  scope?: string;
+}) {
+  const search = new URLSearchParams({
+    tenant_id: String(params.tenant_id),
+    user_id: String(params.user_id),
+    client_id: params.client_id,
+    redirect_uri: params.redirect_uri,
+    ...(params.scope ? { scope: params.scope } : {}),
+  });
+  return request<SocialOAuthStartResponse>(`/integrations/instagram/connect?${search.toString()}`);
+}
+
+export async function startYouTubeConnect(params: {
+  tenant_id: number;
+  user_id: number;
+  client_id: string;
+  redirect_uri: string;
+  scope?: string;
+}) {
+  const search = new URLSearchParams({
+    tenant_id: String(params.tenant_id),
+    user_id: String(params.user_id),
+    client_id: params.client_id,
+    redirect_uri: params.redirect_uri,
+    ...(params.scope ? { scope: params.scope } : {}),
+  });
+  return request<SocialOAuthStartResponse>(`/integrations/youtube/connect?${search.toString()}`);
+}
+
+export async function getIntegrationAccounts(provider?: string) {
+  const search = provider ? `?${new URLSearchParams({ provider }).toString()}` : "";
+  return request<{ accounts: SocialIntegrationAccount[] }>(`/integrations/accounts${search}`);
+}
+
+export async function disconnectIntegrationAccount(accountId: number) {
+  return request<{ success: boolean; message: string }>(`/integrations/disconnect/${accountId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getIntegrationPosts(params?: { status?: string; platform?: string }) {
+  const search = params ? `?${new URLSearchParams(Object.entries(params).filter(([, value]) => value) as [string, string][]).toString()}` : "";
+  return request<{ posts: SocialPost[] }>(`/integrations/posts${search}`);
+}
+
+export async function createIntegrationPost(payload: {
+  title: string;
+  content: string;
+  media_type: string;
+  media_url: string;
+  thumbnail_url?: string | null;
+  hashtags?: string | null;
+  caption?: string | null;
+  platforms: string[];
+  scheduled_at?: string | null;
+}) {
+  return request<Pick<SocialPost, "id" | "title" | "status" | "scheduled_at" | "platforms">>("/integrations/posts", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function publishIntegrationPost(postId: number) {
+  return request<{ success: boolean; results: unknown[] }>(`/integrations/posts/${postId}/publish`, {
+    method: "POST",
+  });
+}
+
+export async function deleteIntegrationPost(postId: number) {
+  return request<{ success: boolean; message: string }>(`/integrations/posts/${postId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getIntegrationStats() {
+  return request<SocialIntegrationStats>("/integrations/stats");
 }
 
 export async function getAdminTenants() {

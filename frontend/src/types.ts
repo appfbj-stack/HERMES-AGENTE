@@ -203,6 +203,58 @@ export type CrmWhatsAppStatus = {
   raw: Record<string, unknown> | unknown[] | null;
 };
 
+export type SocialIntegrationAccount = {
+  id: number;
+  provider: string;
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+  status: string;
+  created_at: string;
+  last_webhook_at: string | null;
+};
+
+export type SocialPost = {
+  id: number;
+  title: string;
+  content: string;
+  media_type: string;
+  media_url: string;
+  thumbnail_url: string | null;
+  hashtags: string | null;
+  caption: string | null;
+  platforms: string[];
+  scheduled_at: string | null;
+  published_at: string | null;
+  status: string;
+  instagram_post_id: string | null;
+  instagram_media_url: string | null;
+  youtube_video_id: string | null;
+  youtube_video_url: string | null;
+  error_message: string | null;
+  created_at: string;
+};
+
+export type SocialIntegrationStats = {
+  accounts: {
+    total: number;
+    active: number;
+    instagram: number;
+    youtube: number;
+  };
+  posts: {
+    total: number;
+    published: number;
+    scheduled: number;
+    draft: number;
+  };
+};
+
+export type SocialOAuthStartResponse = {
+  oauth_url: string;
+  state: string;
+};
+
 export type AdminTenant = {
   id: number;
   name: string;

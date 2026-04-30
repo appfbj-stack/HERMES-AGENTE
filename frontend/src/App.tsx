@@ -8,6 +8,8 @@ import {
   deleteCrmLead,
   deleteCrmFollowup,
   deleteCrmTask,
+  deleteIntegrationPost,
+  disconnectIntegrationAccount,
   disconnectCrmWhatsApp,
   getChats,
   getAdminTenants,
@@ -24,6 +26,9 @@ import {
   getCrmWhatsAppConnection,
   getCrmWhatsAppQrCode,
   getCrmWhatsAppStatus,
+  getIntegrationAccounts,
+  getIntegrationPosts,
+  getIntegrationStats,
   getLeads,
   getMessages,
   getTasks,
@@ -34,6 +39,8 @@ import {
   moveCrmKanban,
   sendCrmConversationMessage,
   sendMessage,
+  startInstagramConnect,
+  startYouTubeConnect,
   toggleAi,
   updateAdminTenantModules,
   updateCrmConversationState,
@@ -42,6 +49,8 @@ import {
   updateCrmSettings,
   updateCrmTask,
   upsertCrmWhatsAppConnection,
+  createIntegrationPost,
+  publishIntegrationPost,
 } from "./api";
 import CrmWorkspace from "./crm/CrmWorkspace";
 import CrmKanbanPage from "./crm/KanbanPage";
@@ -76,6 +85,9 @@ import type {
   AdminActionLog,
   AdminSkill,
   SkillSuggestion,
+  SocialIntegrationAccount,
+  SocialIntegrationStats,
+  SocialPost,
 } from "./types";
 
 function currencyCredits(credits?: Credit) {
@@ -479,80 +491,175 @@ function SettingsPage({ profile }: { profile: MeResponse }) {
 // Old CrmWorkspace replaced by modular components (see crm/CrmWorkspace.tsx)
 // Kept for reference only - now using CrmWorkspace.tsx with separate pages
 
-function InstagramPage() {
+function SocialAccountsList({
+  accounts,
+  onDisconnect,
+}: {
+  accounts: SocialIntegrationAccount[];
+  onDisconnect?: (accountId: number) => Promise<void>;
+}) {
+  if (accounts.length === 0) {
+    return <div className="text-sm text-slate-500">Nenhuma conta conectada.</div>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {accounts.map((account) => (
+        <div key={account.id} className="flex items-center justify-between rounded-2xl bg-panel p-4">
+          <div>
+            <div className="font-semibold text-slate-900">{account.display_name || account.username || account.provider}</div>
+            <div className="text-sm text-slate-600">
+              {account.provider} • {account.status}
+            </div>
+          </div>
+          {onDisconnect ? (
+            <button
+              onClick={() => onDisconnect(account.id)}
+              className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200"
+            >
+              Desconectar
+            </button>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function InstagramPage({ profile }: { profile: MeResponse }) {
+  const [accounts, setAccounts] = useState<SocialIntegrationAccount[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  async function loadAccounts() {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await getIntegrationAccounts("instagram");
+      setAccounts(response.accounts);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao carregar contas");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadAccounts();
+  }, []);
+
+  async function handleConnect() {
+    const clientId = window.prompt("Client ID do Instagram/Meta:");
+    const redirectUri = window.prompt("Redirect URI do Instagram:");
+    if (!clientId || !redirectUri) return;
+    try {
+      const response = await startInstagramConnect({
+        tenant_id: profile.tenant.id,
+        user_id: profile.user.id,
+        client_id: clientId,
+        redirect_uri: redirectUri,
+      });
+      window.open(response.oauth_url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao iniciar OAuth");
+    }
+  }
+
+  async function handleDisconnect(accountId: number) {
+    try {
+      await disconnectIntegrationAccount(accountId);
+      await loadAccounts();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao desconectar conta");
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="rounded-[32px] bg-white p-6 shadow-soft">
-        <h2 className="font-serif text-2xl">Instagram Integration</h2>
-        <p className="mt-3 text-slate-600">Conecte e gerencie sua conta do Instagram Business.</p>
-        
-        <div className="mt-6 space-y-4">
-          <div className="rounded-2xl bg-panel p-4">
-            <h3 className="font-semibold text-slate-900">Conectar Conta</h3>
-            <p className="mt-2 text-sm text-slate-600">Use o OAuth oficial do Meta para conectar sua conta.</p>
-            <div className="mt-4 flex gap-3">
-              <button 
-                className="rounded-2xl bg-gradient-to-r from-purple-500 to-pink-500 px-6 py-3 text-sm font-semibold text-white hover:opacity-90"
-              >
-                <span className="mr-2">📷</span>
-                Conectar Instagram
-              </button>
-              <button className="rounded-2xl bg-slate-100 px-6 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-200">
-                Ver Contas Conectadas
-              </button>
-            </div>
-          </div>
-          
-          <div className="rounded-2xl bg-panel p-4">
-            <h3 className="font-semibold text-slate-900">Funcionalidades</h3>
-            <ul className="mt-3 space-y-2 text-sm text-slate-600">
-              <li>✅ Publicar posts e Reels</li>
-              <li>✅ Responder mensagens</li>
-              <li>✅ Criar leads automaticamente</li>
-              <li>✅ Integração com CRM</li>
-              <li>✅ Responder via Hermes</li>
-            </ul>
-          </div>
+        <h2 className="font-serif text-2xl">Instagram</h2>
+        <p className="mt-3 text-slate-600">Gerencie contas conectadas e prepare a publicação integrada ao CRM.</p>
+        {error ? <div className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div> : null}
+        <div className="mt-6 flex gap-3">
+          <button onClick={handleConnect} className="rounded-2xl bg-gradient-to-r from-fuchsia-500 to-rose-500 px-6 py-3 text-sm font-semibold text-white">
+            Conectar Instagram
+          </button>
+          <button onClick={loadAccounts} className="rounded-2xl bg-slate-100 px-6 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-200">
+            Atualizar
+          </button>
+        </div>
+        <div className="mt-6">
+          {loading ? <div className="text-sm text-slate-500">Carregando contas...</div> : <SocialAccountsList accounts={accounts} onDisconnect={handleDisconnect} />}
         </div>
       </div>
     </div>
   );
 }
 
-function YouTubePage() {
+function YouTubePage({ profile }: { profile: MeResponse }) {
+  const [accounts, setAccounts] = useState<SocialIntegrationAccount[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  async function loadAccounts() {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await getIntegrationAccounts("youtube");
+      setAccounts(response.accounts);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao carregar canais");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadAccounts();
+  }, []);
+
+  async function handleConnect() {
+    const clientId = window.prompt("Client ID do YouTube/Google:");
+    const redirectUri = window.prompt("Redirect URI do YouTube:");
+    if (!clientId || !redirectUri) return;
+    try {
+      const response = await startYouTubeConnect({
+        tenant_id: profile.tenant.id,
+        user_id: profile.user.id,
+        client_id: clientId,
+        redirect_uri: redirectUri,
+      });
+      window.open(response.oauth_url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao iniciar OAuth");
+    }
+  }
+
+  async function handleDisconnect(accountId: number) {
+    try {
+      await disconnectIntegrationAccount(accountId);
+      await loadAccounts();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao desconectar canal");
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="rounded-[32px] bg-white p-6 shadow-soft">
-        <h2 className="font-serif text-2xl">YouTube Integration</h2>
-        <p className="mt-3 text-slate-600">Conecte e gerencie seu canal do YouTube.</p>
-        
-        <div className="mt-6 space-y-4">
-          <div className="rounded-2xl bg-panel p-4">
-            <h3 className="font-semibold text-slate-900">Conectar Canal</h3>
-            <p className="mt-2 text-sm text-slate-600">Use o OAuth oficial do Google para conectar seu canal.</p>
-            <div className="mt-4 flex gap-3">
-              <button 
-                className="rounded-2xl bg-gradient-to-r from-red-500 to-red-600 px-6 py-3 text-sm font-semibold text-white hover:opacity-90"
-              >
-                <span className="mr-2">▶️</span>
-                Conectar YouTube
-              </button>
-              <button className="rounded-2xl bg-slate-100 px-6 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-200">
-                Ver Canais Conectados
-              </button>
-            </div>
-          </div>
-          
-          <div className="rounded-2xl bg-panel p-4">
-            <h3 className="font-semibold text-slate-900">Funcionalidades</h3>
-            <ul className="mt-3 space-y-2 text-sm text-slate-600">
-              <li>✅ Publicar vídeos e Shorts</li>
-              <li>✅ Capturar mensagens do live chat</li>
-              <li>✅ Salvar conversas no CRM</li>
-              <li>✅ Responder manual ou via Hermes</li>
-              <li>✅ Criar leads automaticamente</li>
-            </ul>
-          </div>
+        <h2 className="font-serif text-2xl">YouTube</h2>
+        <p className="mt-3 text-slate-600">Gerencie canais conectados e use o publicador para vídeos e Shorts.</p>
+        {error ? <div className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div> : null}
+        <div className="mt-6 flex gap-3">
+          <button onClick={handleConnect} className="rounded-2xl bg-gradient-to-r from-red-500 to-red-600 px-6 py-3 text-sm font-semibold text-white">
+            Conectar YouTube
+          </button>
+          <button onClick={loadAccounts} className="rounded-2xl bg-slate-100 px-6 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-200">
+            Atualizar
+          </button>
+        </div>
+        <div className="mt-6">
+          {loading ? <div className="text-sm text-slate-500">Carregando canais...</div> : <SocialAccountsList accounts={accounts} onDisconnect={handleDisconnect} />}
         </div>
       </div>
     </div>
@@ -560,52 +667,193 @@ function YouTubePage() {
 }
 
 function ContentPublisherPage() {
+  const [stats, setStats] = useState<SocialIntegrationStats | null>(null);
+  const [posts, setPosts] = useState<SocialPost[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [form, setForm] = useState({
+    title: "",
+    content: "",
+    media_type: "image",
+    media_url: "",
+    thumbnail_url: "",
+    hashtags: "",
+    caption: "",
+    scheduled_at: "",
+    instagram: true,
+    youtube: false,
+  });
+
+  async function loadPublisher() {
+    setLoading(true);
+    setError("");
+    try {
+      const [statsResponse, postsResponse] = await Promise.all([getIntegrationStats(), getIntegrationPosts()]);
+      setStats(statsResponse);
+      setPosts(postsResponse.posts);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao carregar publicador");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadPublisher();
+  }, []);
+
+  async function handleCreatePost(event: FormEvent) {
+    event.preventDefault();
+    const platforms = [form.instagram ? "instagram" : null, form.youtube ? "youtube" : null].filter(Boolean) as string[];
+    if (!platforms.length) {
+      setError("Selecione pelo menos uma plataforma");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      await createIntegrationPost({
+        title: form.title,
+        content: form.content,
+        media_type: form.media_type,
+        media_url: form.media_url,
+        thumbnail_url: form.thumbnail_url || null,
+        hashtags: form.hashtags || null,
+        caption: form.caption || null,
+        platforms,
+        scheduled_at: form.scheduled_at || null,
+      });
+      setForm({
+        title: "",
+        content: "",
+        media_type: "image",
+        media_url: "",
+        thumbnail_url: "",
+        hashtags: "",
+        caption: "",
+        scheduled_at: "",
+        instagram: true,
+        youtube: false,
+      });
+      await loadPublisher();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao criar publicação");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handlePublish(postId: number) {
+    try {
+      await publishIntegrationPost(postId);
+      await loadPublisher();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao publicar conteúdo");
+    }
+  }
+
+  async function handleDelete(postId: number) {
+    try {
+      await deleteIntegrationPost(postId);
+      await loadPublisher();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao excluir publicação");
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <div className="rounded-[32px] bg-white p-6 shadow-soft">
-        <h2 className="font-serif text-2xl">Publicador de Conteúdo</h2>
-        <p className="mt-3 text-slate-600">Publique e agende conteúdo para Instagram e YouTube.</p>
-        
-        <div className="mt-6 space-y-4">
-          <div className="rounded-2xl bg-panel p-4">
-            <h3 className="font-semibold text-slate-900">Criar Publicação</h3>
-            <p className="mt-2 text-sm text-slate-600">Selecione plataformas, faça upload de mídia e publique.</p>
-            <div className="mt-4 flex gap-3">
-              <button className="rounded-2xl bg-brand px-6 py-3 text-sm font-semibold text-white hover:bg-brand/90">
-                <span className="mr-2">📤</span>
-                Upload de Vídeo
-              </button>
-              <button className="rounded-2xl bg-slate-100 px-6 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-200">
-                <span className="mr-2">📸</span>
-                Upload de Imagem
-              </button>
+      <div className="grid gap-4 md:grid-cols-4">
+        <div className="rounded-[28px] bg-white p-5 shadow-soft">
+          <div className="text-sm text-slate-500">Contas ativas</div>
+          <div className="mt-2 text-3xl font-semibold text-ink">{stats?.accounts.active ?? "-"}</div>
+        </div>
+        <div className="rounded-[28px] bg-white p-5 shadow-soft">
+          <div className="text-sm text-slate-500">Posts totais</div>
+          <div className="mt-2 text-3xl font-semibold text-ink">{stats?.posts.total ?? "-"}</div>
+        </div>
+        <div className="rounded-[28px] bg-white p-5 shadow-soft">
+          <div className="text-sm text-slate-500">Agendados</div>
+          <div className="mt-2 text-3xl font-semibold text-ink">{stats?.posts.scheduled ?? "-"}</div>
+        </div>
+        <div className="rounded-[28px] bg-white p-5 shadow-soft">
+          <div className="text-sm text-slate-500">Publicados</div>
+          <div className="mt-2 text-3xl font-semibold text-ink">{stats?.posts.published ?? "-"}</div>
+        </div>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[1.1fr,0.9fr]">
+        <form onSubmit={handleCreatePost} className="rounded-[32px] bg-white p-6 shadow-soft">
+          <h2 className="font-serif text-2xl">Nova publicação</h2>
+          {error ? <div className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div> : null}
+          <div className="mt-5 grid gap-4">
+            <input className="input" placeholder="Título" value={form.title} onChange={(e) => setForm((current) => ({ ...current, title: e.target.value }))} required />
+            <textarea className="input min-h-28" placeholder="Conteúdo" value={form.content} onChange={(e) => setForm((current) => ({ ...current, content: e.target.value }))} required />
+            <input className="input" placeholder="URL da mídia" value={form.media_url} onChange={(e) => setForm((current) => ({ ...current, media_url: e.target.value }))} required />
+            <div className="grid gap-4 md:grid-cols-2">
+              <select className="input" value={form.media_type} onChange={(e) => setForm((current) => ({ ...current, media_type: e.target.value }))}>
+                <option value="image">Imagem</option>
+                <option value="video">Vídeo</option>
+                <option value="reel">Reel</option>
+                <option value="short">Short</option>
+              </select>
+              <input className="input" type="datetime-local" value={form.scheduled_at} onChange={(e) => setForm((current) => ({ ...current, scheduled_at: e.target.value }))} />
+            </div>
+            <input className="input" placeholder="Thumbnail URL (opcional)" value={form.thumbnail_url} onChange={(e) => setForm((current) => ({ ...current, thumbnail_url: e.target.value }))} />
+            <input className="input" placeholder="Legenda (opcional)" value={form.caption} onChange={(e) => setForm((current) => ({ ...current, caption: e.target.value }))} />
+            <input className="input" placeholder="Hashtags (opcional)" value={form.hashtags} onChange={(e) => setForm((current) => ({ ...current, hashtags: e.target.value }))} />
+            <div className="flex gap-6 text-sm text-slate-700">
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={form.instagram} onChange={(e) => setForm((current) => ({ ...current, instagram: e.target.checked }))} />
+                Instagram
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={form.youtube} onChange={(e) => setForm((current) => ({ ...current, youtube: e.target.checked }))} />
+                YouTube
+              </label>
             </div>
           </div>
-          
-          <div className="rounded-2xl bg-panel p-4">
-            <h3 className="font-semibold text-slate-900">Histórico de Publicações</h3>
-            <p className="mt-2 text-sm text-slate-600">Veja todas as publicações agendadas e publicadas.</p>
-            <div className="mt-4 flex gap-3">
-              <button className="rounded-2xl bg-slate-100 px-6 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-200">
-                Ver Histórico
-              </button>
-            </div>
+          <button disabled={saving} className="mt-6 rounded-2xl bg-brand px-5 py-3 font-medium text-white disabled:opacity-50">
+            {saving ? "Salvando..." : "Salvar publicação"}
+          </button>
+        </form>
+
+        <div className="rounded-[32px] bg-white p-6 shadow-soft">
+          <div className="flex items-center justify-between">
+            <h2 className="font-serif text-2xl">Fila de publicações</h2>
+            <button onClick={loadPublisher} className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200">
+              Atualizar
+            </button>
           </div>
-          
-          <div className="rounded-2xl bg-panel p-4">
-            <h3 className="font-semibold text-slate-900">Plataformas Suportadas</h3>
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              <div className="rounded-xl border-2 border-purple-200 bg-purple-50 p-3 text-center">
-                <div className="text-2xl">📷</div>
-                <div className="text-sm font-semibold text-purple-900">Instagram</div>
-                <div className="text-xs text-purple-700">Posts, Reels, Stories</div>
-              </div>
-              <div className="rounded-xl border-2 border-red-200 bg-red-50 p-3 text-center">
-                <div className="text-2xl">▶️</div>
-                <div className="text-sm font-semibold text-red-900">YouTube</div>
-                <div className="text-xs text-red-700">Vídeos, Shorts, Lives</div>
-              </div>
-            </div>
+          <div className="mt-5 space-y-3">
+            {loading ? (
+              <div className="text-sm text-slate-500">Carregando publicações...</div>
+            ) : posts.length === 0 ? (
+              <div className="text-sm text-slate-500">Nenhuma publicação cadastrada.</div>
+            ) : (
+              posts.map((post) => (
+                <div key={post.id} className="rounded-2xl bg-panel p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="font-semibold text-slate-900">{post.title}</div>
+                      <div className="mt-1 text-sm text-slate-600">{post.platforms.join(", ")} • {post.status}</div>
+                      <div className="mt-2 text-sm text-slate-500">{post.media_url}</div>
+                    </div>
+                    <div className="flex gap-2">
+                      {post.status !== "published" ? (
+                        <button onClick={() => handlePublish(post.id)} className="rounded-2xl bg-brand px-4 py-2 text-sm font-semibold text-white">
+                          Publicar
+                        </button>
+                      ) : null}
+                      <button onClick={() => handleDelete(post.id)} className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200">
+                        Excluir
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -768,13 +1016,141 @@ function HermesAdminChatPage({ profile }: { profile: MeResponse }) {
 }
 
 function CrmWhatsAppPage() {
+  const [connection, setConnection] = useState<CrmWhatsAppConnection | null>(null);
+  const [statusInfo, setStatusInfo] = useState<CrmWhatsAppStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [form, setForm] = useState({
+    provider: "evolution_go",
+    instance_name: "",
+    api_base_url: "",
+    api_key: "",
+    webhook_url: "",
+  });
+
+  async function loadWhatsApp() {
+    setLoading(true);
+    setError("");
+    try {
+      const [connectionData, statusData] = await Promise.all([
+        getCrmWhatsAppConnection(),
+        getCrmWhatsAppStatus().catch(() => null),
+      ]);
+      setConnection(connectionData);
+      setStatusInfo(statusData);
+      if (connectionData) {
+        setForm({
+          provider: connectionData.provider,
+          instance_name: connectionData.instance_name,
+          api_base_url: connectionData.api_base_url || "",
+          api_key: "",
+          webhook_url: connectionData.webhook_url || "",
+        });
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao carregar WhatsApp");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadWhatsApp();
+  }, []);
+
+  async function handleSave(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      await upsertCrmWhatsAppConnection({
+        provider: form.provider,
+        instance_name: form.instance_name,
+        api_base_url: form.api_base_url || null,
+        api_key: form.api_key || null,
+        webhook_url: form.webhook_url || null,
+      });
+      await loadWhatsApp();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao salvar conexão");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleConnect() {
+    setError("");
+    try {
+      await connectCrmWhatsApp();
+      const qr = await getCrmWhatsAppQrCode().catch(() => null);
+      setStatusInfo(qr || (await getCrmWhatsAppStatus()));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao conectar WhatsApp");
+    }
+  }
+
+  async function handleDisconnect() {
+    setError("");
+    try {
+      await disconnectCrmWhatsApp();
+      await loadWhatsApp();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao desconectar WhatsApp");
+    }
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="rounded-[32px] bg-white p-6 shadow-soft">
+    <div className="grid gap-6 xl:grid-cols-[1fr,0.95fr]">
+      <form onSubmit={handleSave} className="rounded-[32px] bg-white p-6 shadow-soft">
         <h2 className="font-serif text-2xl">WhatsApp CRM</h2>
-        <p className="mt-3 text-slate-600">A conexão do WhatsApp CRM está disponível no backend atual e a tela dedicada ainda precisa ser refinada.</p>
-        <div className="mt-6 rounded-2xl bg-panel p-4">
-          <p className="text-sm text-slate-500">Use o módulo CRM e as integrações existentes enquanto a interface específica é finalizada.</p>
+        <p className="mt-3 text-slate-600">Configure a instância do provedor e gerencie o QR Code da conexão.</p>
+        {error ? <div className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div> : null}
+        <div className="mt-5 grid gap-4">
+          <input className="input" placeholder="Provider" value={form.provider} onChange={(e) => setForm((current) => ({ ...current, provider: e.target.value }))} required />
+          <input className="input" placeholder="Nome da instância" value={form.instance_name} onChange={(e) => setForm((current) => ({ ...current, instance_name: e.target.value }))} required />
+          <input className="input" placeholder="API Base URL" value={form.api_base_url} onChange={(e) => setForm((current) => ({ ...current, api_base_url: e.target.value }))} />
+          <input className="input" placeholder="API Key" value={form.api_key} onChange={(e) => setForm((current) => ({ ...current, api_key: e.target.value }))} />
+          <input className="input" placeholder="Webhook URL" value={form.webhook_url} onChange={(e) => setForm((current) => ({ ...current, webhook_url: e.target.value }))} />
+        </div>
+        <button disabled={saving} className="mt-6 rounded-2xl bg-brand px-5 py-3 font-medium text-white disabled:opacity-50">
+          {saving ? "Salvando..." : "Salvar conexão"}
+        </button>
+      </form>
+
+      <div className="rounded-[32px] bg-white p-6 shadow-soft">
+        <h2 className="font-serif text-2xl">Estado da conexão</h2>
+        {loading ? <div className="mt-5 text-sm text-slate-500">Carregando status...</div> : null}
+        <div className="mt-5 space-y-4">
+          <div className="rounded-2xl bg-panel p-4">
+            <div className="text-sm text-slate-500">Status</div>
+            <div className="mt-1 text-lg font-semibold text-ink">{statusInfo?.status || connection?.status || "disconnected"}</div>
+          </div>
+          <div className="rounded-2xl bg-panel p-4">
+            <div className="text-sm text-slate-500">Telefone conectado</div>
+            <div className="mt-1 text-lg font-semibold text-ink">{statusInfo?.connected_phone || connection?.connected_phone || "-"}</div>
+          </div>
+          {statusInfo?.qr_code_base64 ? (
+            <div className="rounded-2xl bg-panel p-4">
+              <div className="text-sm text-slate-500">QR Code</div>
+              <img
+                className="mt-3 max-w-xs rounded-2xl bg-white p-3"
+                src={`data:image/png;base64,${statusInfo.qr_code_base64}`}
+                alt="QR Code WhatsApp"
+              />
+            </div>
+          ) : null}
+          <div className="flex gap-3">
+            <button onClick={handleConnect} type="button" className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white">
+              Conectar
+            </button>
+            <button onClick={loadWhatsApp} type="button" className="rounded-2xl bg-slate-100 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-200">
+              Atualizar
+            </button>
+            <button onClick={handleDisconnect} type="button" className="rounded-2xl bg-slate-100 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-200">
+              Desconectar
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1172,7 +1548,7 @@ function ProtectedApp() {
           path="/instagram"
           element={
             <ModuleRoute enabled={profile.modules.instagram}>
-              <InstagramPage />
+              <InstagramPage profile={profile} />
             </ModuleRoute>
           }
         />
@@ -1180,7 +1556,7 @@ function ProtectedApp() {
           path="/youtube"
           element={
             <ModuleRoute enabled={profile.modules.youtube}>
-              <YouTubePage />
+              <YouTubePage profile={profile} />
             </ModuleRoute>
           }
         />
