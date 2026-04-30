@@ -21,6 +21,12 @@ from app.services.openrouter_service import call_glm_47, call_glm_flash
 logger = get_logger(__name__)
 
 
+class LLMRoutingError(RuntimeError):
+    """Erro padronizado quando nenhum provedor de IA consegue responder."""
+
+    pass
+
+
 async def route_llm(
     user: User,
     messages: list[dict[str, Any]],
@@ -59,23 +65,23 @@ async def _route_admin_master(
         # 1ª tentativa: GLM 4.7 (modelo mais inteligente)
         logger.info("[LLM Router] Tentando GLM 4.7...")
         return await call_glm_47(messages)
-    except Exception as e:
-        logger.warning(f"[LLM Router] GLM 4.7 falhou: {str(e)}")
+    except Exception as exc:
+        logger.warning("[LLM Router] GLM 4.7 falhou: %s", exc)
         
         try:
             # 2ª tentativa: GLM 4.7 Flash (mais rápido)
             logger.info("[LLM Router] Tentando GLM 4.7 Flash como fallback...")
             return await call_glm_flash(messages)
-        except Exception as e:
-            logger.warning(f"[LLM Router] GLM 4.7 Flash falhou: {str(e)}")
+        except Exception as exc:
+            logger.warning("[LLM Router] GLM 4.7 Flash falhou: %s", exc)
             
             try:
                 # 3ª tentativa: DeepSeek (último fallback)
                 logger.info("[LLM Router] Tentando DeepSeek como último fallback...")
                 return await call_deepseek(messages)
-            except Exception as e:
-                logger.error(f"[LLM Router] Todos os modelos falharam: {str(e)}")
-            raise Exception("Todos os modelos de IA estão indisponíveis")
+            except Exception as exc:
+                logger.error("[LLM Router] Todos os modelos falharam no fluxo admin: %s", exc)
+            raise LLMRoutingError("Todos os modelos de IA estão indisponíveis")
 
 
 async def _route_client(
@@ -90,16 +96,16 @@ async def _route_client(
         # 1ª tentativa: DeepSeek (modelo oficial do cliente)
         logger.info("[LLM Router] Tentando DeepSeek...")
         return await call_deepseek(messages)
-    except Exception as e:
-        logger.warning(f"[LLM Router] DeepSeek falhou: {str(e)}")
+    except Exception as exc:
+        logger.warning("[LLM Router] DeepSeek falhou: %s", exc)
         
         try:
             # 2ª tentativa: GLM 4.7 Flash (fallback)
             logger.info("[LLM Router] Tentando GLM 4.7 Flash como fallback...")
             return await call_glm_flash(messages)
-        except Exception as e:
-            logger.error(f"[LLM Router] Todos os modelos falharam: {str(e)}")
-            raise Exception("Todos os modelos de IA estão indisponíveis")
+        except Exception as exc:
+            logger.error("[LLM Router] Todos os modelos falharam no fluxo cliente: %s", exc)
+            raise LLMRoutingError("Todos os modelos de IA estão indisponíveis")
 
 
 def format_messages_for_llm(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -146,8 +152,8 @@ def parse_llm_response(response: dict[str, Any]) -> str:
         
         # Última tentativa: converter tudo para string
         return str(response)
-    except Exception as e:
-        logger.error(f"[LLM Router] Erro ao parsear resposta: {str(e)}")
+    except (KeyError, TypeError, IndexError, AttributeError) as exc:
+        logger.error("[LLM Router] Erro ao parsear resposta: %s", exc)
         return "Erro ao processar resposta do modelo"
 
 

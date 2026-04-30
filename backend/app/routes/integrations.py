@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.database import get_db
+from app.core.logging import get_logger
 from app.core.security import get_password_hash, verify_password
 from app.deps import (
     get_current_tenant,
@@ -22,6 +23,7 @@ from app.deps import (
 from app.models import SocialIntegrationAccount, SocialPost, Tenant, User
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
+logger = get_logger(__name__)
 
 
 # ============== OAUTH CONFIGURAÇÕES ==============
@@ -212,10 +214,14 @@ async def instagram_callback(
             "display_name": integration.display_name,
         }
         
-    except requests.RequestException as e:
-        raise HTTPException(status_code=500, detail=f"Erro na comunicação com Instagram: {str(e)}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao conectar Instagram: {str(e)}")
+    except requests.RequestException as exc:
+        logger.exception("Falha de comunicação ao conectar Instagram para tenant_id=%s", tenant_id)
+        raise HTTPException(status_code=500, detail=f"Erro na comunicação com Instagram: {str(exc)}") from exc
+    except HTTPException:
+        raise
+    except (ValueError, KeyError, TypeError) as exc:
+        logger.exception("Falha ao processar callback do Instagram para tenant_id=%s", tenant_id)
+        raise HTTPException(status_code=500, detail=f"Erro ao conectar Instagram: {str(exc)}") from exc
 
 
 # ============== YOUTUBE OAUTH ==============
@@ -328,10 +334,14 @@ async def youtube_callback(
             "subscribers": statistics.get("subscriberCount", "0"),
         }
         
-    except requests.RequestException as e:
-        raise HTTPException(status_code=500, detail=f"Erro na comunicação com YouTube: {str(e)}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao conectar YouTube: {str(e)}")
+    except requests.RequestException as exc:
+        logger.exception("Falha de comunicação ao conectar YouTube para tenant_id=%s", tenant_id)
+        raise HTTPException(status_code=500, detail=f"Erro na comunicação com YouTube: {str(exc)}") from exc
+    except HTTPException:
+        raise
+    except (ValueError, KeyError, TypeError) as exc:
+        logger.exception("Falha ao processar callback do YouTube para tenant_id=%s", tenant_id)
+        raise HTTPException(status_code=500, detail=f"Erro ao conectar YouTube: {str(exc)}") from exc
 
 
 # ============== GESTÃO DE CONTAS ==============
@@ -522,8 +532,14 @@ async def publish_post(
                     else:
                         results.append({"platform": "instagram", "success": False, "error": "Erro ao publicar"})
                         
-                except Exception as e:
-                    results.append({"platform": "instagram", "success": False, "error": str(e)})
+                except (requests.RequestException, ValueError, KeyError, TypeError) as exc:
+                    logger.warning(
+                        "Falha ao publicar no Instagram para tenant_id=%s post_id=%s: %s",
+                        tenant.id,
+                        post.id,
+                        exc,
+                    )
+                    results.append({"platform": "instagram", "success": False, "error": str(exc)})
         
         # Publicar no YouTube
         if "youtube" in platforms:
@@ -566,8 +582,14 @@ async def publish_post(
                     else:
                         results.append({"platform": "youtube", "success": False, "error": "Erro ao publicar"})
                         
-                except Exception as e:
-                    results.append({"platform": "youtube", "success": False, "error": str(e)})
+                except (requests.RequestException, ValueError, KeyError, TypeError) as exc:
+                    logger.warning(
+                        "Falha ao publicar no YouTube para tenant_id=%s post_id=%s: %s",
+                        tenant.id,
+                        post.id,
+                        exc,
+                    )
+                    results.append({"platform": "youtube", "success": False, "error": str(exc)})
         
         # Atualizar status
         if any(r["success"] for r in results):
@@ -586,11 +608,14 @@ async def publish_post(
             "status": post.status
         }
         
-    except Exception as e:
+    except HTTPException:
+        raise
+    except (requests.RequestException, ValueError, KeyError, TypeError) as exc:
         post.status = "failed"
-        post.error_message = str(e)
+        post.error_message = str(exc)
         db.commit()
-        raise HTTPException(status_code=500, detail=f"Erro ao publicar: {str(e)}")
+        logger.exception("Falha ao publicar post social tenant_id=%s post_id=%s", tenant.id, post.id)
+        raise HTTPException(status_code=500, detail=f"Erro ao publicar: {str(exc)}") from exc
 
 
 @router.patch("/posts/{post_id}")
