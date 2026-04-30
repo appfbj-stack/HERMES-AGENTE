@@ -4,8 +4,10 @@ from pathlib import Path
 from typing import Optional
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
+from app.core.logging import get_logger
 from app.models import User
+
+logger = get_logger(__name__)
 
 
 async def list_files(
@@ -39,7 +41,8 @@ async def list_files(
                 )
 
         return {"success": True, "files": result, "total": len(result)}
-    except Exception as exc:
+    except (OSError, ValueError) as exc:
+        logger.warning("File listing failed for user_id=%s path=%s: %s", user.id, path, exc)
         return {"success": False, "error": str(exc)}
 
 
@@ -62,7 +65,8 @@ async def read_file(
         return {"success": True, "content": content, "size": len(content)}
     except UnicodeDecodeError:
         return {"success": False, "error": "File encoding not supported"}
-    except Exception as exc:
+    except (OSError, ValueError) as exc:
+        logger.warning("File read failed for user_id=%s path=%s: %s", user.id, path, exc)
         return {"success": False, "error": str(exc)}
 
 
@@ -83,7 +87,8 @@ async def write_file(
             await f.write(content)
 
         return {"success": True, "path": str(file_path), "size": len(content)}
-    except Exception as exc:
+    except (OSError, ValueError) as exc:
+        logger.warning("File write failed for user_id=%s path=%s: %s", user.id, path, exc)
         return {"success": False, "error": str(exc)}
 
 
@@ -103,5 +108,6 @@ async def delete_file(
             os.remove(file_path)
 
         return {"success": True, "path": str(file_path)}
-    except Exception as exc:
+    except (OSError, ValueError) as exc:
+        logger.warning("File delete failed for user_id=%s path=%s: %s", user.id, path, exc)
         return {"success": False, "error": str(exc)}

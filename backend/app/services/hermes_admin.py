@@ -1,9 +1,11 @@
 import httpx
 import json
 from datetime import datetime, timezone, timedelta
+from json import JSONDecodeError
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.core.logging import get_logger
 from app.models import (
     AdminActionLog,
     AdminMemory,
@@ -15,6 +17,8 @@ from app.models import (
     Tenant,
     User,
 )
+
+logger = get_logger(__name__)
 
 
 def get_utcnow() -> datetime:
@@ -48,7 +52,8 @@ class HermesAdminService:
             await self._log_action("hermes_chat", "chat", None, details=f"Message: {message}", user_id=user.id)
 
             return {"response": response, "actions": actions, "context": context}
-        except Exception as exc:
+        except (httpx.HTTPError, RuntimeError, ValueError) as exc:
+            logger.warning("Hermes Admin chat failed for user_id=%s: %s", user.id, exc)
             return {"response": f"Erro: {str(exc)}", "actions": [], "context": context}
 
     async def _handle_builtin_command(self, user: User, message: str) -> dict | None:
@@ -171,7 +176,8 @@ Pergunte o que o usuário precisa agora."""
             response = await route_llm(admin_user, messages)
             return parse_llm_response(response)
         except Exception as exc:
-            raise Exception(f"Erro ao chamar Hermes Admin via LLM Router: {str(exc)}")
+            logger.warning("Hermes Admin LLM call failed: %s", exc)
+            raise RuntimeError(f"Erro ao chamar Hermes Admin via LLM Router: {str(exc)}") from exc
 
     def _extract_actions(self, response: str) -> list[str]:
         """Extrai ações sugeridas da resposta."""
@@ -526,13 +532,14 @@ Pergunte o que o usuário precisa agora."""
                 "result": result,
                 "execution_time": execution_time,
             }
-        except Exception as exc:
+        except (RuntimeError, ValueError) as exc:
             execution_time = time.time() - start_time
 
             skill.last_run_at = get_utcnow()
             skill.last_run_result = str(exc)[:1000]
             skill.last_run_status = "failed"
             self.db.commit()
+            logger.warning("Hermes Admin skill execution failed skill_id=%s user_id=%s: %s", skill.id, user.id, exc)
 
             return {
                 "success": False,
@@ -885,7 +892,8 @@ Se não sugerir skill, use: {{"should_create": false, "reason": "motivo"}}"""
                     "success": False,
                     "reason": suggestion.get("reason", "Não há necessidade de criar skill"),
                 }
-        except Exception as exc:
+        except (JSONDecodeError, RuntimeError, ValueError) as exc:
+            logger.warning("Hermes Admin skill suggestion failed for user_id=%s: %s", user.id, exc)
             return {
                 "success": False,
                 "error": str(exc),

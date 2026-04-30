@@ -1,10 +1,14 @@
 import httpx
 from git import Repo, Actor
+from git.exc import GitCommandError, InvalidGitRepositoryError, NoSuchPathError
 from sqlalchemy.orm import Session
 from typing import Optional
 
 from app.core.config import get_settings
+from app.core.logging import get_logger
 from app.models import User
+
+logger = get_logger(__name__)
 
 
 async def github_commit(
@@ -39,7 +43,8 @@ async def github_commit(
             "message": message,
             "author": str(actor),
         }
-    except Exception as exc:
+    except (GitCommandError, InvalidGitRepositoryError, NoSuchPathError, OSError, ValueError) as exc:
+        logger.warning("GitHub commit helper failed for tenant_id=%s: %s", user.tenant_id, exc)
         return {"success": False, "error": str(exc)}
 
 
@@ -62,7 +67,8 @@ async def github_push(
         origin.push(branch)
 
         return {"success": True, "branch": branch}
-    except Exception as exc:
+    except (GitCommandError, InvalidGitRepositoryError, NoSuchPathError, OSError, ValueError) as exc:
+        logger.warning("GitHub push helper failed for tenant_id=%s branch=%s: %s", user.tenant_id, branch, exc)
         return {"success": False, "error": str(exc)}
 
 
@@ -91,5 +97,6 @@ async def github_create_pull_request(
             response = await client.post(url, json=payload, headers=headers)
             response.raise_for_status()
             return {"success": True, "pr": response.json()}
-        except Exception as exc:
+        except (httpx.HTTPError, ValueError) as exc:
+            logger.warning("GitHub PR creation failed for tenant_id=%s head=%s base=%s: %s", user.tenant_id, head, base, exc)
             return {"success": False, "error": str(exc)}

@@ -3,7 +3,10 @@ from sqlalchemy.orm import Session
 from typing import Optional
 
 from app.core.config import get_settings
+from app.core.logging import get_logger
 from app.models import User
+
+logger = get_logger(__name__)
 
 
 async def coolify_deploy(
@@ -33,7 +36,8 @@ async def coolify_deploy(
             response = await client.post(url, json=payload, headers=headers)
             response.raise_for_status()
             return {"success": True, "deployment": response.json()}
-        except Exception as exc:
+        except (httpx.HTTPError, ValueError) as exc:
+            logger.warning("Coolify deploy failed for application_id=%s: %s", application_id, exc)
             return {"success": False, "error": str(exc)}
 
 
@@ -48,7 +52,8 @@ async def coolify_trigger_webhook(
             response = await client.post(webhook_url, json=payload or {})
             response.raise_for_status()
             return {"success": True, "status": "triggered"}
-        except Exception as exc:
+        except (httpx.HTTPError, ValueError) as exc:
+            logger.warning("Coolify webhook trigger failed for url=%s: %s", webhook_url, exc)
             return {"success": False, "error": str(exc)}
 
 
@@ -71,7 +76,8 @@ async def coolify_get_status(
             response = await client.get(url, headers=headers)
             response.raise_for_status()
             return {"success": True, "application": response.json()}
-        except Exception as exc:
+        except (httpx.HTTPError, ValueError) as exc:
+            logger.warning("Coolify status lookup failed for application_id=%s: %s", application_id, exc)
             return {"success": False, "error": str(exc)}
 
 
@@ -95,5 +101,6 @@ async def coolify_get_deployments(
             response = await client.get(url, headers=headers, params={"limit": limit})
             response.raise_for_status()
             return {"success": True, "deployments": response.json()}
-        except Exception as exc:
+        except (httpx.HTTPError, ValueError) as exc:
+            logger.warning("Coolify deployment history lookup failed for application_id=%s: %s", application_id, exc)
             return {"success": False, "error": str(exc)}
