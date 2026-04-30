@@ -50,6 +50,14 @@ def _task_ref_key_prefix(chat: Chat) -> str:
     return f"taskref:{chat.chat_external_id}:"
 
 
+def _task_notify_key_prefix(task_id: int) -> str:
+    return f"tasknotify:{task_id}:"
+
+
+def _is_internal_memory_key(key: str) -> bool:
+    return key.startswith("taskref:") or key.startswith("tasknotify:")
+
+
 def _extract_memory_text(inbound_text: str) -> str | None:
     text = inbound_text.strip()
     normalized = _normalize_text(text)
@@ -209,7 +217,7 @@ def build_context(
 
     prefix = _memory_key_prefix(chat)
     chat_memory = [item for item in memory if item.key.startswith(prefix)]
-    tenant_memory = [item for item in memory if not item.key.startswith(prefix)]
+    tenant_memory = [item for item in memory if not item.key.startswith(prefix) and not _is_internal_memory_key(item.key)]
 
     chat_memory_text = "\n".join(f"- {item.value}" for item in reversed(chat_memory[-8:])) or "Nenhuma memória desta conversa."
     tenant_memory_text = "\n".join(f"- {item.key}: {item.value}" for item in reversed(tenant_memory[-10:])) or "Nenhuma memória geral do tenant."
@@ -425,6 +433,45 @@ def maybe_handle_task_query(db: Session, tenant_id: int, chat: Chat, inbound_tex
     for task in active_tasks[-8:]:
         lines.append(f"- {task.title} ({_format_due_date(task.due_date)})")
     return "\n".join(lines)
+
+
+def find_task_refs(db: Session, tenant_id: int, task_id: int) -> list[AssistantMemory]:
+    return (
+        db.query(AssistantMemory)
+        .filter(
+            AssistantMemory.tenant_id == tenant_id,
+            AssistantMemory.value == str(task_id),
+            AssistantMemory.key.like("taskref:%"),
+        )
+        .all()
+    )
+
+
+def task_reminder_already_sent(db: Session, tenant_id: int, task_id: int) -> bool:
+    return (
+        db.query(AssistantMemory)
+        .filter(
+            AssistantMemory.tenant_id == tenant_id,
+            AssistantMemory.key.like(f"{_task_notify_key_prefix(task_id)}%"),
+        )
+        .first()
+        is not None
+    )
+
+
+def mark_task_reminder_sent(db: Session, tenant_id: int, task_id: int, scope: str) -> None:
+    key = f"{_task_notify_key_prefix(task_id)}{scope}"
+    marker = (
+        db.query(AssistantMemory)
+        .filter(AssistantMemory.tenant_id == tenant_id, AssistantMemory.key == key)
+        .first()
+    )
+    timestamp = _utcnow().isoformat()
+    if not marker:
+        marker = AssistantMemory(tenant_id=tenant_id, key=key, value=timestamp)
+        db.add(marker)
+    else:
+        marker.value = timestamp
 
 
 def maybe_create_lead(db: Session, tenant_id: int, chat: Chat, inbound_text: str) -> None:
