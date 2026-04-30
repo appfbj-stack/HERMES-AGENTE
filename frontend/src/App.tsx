@@ -191,13 +191,10 @@ function LoginPage({ onLogged }: { onLogged: () => void }) {
     setLoading(true);
 
     try {
-      console.log("Tentando login com:", { email, tenantEmail: tenantEmail.trim() || undefined, password: "***" });
       const result = await login(email, password, tenantEmail.trim() || undefined);
-      console.log("Login bem-sucedido:", result);
       localStorage.setItem("hermes_token", result.access_token);
       onLogged();
     } catch (err) {
-      console.error("Erro no login:", err);
       setError(err instanceof Error ? err.message : "Falha no login");
     } finally {
       setLoading(false);
@@ -248,9 +245,23 @@ function LoginPage({ onLogged }: { onLogged: () => void }) {
         {error ? (
           <div className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">
             <strong>Erro:</strong> {error}
-            <div className="mt-2 text-xs text-red-500">
-              Dica: Tente usar apenas o email e senha, sem o email da empresa.
-            </div>
+            {error.includes("mais de uma empresa") ? (
+              <div className="mt-2 text-xs text-red-500">
+                Use o campo "Email da empresa" com o email do tenant correto.
+              </div>
+            ) : error.includes("Email da empresa não encontrado") ? (
+              <div className="mt-2 text-xs text-red-500">
+                Revise o email da empresa ou tente entrar só com email e senha.
+              </div>
+            ) : error.includes("Tenant inactive") ? (
+              <div className="mt-2 text-xs text-red-500">
+                Esse tenant está inativo. Reative no painel master antes de tentar novamente.
+              </div>
+            ) : (
+              <div className="mt-2 text-xs text-red-500">
+                Tente usar apenas o email e senha, sem o email da empresa, se esse login existir em um único tenant.
+              </div>
+            )}
           </div>
         ) : null}
         <button

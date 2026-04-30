@@ -47,21 +47,37 @@ def bootstrap(payload: BootstrapRequest, db: Session = Depends(get_db)):
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
     user = None
     if payload.tenant_email:
-        tenant = db.query(Tenant).filter(Tenant.email == payload.tenant_email, Tenant.active.is_(True)).first()
+        tenant = db.query(Tenant).filter(Tenant.email == payload.tenant_email).first()
+        if tenant and not tenant.active:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant inactive")
         if not tenant:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email da empresa não encontrado")
         user = db.query(User).filter(User.tenant_id == tenant.id, User.email == payload.email).first()
     else:
-        users = db.query(User).filter(User.email == payload.email).all()
+        users = (
+            db.query(User)
+            .join(Tenant, Tenant.id == User.tenant_id)
+            .filter(User.email == payload.email, Tenant.active.is_(True))
+            .all()
+        )
         if len(users) > 1:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="tenant_email is required for this user",
+                detail="Esse email existe em mais de uma empresa. Informe também o email da empresa.",
             )
         user = users[0] if users else None
+        if not user:
+            inactive_user = (
+                db.query(User)
+                .join(Tenant, Tenant.id == User.tenant_id)
+                .filter(User.email == payload.email, Tenant.active.is_(False))
+                .first()
+            )
+            if inactive_user:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant inactive")
 
     if not user or not verify_password(payload.password, user.password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email ou senha inválidos")
 
     return TokenResponse(access_token=create_access_token(str(user.id), user.tenant_id))
 
