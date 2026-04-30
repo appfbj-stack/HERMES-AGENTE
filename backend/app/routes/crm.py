@@ -5,7 +5,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.deps import ensure_crm_ready, get_current_modules, get_current_tenant, get_current_user
+from app.deps import (
+    ensure_crm_ready,
+    get_current_modules,
+    get_current_tenant,
+    get_current_user,
+    require_whatsapp_module,
+)
 from app.models import (
     Chat,
     Credit,
@@ -100,7 +106,15 @@ def _serialize_whatsapp_connection(connection: CrmWhatsAppConnection) -> CrmWhat
 @router.get("/modules", response_model=TenantModulesOut)
 @router.get("/module", response_model=TenantModulesOut)
 def get_crm_modules(modules=Depends(get_current_modules)):
-    return TenantModulesOut(crm=modules.crm, whatsapp=modules.whatsapp)
+    return TenantModulesOut(
+        crm=modules.crm,
+        whatsapp=modules.whatsapp,
+        kanban=modules.kanban,
+        agenda=modules.agenda,
+        instagram=modules.instagram,
+        youtube=modules.youtube,
+        content_publisher=modules.content_publisher,
+    )
 
 
 @router.put("/module", response_model=TenantModulesOut)
@@ -115,10 +129,18 @@ def update_crm_module(
         ensure_crm_defaults(db, current_user.tenant_id)
     db.commit()
     db.refresh(module)
-    return TenantModulesOut(crm=module.crm, whatsapp=module.whatsapp)
+    return TenantModulesOut(
+        crm=module.crm,
+        whatsapp=module.whatsapp,
+        kanban=module.kanban,
+        agenda=module.agenda,
+        instagram=module.instagram,
+        youtube=module.youtube,
+        content_publisher=module.content_publisher,
+    )
 
 
-@protected.get("/whatsapp", response_model=CrmWhatsAppConnectionOut | None)
+@router.get("/whatsapp", response_model=CrmWhatsAppConnectionOut | None, dependencies=[Depends(require_whatsapp_module)])
 def get_crm_whatsapp_connection(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -127,7 +149,7 @@ def get_crm_whatsapp_connection(
     return _serialize_whatsapp_connection(connection) if connection else None
 
 
-@protected.put("/whatsapp", response_model=CrmWhatsAppConnectionOut)
+@router.put("/whatsapp", response_model=CrmWhatsAppConnectionOut, dependencies=[Depends(require_whatsapp_module)])
 def upsert_crm_whatsapp_connection(
     payload: CrmWhatsAppConnectionUpsert,
     db: Session = Depends(get_db),
@@ -148,7 +170,7 @@ def upsert_crm_whatsapp_connection(
     return _serialize_whatsapp_connection(connection)
 
 
-@protected.post("/whatsapp/connect", response_model=CrmWhatsAppStatusOut)
+@router.post("/whatsapp/connect", response_model=CrmWhatsAppStatusOut, dependencies=[Depends(require_whatsapp_module)])
 async def connect_crm_whatsapp(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -176,7 +198,7 @@ async def connect_crm_whatsapp(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
-@protected.get("/whatsapp/status", response_model=CrmWhatsAppStatusOut)
+@router.get("/whatsapp/status", response_model=CrmWhatsAppStatusOut, dependencies=[Depends(require_whatsapp_module)])
 async def get_crm_whatsapp_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -205,7 +227,7 @@ async def get_crm_whatsapp_status(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
-@protected.get("/whatsapp/qrcode", response_model=CrmWhatsAppStatusOut)
+@router.get("/whatsapp/qrcode", response_model=CrmWhatsAppStatusOut, dependencies=[Depends(require_whatsapp_module)])
 async def get_crm_whatsapp_qrcode(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -233,7 +255,7 @@ async def get_crm_whatsapp_qrcode(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
-@protected.post("/whatsapp/disconnect", response_model=dict)
+@router.post("/whatsapp/disconnect", response_model=dict, dependencies=[Depends(require_whatsapp_module)])
 async def disconnect_crm_whatsapp(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),

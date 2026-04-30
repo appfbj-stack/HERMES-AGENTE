@@ -11,7 +11,14 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import get_password_hash, verify_password
-from app.deps import get_current_tenant, get_current_user
+from app.deps import (
+    get_current_tenant,
+    get_current_user,
+    require_content_publisher_module,
+    require_instagram_module,
+    require_youtube_module,
+    tenant_has_module,
+)
 from app.models import SocialIntegrationAccount, SocialPost, Tenant, User
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
@@ -94,6 +101,11 @@ def decrypt_token(encrypted_token: str) -> str:
     return fernet.decrypt(encrypted_token.encode()).decode()
 
 
+def _require_tenant_module_or_403(db: Session, tenant_id: int, module_key: str, label: str) -> None:
+    if not tenant_has_module(db, tenant_id, module_key):
+        raise HTTPException(status_code=403, detail=f"Módulo {label} não está ativo neste plano.")
+
+
 # ============== INSTAGRAM OAUTH ==============
 
 @router.get("/instagram/connect")
@@ -103,8 +115,14 @@ def instagram_connect(
     client_id: str = Query(...),
     redirect_uri: str = Query(...),
     scope: str = Query("instagram_basic,instagram_content_publish,pages_show_list"),
+    tenant: Tenant = Depends(get_current_tenant),
+    current_user: User = Depends(get_current_user),
+    _: object = Depends(require_instagram_module),
 ):
     """Inicia o fluxo OAuth do Instagram"""
+    if tenant_id != tenant.id or user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Tenant ou usuário inválido para esta integração")
+
     state = secrets.token_urlsafe(16)
     
     # Guardar o state no cache/sessão por 5 minutos (em produção usar Redis)
@@ -134,6 +152,8 @@ async def instagram_callback(
     db: Session = Depends(get_db),
 ):
     """Callback OAuth do Instagram"""
+    _require_tenant_module_or_403(db, tenant_id, "instagram", "Instagram")
+
     try:
         # Trocar código por token de acesso
         token_response = requests.post(INSTAGRAM_TOKEN_URL, data={
@@ -207,8 +227,14 @@ def youtube_connect(
     client_id: str = Query(...),
     redirect_uri: str = Query(...),
     scope: str = Query("https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube"),
+    tenant: Tenant = Depends(get_current_tenant),
+    current_user: User = Depends(get_current_user),
+    _: object = Depends(require_youtube_module),
 ):
     """Inicia o fluxo OAuth do YouTube"""
+    if tenant_id != tenant.id or user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Tenant ou usuário inválido para esta integração")
+
     state = secrets.token_urlsafe(16)
     
     oauth_url = (
@@ -237,6 +263,8 @@ async def youtube_callback(
     db: Session = Depends(get_db),
 ):
     """Callback OAuth do YouTube"""
+    _require_tenant_module_or_403(db, tenant_id, "youtube", "YouTube")
+
     try:
         # Trocar código por token de acesso
         token_response = requests.post(YOUTUBE_TOKEN_URL, data={
@@ -313,6 +341,7 @@ def list_accounts(
     provider: str | None = Query(None),
     db: Session = Depends(get_db),
     tenant=Depends(get_current_tenant),
+    _: object = Depends(require_content_publisher_module),
 ):
     """Listar contas conectadas"""
     query = db.query(SocialIntegrationAccount).filter(SocialIntegrationAccount.tenant_id == tenant.id)
@@ -344,6 +373,7 @@ def disconnect_account(
     account_id: int,
     db: Session = Depends(get_db),
     tenant=Depends(get_current_tenant),
+    _: object = Depends(require_content_publisher_module),
 ):
     """Desconectar conta social"""
     account = db.query(SocialIntegrationAccount).filter(
@@ -368,6 +398,7 @@ def list_posts(
     platform: str | None = Query(None),
     db: Session = Depends(get_db),
     tenant=Depends(get_current_tenant),
+    _: object = Depends(require_content_publisher_module),
 ):
     """Listar publicações"""
     query = db.query(SocialPost).filter(SocialPost.tenant_id == tenant.id)
@@ -413,6 +444,7 @@ def create_post(
     db: Session = Depends(get_db),
     tenant=Depends(get_current_tenant),
     current_user: User = Depends(get_current_user),
+    _: object = Depends(require_content_publisher_module),
 ):
     """Criar nova publicação"""
     post = SocialPost(
@@ -448,6 +480,7 @@ async def publish_post(
     post_id: int,
     db: Session = Depends(get_db),
     tenant=Depends(get_current_tenant),
+    _: object = Depends(require_content_publisher_module),
 ):
     """Publicar post"""
     post = db.query(SocialPost).filter(SocialPost.id == post_id, SocialPost.tenant_id == tenant.id).first()
@@ -566,6 +599,7 @@ def update_post(
     payload: SocialPostUpdate,
     db: Session = Depends(get_db),
     tenant=Depends(get_current_tenant),
+    _: object = Depends(require_content_publisher_module),
 ):
     """Atualizar publicação"""
     post = db.query(SocialPost).filter(SocialPost.id == post_id, SocialPost.tenant_id == tenant.id).first()
@@ -595,6 +629,7 @@ def delete_post(
     post_id: int,
     db: Session = Depends(get_db),
     tenant=Depends(get_current_tenant),
+    _: object = Depends(require_content_publisher_module),
 ):
     """Deletar publicação"""
     post = db.query(SocialPost).filter(SocialPost.id == post_id, SocialPost.tenant_id == tenant.id).first()
@@ -612,6 +647,7 @@ def delete_post(
 def get_stats(
     db: Session = Depends(get_db),
     tenant=Depends(get_current_tenant),
+    _: object = Depends(require_content_publisher_module),
 ):
     """Estatísticas das integrações"""
     total_accounts = db.query(SocialIntegrationAccount).filter(SocialIntegrationAccount.tenant_id == tenant.id).count()

@@ -45,11 +45,61 @@ def get_current_modules(db: Session = Depends(get_db), tenant: Tenant = Depends(
     return module
 
 
-def require_crm_module(modules: TenantModule = Depends(get_current_modules)) -> TenantModule:
-    if not modules.crm:
+def has_module(modules: TenantModule, module_key: str) -> bool:
+    return bool(getattr(modules, module_key, False))
+
+
+def tenant_has_module(db: Session, tenant_id: int, module_key: str) -> bool:
+    modules = get_or_create_tenant_module(db, tenant_id)
+    db.flush()
+    return has_module(modules, module_key)
+
+
+def require_module_enabled(module_key: str, label: str):
+    def dependency(modules: TenantModule = Depends(get_current_modules)) -> TenantModule:
+        if not has_module(modules, module_key):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Módulo {label} não está ativo neste plano. Fale com o suporte.",
+            )
+        return modules
+
+    return dependency
+
+
+def require_crm_module(modules: TenantModule = Depends(require_module_enabled("crm", "CRM"))) -> TenantModule:
+    return modules
+
+
+def require_whatsapp_module(
+    modules: TenantModule = Depends(require_module_enabled("whatsapp", "WhatsApp"))
+) -> TenantModule:
+    return modules
+
+
+def require_instagram_module(
+    modules: TenantModule = Depends(require_module_enabled("instagram", "Instagram"))
+) -> TenantModule:
+    return modules
+
+
+def require_youtube_module(
+    modules: TenantModule = Depends(require_module_enabled("youtube", "YouTube"))
+) -> TenantModule:
+    return modules
+
+
+def require_content_publisher_module(
+    modules: TenantModule = Depends(require_module_enabled("content_publisher", "Content Publisher"))
+) -> TenantModule:
+    return modules
+
+
+def require_crm_or_whatsapp_module(modules: TenantModule = Depends(get_current_modules)) -> TenantModule:
+    if not (modules.crm or modules.whatsapp):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Módulo CRM não está ativo neste plano. Fale com o suporte.",
+            detail="Módulo CRM ou WhatsApp não está ativo neste plano. Fale com o suporte.",
         )
     return modules
 
