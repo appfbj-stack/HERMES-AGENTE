@@ -113,7 +113,7 @@ function Layout({
         ]
       : []),
     ...(profile.modules.whatsapp ? [{ label: "WhatsApp", path: "/crm/whatsapp" }] : []),
-    ...(profile.modules.kanban ? [{ label: "Kanban", path: "/crm/kanban" }] : []),
+    ...(!profile.modules.crm && profile.modules.kanban ? [{ label: "Kanban", path: "/crm/kanban" }] : []),
     ...(profile.modules.agenda ? [{ label: "Agenda", path: "/agenda" }] : []),
     ...(profile.modules.instagram ? [{ label: "Instagram", path: "/instagram" }] : []),
     ...(profile.modules.youtube ? [{ label: "YouTube", path: "/youtube" }] : []),
@@ -815,7 +815,7 @@ function MasterPage({
         <div className="text-xs uppercase tracking-[0.3em] text-white/60">Admin Master</div>
         <h2 className="mt-3 font-serif text-4xl">Módulos por cliente</h2>
         <p className="mt-3 max-w-2xl text-sm text-white/75">
-          Controle central para ativar ou desativar o CRM por tenant sem expor dados de um cliente para outro.
+          Controle central para ativar ou desativar módulos por tenant sem misturar dados entre clientes.
         </p>
       </div>
 
