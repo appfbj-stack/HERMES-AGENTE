@@ -77,6 +77,12 @@ def require_whatsapp_module(
     return modules
 
 
+def require_kanban_module(
+    modules: TenantModule = Depends(require_module_enabled("kanban", "Kanban"))
+) -> TenantModule:
+    return modules
+
+
 def require_instagram_module(
     modules: TenantModule = Depends(require_module_enabled("instagram", "Instagram"))
 ) -> TenantModule:

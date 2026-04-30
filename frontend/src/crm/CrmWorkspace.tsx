@@ -15,10 +15,13 @@ export default function CrmWorkspace({ profile }: { profile: MeResponse }) {
 
   return (
     <Routes>
-      <Route path="/" element={<CrmDashboardPage />} />
-      <Route path="/dashboard" element={<CrmDashboardPage />} />
+      <Route path="/" element={<CrmDashboardPage profile={profile} />} />
+      <Route path="/dashboard" element={<CrmDashboardPage profile={profile} />} />
       <Route path="/leads" element={<CrmLeadsPage />} />
-      <Route path="/kanban" element={<CrmKanbanPage />} />
+      <Route
+        path="/kanban"
+        element={profile.modules.kanban ? <CrmKanbanPage /> : <Navigate to="/crm/dashboard" replace />}
+      />
       <Route path="/conversations" element={<CrmConversasPage />} />
       <Route path="/followups" element={<CrmFollowupsPage />} />
       <Route path="/tasks" element={<CrmTasksPage />} />

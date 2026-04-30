@@ -10,6 +10,7 @@ from app.deps import (
     get_current_modules,
     get_current_tenant,
     get_current_user,
+    require_kanban_module,
     require_whatsapp_module,
 )
 from app.models import (
@@ -41,6 +42,7 @@ from app.schemas import (
     CrmFollowUpUpdate,
     CrmKanbanBoardOut,
     CrmKanbanCardOut,
+    CrmKanbanColumnCreate,
     CrmKanbanColumnOut,
     CrmKanbanMoveRequest,
     CrmLeadCreate,
@@ -508,7 +510,11 @@ async def send_crm_conversation_message(
 
 
 @protected.get("/kanban", response_model=CrmKanbanBoardOut)
-def crm_kanban(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def crm_kanban(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: object = Depends(require_kanban_module),
+):
     columns = db.query(CrmKanbanColumn).filter(CrmKanbanColumn.tenant_id == current_user.tenant_id).order_by(CrmKanbanColumn.position.asc()).all()
     leads = db.query(CrmLead).filter(CrmLead.tenant_id == current_user.tenant_id).order_by(CrmLead.updated_at.desc()).all()
     tags_map = get_lead_tags(db, current_user.tenant_id, [lead.id for lead in leads])
@@ -522,11 +528,39 @@ def crm_kanban(db: Session = Depends(get_db), current_user: User = Depends(get_c
     return CrmKanbanBoardOut(columns=[CrmKanbanColumnOut.model_validate(column) for column in columns], cards=cards)
 
 
+@protected.post("/kanban", response_model=CrmKanbanColumnOut, status_code=status.HTTP_201_CREATED)
+def create_kanban_column(
+    payload: CrmKanbanColumnCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: object = Depends(require_kanban_module),
+):
+    existing = db.query(CrmKanbanColumn).filter(
+        CrmKanbanColumn.tenant_id == current_user.tenant_id,
+        CrmKanbanColumn.name == payload.name,
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Kanban column already exists")
+
+    column = CrmKanbanColumn(
+        tenant_id=current_user.tenant_id,
+        name=payload.name,
+        color=payload.color,
+        position=payload.position,
+        is_default=False,
+    )
+    db.add(column)
+    db.commit()
+    db.refresh(column)
+    return column
+
+
 @protected.post("/kanban/move", response_model=CrmLeadOut)
 def move_kanban_card(
     payload: CrmKanbanMoveRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _: object = Depends(require_kanban_module),
 ):
     lead = db.query(CrmLead).filter(CrmLead.id == payload.lead_id, CrmLead.tenant_id == current_user.tenant_id).first()
     if not lead:

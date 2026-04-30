@@ -117,7 +117,7 @@ function Layout({
       ? [
           { label: "CRM Dashboard", path: "/crm/dashboard" },
           { label: "CRM Leads", path: "/crm/leads" },
-          { label: "CRM Kanban", path: "/crm/kanban" },
+          ...(profile.modules.kanban ? [{ label: "CRM Kanban", path: "/crm/kanban" }] : []),
           { label: "CRM Conversas", path: "/crm/conversations" },
           { label: "CRM Follow-ups", path: "/crm/followups" },
           { label: "CRM Tarefas", path: "/crm/tasks" },
@@ -125,7 +125,6 @@ function Layout({
         ]
       : []),
     ...(profile.modules.whatsapp ? [{ label: "WhatsApp", path: "/crm/whatsapp" }] : []),
-    ...(!profile.modules.crm && profile.modules.kanban ? [{ label: "Kanban", path: "/crm/kanban" }] : []),
     ...(profile.modules.agenda ? [{ label: "Agenda", path: "/agenda" }] : []),
     ...(profile.modules.instagram ? [{ label: "Instagram", path: "/instagram" }] : []),
     ...(profile.modules.youtube ? [{ label: "YouTube", path: "/youtube" }] : []),
@@ -1536,7 +1535,7 @@ function ProtectedApp() {
         <Route
           path="/crm/kanban"
           element={
-            <ModuleRoute enabled={profile.modules.kanban || profile.modules.crm}>
+            <ModuleRoute enabled={profile.modules.crm && profile.modules.kanban}>
               <CrmKanbanPage />
             </ModuleRoute>
           }

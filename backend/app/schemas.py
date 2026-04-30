@@ -438,6 +438,12 @@ class CrmKanbanColumnOut(BaseModel):
         from_attributes = True
 
 
+class CrmKanbanColumnCreate(BaseModel):
+    name: str
+    color: str | None = None
+    position: int = 0
+
+
 class CrmKanbanCardOut(BaseModel):
     lead: CrmLeadOut
     conversation: CrmConversationOut | None = None

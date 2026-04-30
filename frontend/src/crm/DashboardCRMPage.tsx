@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import {
   getCrmDashboard,
 } from "../api";
+import type { MeResponse } from "../types";
 
-export default function DashboardCRMPage() {
+export default function DashboardCRMPage({ profile }: { profile: MeResponse }) {
   const [dashboard, setDashboard] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -130,14 +131,16 @@ export default function DashboardCRMPage() {
                 <div className="font-semibold text-slate-900">Ver Leads</div>
                 <div className="text-xs text-slate-500">Gerenciar seus leads</div>
               </a>
-              <a
-                href="/crm/kanban"
-                className="rounded-2xl bg-slate-50 p-4 text-center hover:bg-slate-100 transition"
-              >
-                <div className="text-3xl mb-2">📋</div>
-                <div className="font-semibold text-slate-900">Ver Kanban</div>
-                <div className="text-xs text-slate-500">Gerenciar pipeline</div>
-              </a>
+              {profile.modules.kanban ? (
+                <a
+                  href="/crm/kanban"
+                  className="rounded-2xl bg-slate-50 p-4 text-center hover:bg-slate-100 transition"
+                >
+                  <div className="text-3xl mb-2">📋</div>
+                  <div className="font-semibold text-slate-900">Ver Kanban</div>
+                  <div className="text-xs text-slate-500">Gerenciar pipeline</div>
+                </a>
+              ) : null}
               <a
                 href="/crm/followups"
                 className="rounded-2xl bg-slate-50 p-4 text-center hover:bg-slate-100 transition"
