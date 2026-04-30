@@ -433,7 +433,15 @@ export const setAdminTenantModules = updateAdminTenantModules;
 
 
 export async function getTenantModules() {
-  return request<{ crm: boolean; whatsapp: boolean; kanban: boolean; agenda: boolean; instagram: boolean; youtube: boolean }>("/auth/modules");
+  return request<{
+    crm: boolean;
+    whatsapp: boolean;
+    kanban: boolean;
+    agenda: boolean;
+    instagram: boolean;
+    youtube: boolean;
+    content_publisher: boolean;
+  }>("/auth/modules");
 }
 
 

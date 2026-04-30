@@ -81,6 +81,7 @@ class TenantAdminOut(TenantOut):
     agenda_enabled: bool = False
     instagram_enabled: bool = False
     youtube_enabled: bool = False
+    content_publisher_enabled: bool = False
 
     class Config:
         from_attributes = True
@@ -554,6 +555,7 @@ class TenantModuleUpdate(BaseModel):
     agenda: bool | None = None
     instagram: bool | None = None
     youtube: bool | None = None
+    content_publisher: bool | None = None
 
 
 class CrmWhatsAppConnectionUpsert(BaseModel):

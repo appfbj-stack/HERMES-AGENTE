@@ -117,7 +117,7 @@ function Layout({
     ...(profile.modules.agenda ? [{ label: "Agenda", path: "/agenda" }] : []),
     ...(profile.modules.instagram ? [{ label: "Instagram", path: "/instagram" }] : []),
     ...(profile.modules.youtube ? [{ label: "YouTube", path: "/youtube" }] : []),
-    ...(profile.modules.instagram || profile.modules.youtube ? [{ label: "Publicador", path: "/publisher" }] : []),
+    ...(profile.modules.content_publisher ? [{ label: "Publicador", path: "/publisher" }] : []),
     ...(profile.user.is_super_admin ? [{ label: "Master", path: "/master" }] : []),
     { label: "Leads", path: "/leads" },
     { label: "Tarefas", path: "/tasks" },
@@ -627,6 +627,21 @@ function AgendaPage() {
   );
 }
 
+function ModuleRoute({
+  enabled,
+  children,
+  fallback = "/dashboard",
+}: {
+  enabled: boolean;
+  children: React.ReactNode;
+  fallback?: string;
+}) {
+  if (!enabled) {
+    return <Navigate to={fallback} replace />;
+  }
+  return <>{children}</>;
+}
+
 function HermesAdminChatPage({ profile }: { profile: MeResponse }) {
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
@@ -1089,13 +1104,62 @@ function ProtectedApp() {
             )
           }
         />
-        <Route path="/crm" element={<CrmWorkspace profile={profile} />} />
-        <Route path="/crm/whatsapp" element={<CrmWhatsAppPage />} />
-        <Route path="/crm/kanban" element={<CrmKanbanPage />} />
-        <Route path="/agenda" element={<AgendaPage />} />
-        <Route path="/instagram" element={<InstagramPage />} />
-        <Route path="/youtube" element={<YouTubePage />} />
-        <Route path="/publisher" element={<ContentPublisherPage />} />
+        <Route
+          path="/crm"
+          element={
+            <ModuleRoute enabled={profile.modules.crm}>
+              <CrmWorkspace profile={profile} />
+            </ModuleRoute>
+          }
+        />
+        <Route
+          path="/crm/whatsapp"
+          element={
+            <ModuleRoute enabled={profile.modules.whatsapp}>
+              <CrmWhatsAppPage />
+            </ModuleRoute>
+          }
+        />
+        <Route
+          path="/crm/kanban"
+          element={
+            <ModuleRoute enabled={profile.modules.kanban || profile.modules.crm}>
+              <CrmKanbanPage />
+            </ModuleRoute>
+          }
+        />
+        <Route
+          path="/agenda"
+          element={
+            <ModuleRoute enabled={profile.modules.agenda}>
+              <AgendaPage />
+            </ModuleRoute>
+          }
+        />
+        <Route
+          path="/instagram"
+          element={
+            <ModuleRoute enabled={profile.modules.instagram}>
+              <InstagramPage />
+            </ModuleRoute>
+          }
+        />
+        <Route
+          path="/youtube"
+          element={
+            <ModuleRoute enabled={profile.modules.youtube}>
+              <YouTubePage />
+            </ModuleRoute>
+          }
+        />
+        <Route
+          path="/publisher"
+          element={
+            <ModuleRoute enabled={profile.modules.content_publisher}>
+              <ContentPublisherPage />
+            </ModuleRoute>
+          }
+        />
         <Route path="/master" element={<MasterPage profile={profile} />} />
         <Route path="/leads" element={<TablePage title="Leads" rows={leads} render={(row) => [row.name, row.phone || "-", row.interest || "-", row.status]} />} />
         <Route path="/tasks" element={<TablePage title="Tarefas" rows={tasks} render={(row) => [row.title, row.description || "-", row.status, row.due_date || "-"]} />} />
