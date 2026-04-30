@@ -125,7 +125,7 @@ function Layout({
         ]
       : []),
     ...(profile.modules.whatsapp ? [{ label: "WhatsApp", path: "/crm/whatsapp" }] : []),
-    ...(profile.modules.agenda ? [{ label: "Agenda", path: "/agenda" }] : []),
+    ...(profile.modules.crm && profile.modules.agenda ? [{ label: "Agenda", path: "/agenda" }] : []),
     ...(profile.modules.instagram ? [{ label: "Instagram", path: "/instagram" }] : []),
     ...(profile.modules.youtube ? [{ label: "YouTube", path: "/youtube" }] : []),
     ...(profile.modules.content_publisher ? [{ label: "Publicador", path: "/publisher" }] : []),
@@ -860,13 +860,87 @@ function ContentPublisherPage() {
 }
 
 function AgendaPage() {
+  const [followups, setFollowups] = useState<CrmFollowup[]>([]);
+  const [tasks, setTasks] = useState<CrmTask[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  async function loadAgenda() {
+    setLoading(true);
+    setError("");
+    try {
+      const [followupsData, tasksData] = await Promise.all([getCrmFollowups(), getCrmTasks()]);
+      setFollowups(followupsData);
+      setTasks(tasksData);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao carregar agenda");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadAgenda();
+  }, []);
+
+  const upcomingFollowups = [...followups]
+    .sort((a, b) => new Date(a.due_at).getTime() - new Date(b.due_at).getTime())
+    .slice(0, 8);
+  const pendingTasks = tasks.filter((task) => task.status !== "feito" && task.status !== "completed").slice(0, 8);
+
   return (
     <div className="space-y-6">
       <div className="rounded-[32px] bg-white p-6 shadow-soft">
         <h2 className="font-serif text-2xl">Agenda</h2>
-        <p className="mt-3 text-slate-600">Gerencie seus compromissos e agendamentos.</p>
-        <div className="mt-6 rounded-2xl bg-panel p-4">
-          <p className="text-sm text-slate-500">⚠️ Funcionalidade em desenvolvimento</p>
+        <p className="mt-3 text-slate-600">Visão rápida dos agendamentos e tarefas que já existem no CRM atual.</p>
+        {error ? <div className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div> : null}
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <div className="rounded-[32px] bg-white p-6 shadow-soft">
+          <div className="flex items-center justify-between">
+            <h3 className="font-serif text-xl">Próximos follow-ups</h3>
+            <button onClick={loadAgenda} className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200">
+              Atualizar
+            </button>
+          </div>
+          <div className="mt-5 space-y-3">
+            {loading ? (
+              <div className="text-sm text-slate-500">Carregando agendamentos...</div>
+            ) : upcomingFollowups.length === 0 ? (
+              <div className="text-sm text-slate-500">Nenhum follow-up agendado.</div>
+            ) : (
+              upcomingFollowups.map((followup) => (
+                <div key={followup.id} className="rounded-2xl bg-panel p-4">
+                  <div className="font-semibold text-slate-900">{followup.title || followup.titulo}</div>
+                  <div className="mt-1 text-sm text-slate-600">
+                    {formatDateTime(followup.due_at || followup.data_hora)} • {followup.status}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-[32px] bg-white p-6 shadow-soft">
+          <h3 className="font-serif text-xl">Tarefas pendentes</h3>
+          <div className="mt-5 space-y-3">
+            {loading ? (
+              <div className="text-sm text-slate-500">Carregando tarefas...</div>
+            ) : pendingTasks.length === 0 ? (
+              <div className="text-sm text-slate-500">Nenhuma tarefa pendente.</div>
+            ) : (
+              pendingTasks.map((task) => (
+                <div key={task.id} className="rounded-2xl bg-panel p-4">
+                  <div className="font-semibold text-slate-900">{task.title}</div>
+                  <div className="mt-1 text-sm text-slate-600">
+                    {task.due_at ? `${formatDateTime(task.due_at)} • ` : ""}
+                    {task.status}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -1543,7 +1617,7 @@ function ProtectedApp() {
         <Route
           path="/agenda"
           element={
-            <ModuleRoute enabled={profile.modules.agenda}>
+            <ModuleRoute enabled={profile.modules.crm && profile.modules.agenda}>
               <AgendaPage />
             </ModuleRoute>
           }
