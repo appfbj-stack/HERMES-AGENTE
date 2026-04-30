@@ -13,6 +13,7 @@ from app.core.database import get_db
 from app.models import Chat, Credit, CrmSetting, CrmWhatsAppConnection, Message, Tenant, TenantModule, UsageLog, User
 from app.services.agent import (
     build_context,
+    maybe_handle_task_query,
     maybe_handle_memory_query,
     merge_automation_confirmations,
     process_inbound_automation,
@@ -327,9 +328,12 @@ async def telegram_webhook(
             )
             return {"status": "ai_blocked", "reason": reason}
 
-    direct_memory_reply = maybe_handle_memory_query(db, resolved_tenant_id, chat, inbound_text)
+    direct_task_reply = maybe_handle_task_query(db, resolved_tenant_id, chat, inbound_text)
+    direct_memory_reply = maybe_handle_memory_query(db, resolved_tenant_id, chat, inbound_text) if direct_task_reply is None else None
     tokens_used = 0
-    if direct_memory_reply is not None:
+    if direct_task_reply is not None:
+        clean_reply = merge_automation_confirmations(direct_task_reply, automation_confirmations)
+    elif direct_memory_reply is not None:
         clean_reply = merge_automation_confirmations(direct_memory_reply, automation_confirmations)
     else:
         context = build_context(db, resolved_tenant_id, chat, lead=lead)
@@ -459,9 +463,12 @@ async def evolution_go_webhook(
             db.commit()
             return {"status": "ai_blocked", "reason": reason}
 
-    direct_memory_reply = maybe_handle_memory_query(db, tenant_id, chat, inbound_text)
+    direct_task_reply = maybe_handle_task_query(db, tenant_id, chat, inbound_text)
+    direct_memory_reply = maybe_handle_memory_query(db, tenant_id, chat, inbound_text) if direct_task_reply is None else None
     tokens_used = 0
-    if direct_memory_reply is not None:
+    if direct_task_reply is not None:
+        clean_reply = merge_automation_confirmations(direct_task_reply, automation_confirmations)
+    elif direct_memory_reply is not None:
         clean_reply = merge_automation_confirmations(direct_memory_reply, automation_confirmations)
     else:
         context = build_context(db, tenant_id, chat, lead=lead)

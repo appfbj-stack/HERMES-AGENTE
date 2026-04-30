@@ -46,6 +46,10 @@ def _memory_key_prefix(chat: Chat) -> str:
     return f"chat:{chat.chat_external_id}:"
 
 
+def _task_ref_key_prefix(chat: Chat) -> str:
+    return f"taskref:{chat.chat_external_id}:"
+
+
 def _extract_memory_text(inbound_text: str) -> str | None:
     text = inbound_text.strip()
     normalized = _normalize_text(text)
@@ -149,6 +153,12 @@ def _extract_task_title(inbound_text: str) -> str:
     return candidate[:120] or "Tarefa automática"
 
 
+def _format_due_date(value: datetime | None) -> str:
+    if value is None:
+        return "sem data"
+    return value.strftime("%d/%m/%Y %H:%M")
+
+
 def maybe_save_memory(db: Session, tenant_id: int, chat: Chat, inbound_text: str) -> AssistantMemory | None:
     memory_text = _extract_memory_text(inbound_text)
     if not memory_text:
@@ -226,34 +236,49 @@ def build_context(
     return context
 
 
-def maybe_create_task(db: Session, tenant_id: int, inbound_text: str) -> Task | None:
+def maybe_create_task(db: Session, tenant_id: int, chat: Chat, inbound_text: str) -> Task | None:
     """Cria tarefa automática se houver palavras-chave de compromisso."""
     text = _normalize_text(inbound_text)
     triggers = ["ligar", "retornar", "agendar", "reuniao", "orcamento", "me lembre", "lembrar", "tarefa"]
     if not any(item in text for item in triggers):
         return
 
-    recent = (
-        db.query(Task)
-        .filter(
-            Task.tenant_id == tenant_id,
-            Task.description == inbound_text[:500],
-            Task.created_at >= _utcnow().replace(second=0, microsecond=0),
-        )
-        .order_by(Task.created_at.desc())
+    title = _extract_task_title(inbound_text)
+    ref_key = f"{_task_ref_key_prefix(chat)}{_slugify(title)}"
+    task_ref = (
+        db.query(AssistantMemory)
+        .filter(AssistantMemory.tenant_id == tenant_id, AssistantMemory.key == ref_key)
         .first()
     )
-    if recent:
-        return None
+    if task_ref:
+        try:
+            task_id = int(task_ref.value.strip())
+        except (TypeError, ValueError):
+            task_id = None
+        if task_id:
+            existing_task = (
+                db.query(Task)
+                .filter(Task.id == task_id, Task.tenant_id == tenant_id, Task.status.in_(["pending", "open", "pendente"]))
+                .first()
+            )
+            if existing_task:
+                return None
 
     task = Task(
         tenant_id=tenant_id,
-        title=_extract_task_title(inbound_text),
+        title=title,
         description=inbound_text[:500],
         due_date=_extract_due_date(inbound_text),
         status="pending",
     )
     db.add(task)
+    db.flush()
+
+    if not task_ref:
+        task_ref = AssistantMemory(tenant_id=tenant_id, key=ref_key, value=str(task.id))
+        db.add(task_ref)
+    else:
+        task_ref.value = str(task.id)
     return task
 
 
@@ -264,7 +289,7 @@ def process_inbound_automation(db: Session, tenant_id: int, chat: Chat, inbound_
     if memory is not None:
         confirmations.append(f"✅ Salvo na memória: {_truncate(memory.value, 80)}")
 
-    task = maybe_create_task(db, tenant_id, inbound_text)
+    task = maybe_create_task(db, tenant_id, chat, inbound_text)
     if task is not None:
         confirmations.append(f"✅ Tarefa criada: {task.title}")
 
@@ -337,6 +362,68 @@ def maybe_handle_memory_query(db: Session, tenant_id: int, chat: Chat, inbound_t
     lines = ["🧠 O que está salvo nesta conversa:"]
     for item in ordered_items[-8:]:
         lines.append(f"- {item.value}")
+    return "\n".join(lines)
+
+
+def maybe_handle_task_query(db: Session, tenant_id: int, chat: Chat, inbound_text: str) -> str | None:
+    normalized = _normalize_text(inbound_text)
+    if not normalized:
+        return None
+
+    is_task_query = any(
+        token in normalized
+        for token in (
+            "quais tarefas",
+            "quais lembretes",
+            "quais sao minhas tarefas",
+            "quais sao meus lembretes",
+            "o que esta agendado",
+            "o que tenho agendado",
+            "tenho alguma tarefa",
+            "tenho algum lembrete",
+            "meus lembretes",
+            "minhas tarefas",
+            "tarefas pendentes",
+            "lembretes pendentes",
+        )
+    )
+    if not is_task_query:
+        return None
+
+    refs = (
+        db.query(AssistantMemory)
+        .filter(
+            AssistantMemory.tenant_id == tenant_id,
+            AssistantMemory.key.like(f"{_task_ref_key_prefix(chat)}%"),
+        )
+        .order_by(AssistantMemory.id.desc())
+        .all()
+    )
+    if not refs:
+        return "Ainda não encontrei tarefas ou lembretes salvos para esta conversa."
+
+    task_ids: list[int] = []
+    for ref in refs:
+        try:
+            task_ids.append(int(ref.value.strip()))
+        except (TypeError, ValueError):
+            continue
+    if not task_ids:
+        return "Ainda não encontrei tarefas ou lembretes salvos para esta conversa."
+
+    tasks = (
+        db.query(Task)
+        .filter(Task.tenant_id == tenant_id, Task.id.in_(task_ids))
+        .order_by(Task.created_at.asc())
+        .all()
+    )
+    active_tasks = [task for task in tasks if task.status not in {"completed", "cancelled", "done", "feito"}]
+    if not active_tasks:
+        return "As tarefas e lembretes desta conversa já foram concluídos ou não estão mais pendentes."
+
+    lines = ["📋 Tarefas e lembretes desta conversa:"]
+    for task in active_tasks[-8:]:
+        lines.append(f"- {task.title} ({_format_due_date(task.due_date)})")
     return "\n".join(lines)
 
 
