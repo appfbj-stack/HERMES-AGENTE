@@ -4,49 +4,53 @@ import {
   createCrmLead,
   updateCrmLead,
   deleteCrmLead,
-  getCrmTags,
 } from "../api";
+import type { CrmLead } from "../types";
 
-type CrmLead = any;
-type CrmTag = any;
+type LeadFormState = {
+  name: string;
+  phone: string;
+  email: string;
+  origem: string;
+  status: string;
+  observacoes: string;
+  interesse: string;
+};
+
+const EMPTY_FORM: LeadFormState = {
+  name: "",
+  phone: "",
+  email: "",
+  origem: "manual",
+  status: "Novo lead",
+  observacoes: "",
+  interesse: "",
+};
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return "Não foi possível concluir a operação.";
+}
 
 export default function LeadsPage() {
   const [leads, setLeads] = useState<CrmLead[]>([]);
-  const [tags, setTags] = useState<CrmTag[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [selectedLead, setSelectedLead] = useState<CrmLead | null>(null);
   const [saved, setSaved] = useState(false);
-
-  const [form, setForm] = useState({
-    name: "",
-    phone: "",
-    email: "",
-    origem: "manual",
-    status: "Novo lead",
-    observacoes: "",
-    interesse: "",
-  });
-
-  // TODO: fix ORIGEM_ICON initialization issue
-  // const ORIGEM_ICON = {
-  //   manual: "📝",
-  //   whatsapp: "📱",
-  //   telegram: "✈️",
-  //   site: "🌐",
-  // };
+  const [error, setError] = useState<string | null>(null);
+  const [form, setForm] = useState<LeadFormState>(EMPTY_FORM);
 
   async function load() {
     setLoading(true);
+    setError(null);
     try {
-      const [leadsData, tagsData] = await Promise.all([
-        getCrmLeads(),
-        getCrmTags(),
-      ]);
+      const leadsData = await getCrmLeads();
       setLeads(leadsData);
-      setTags(tagsData);
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      setError(getErrorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -59,32 +63,44 @@ export default function LeadsPage() {
   async function save(e: FormEvent) {
     e.preventDefault();
     setSaved(false);
+    setError(null);
+
+    const payload = {
+      name: form.name,
+      phone: form.phone || undefined,
+      email: form.email || undefined,
+      origin: form.origem,
+      status: form.status,
+      notes: form.observacoes || undefined,
+    };
 
     try {
       if (selectedLead) {
-        await updateCrmLead(selectedLead.id, form);
+        await updateCrmLead(selectedLead.id, payload);
       } else {
-        await createCrmLead(form);
+        await createCrmLead(payload);
       }
       setSaved(true);
       setTimeout(() => {
         setSaved(false);
         setShowModal(false);
         setSelectedLead(null);
+        setForm(EMPTY_FORM);
         load();
       }, 1000);
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      setError(getErrorMessage(error));
     }
   }
 
   async function handleDelete(id: number) {
     if (!confirm("Tem certeza que deseja excluir este lead?")) return;
+    setError(null);
     try {
       await deleteCrmLead(id);
       load();
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      setError(getErrorMessage(error));
     }
   }
 
@@ -112,16 +128,9 @@ export default function LeadsPage() {
         </div>
         <button
           onClick={() => {
-            setForm({
-              name: "",
-              phone: "",
-              email: "",
-              origem: "manual",
-              status: "Novo lead",
-              observacoes: "",
-              interesse: "",
-            });
+            setForm(EMPTY_FORM);
             setSelectedLead(null);
+            setError(null);
             setShowModal(true);
           }}
           className="rounded-full bg-brand px-6 py-3 text-sm font-semibold text-white hover:bg-brand/90"
@@ -129,6 +138,12 @@ export default function LeadsPage() {
           + Novo Lead
         </button>
       </div>
+
+      {error && (
+        <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          {error}
+        </div>
+      )}
 
       {loading ? (
         <div className="rounded-3xl border-2 border-slate-200 bg-white p-8 text-center text-slate-500">
@@ -145,11 +160,12 @@ export default function LeadsPage() {
                   name: lead.name,
                   phone: lead.phone || "",
                   email: lead.email || "",
-                  origem: lead.origem || "manual",
+                  origem: lead.origin || "manual",
                   status: lead.status,
-                  observacoes: lead.observacoes || "",
+                  observacoes: lead.notes || "",
                   interesse: lead.interest || "",
                 });
+                setError(null);
                 setShowModal(true);
               }}
               className="rounded-3xl border-2 border-slate-200 bg-white p-6 shadow-soft cursor-pointer hover:border-brand transition"
@@ -166,9 +182,9 @@ export default function LeadsPage() {
               {lead.email && (
                 <div className="mb-2 text-sm text-slate-600">✉️ {lead.email}</div>
               )}
-              {lead.observacoes && (
+              {lead.notes && (
                 <div className="text-sm text-slate-600 truncate">
-                  {lead.observacoes}
+                  {lead.notes}
                 </div>
               )}
               <div className="mt-2 flex gap-2">
@@ -198,6 +214,7 @@ export default function LeadsPage() {
                 onClick={() => {
                   setShowModal(false);
                   setSelectedLead(null);
+                  setError(null);
                 }}
                 className="text-2xl text-slate-400 hover:text-slate-600"
               >
@@ -290,6 +307,7 @@ export default function LeadsPage() {
                   onClick={() => {
                     setShowModal(false);
                     setSelectedLead(null);
+                    setError(null);
                   }}
                   className="flex-1 rounded-2xl bg-slate-100 px-5 py-2 text-sm hover:bg-slate-200"
                 >

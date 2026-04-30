@@ -7,6 +7,10 @@ from typing import Any
 import httpx
 
 from app.core.config import get_settings
+from app.core.logging import get_logger
+
+
+logger = get_logger(__name__)
 
 
 async def call_glm_47(
@@ -119,7 +123,10 @@ async def call_openrouter_with_fallback(
     try:
         return await call_openrouter(model, messages, temperature, max_tokens)
     except Exception as e:
-        print(f"[OpenRouter] Erro no modelo {model}, tentando fallback {fallback_model}: {str(e)}")
+        logger.warning(
+            "OpenRouter primary model failed; trying fallback",
+            extra={"model": model, "fallback_model": fallback_model, "error": str(e)},
+        )
         if fallback_model:
             return await call_openrouter(fallback_model, messages, temperature, max_tokens)
         raise

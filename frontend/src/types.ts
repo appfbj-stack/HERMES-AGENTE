@@ -52,6 +52,7 @@ export type CrmLead = {
   status: string;
   responsible_user_id: number | null;
   notes: string | null;
+  interest?: string | null;
   last_contact_at: string | null;
   created_at: string;
   updated_at: string;

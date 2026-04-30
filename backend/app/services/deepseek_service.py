@@ -1,12 +1,15 @@
 """
 Serviço de integração com DeepSeek API
 """
-import os
 from typing import Any
 
 import httpx
 
 from app.core.config import get_settings
+from app.core.logging import get_logger
+
+
+logger = get_logger(__name__)
 
 
 async def call_deepseek(
@@ -74,7 +77,10 @@ async def call_deepseek_with_fallback(
     try:
         return await call_deepseek(messages, model, temperature, max_tokens)
     except Exception as e:
-        print(f"[DeepSeek] Erro, tentando fallback para {fallback_model}: {str(e)}")
+        logger.warning(
+            "DeepSeek primary model failed; trying fallback",
+            extra={"model": model, "fallback_model": fallback_model, "error": str(e)},
+        )
         if fallback_model:
             return await call_deepseek(messages, fallback_model, temperature, max_tokens)
         raise
