@@ -3,6 +3,7 @@ Endpoints exclusivos do super admin (você, dono do SaaS).
 Permite criar/listar/editar tenants (clientes).
 """
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -198,7 +199,7 @@ def set_tenant_modules(
     try:
         if mod.crm:
             ensure_crm_defaults(db, tenant_id)
-    except Exception as exc:
+    except (SQLAlchemyError, ValueError) as exc:
         logger.exception("Erro ao inicializar CRM para tenant_id=%s", tenant_id)
 
     db.commit()

@@ -54,7 +54,16 @@ async def _deliver_task_reminder(db, task: Task, chat: Chat, reminder_text: str)
         try:
             await get_provider(connection).send_text(connection, chat.chat_external_id, reminder_text)
             return True
-        except (WhatsAppProviderError, Exception):
+        except WhatsAppProviderError as exc:
+            logger.warning(
+                "WhatsApp provider failed to deliver reminder task_id=%s tenant_id=%s chat_id=%s: %s",
+                task.id,
+                task.tenant_id,
+                chat.id,
+                exc,
+            )
+            return False
+        except RuntimeError:
             return False
 
     # Canal web não tem push assíncrono; persistir a mensagem no histórico já é o lembrete disponível.
@@ -101,9 +110,17 @@ def process_due_task_reminders() -> None:
 
                 try:
                     delivered = asyncio.run(_deliver_task_reminder(db, task, chat, reminder_text)) or delivered
-                except Exception:
+                except RuntimeError:
                     logger.exception(
-                        "Falha ao entregar lembrete de tarefa task_id=%s tenant_id=%s chat_id=%s",
+                        "Runtime failure delivering task reminder task_id=%s tenant_id=%s chat_id=%s",
+                        task.id,
+                        task.tenant_id,
+                        chat.id,
+                    )
+                    continue
+                except ValueError:
+                    logger.exception(
+                        "Value failure delivering task reminder task_id=%s tenant_id=%s chat_id=%s",
                         task.id,
                         task.tenant_id,
                         chat.id,

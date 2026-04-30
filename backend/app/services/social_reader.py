@@ -5,7 +5,10 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.core.logging import get_logger
 from app.models import User
+
+logger = get_logger(__name__)
 
 
 async def list_social_files(
@@ -46,7 +49,8 @@ async def list_social_files(
                 )
 
         return {"success": True, "files": result, "total": len(result)}
-    except Exception as exc:
+    except (OSError, ValueError) as exc:
+        logger.warning("Social file listing failed for user_id=%s subfolder=%s: %s", user.id, subfolder, exc)
         return {"success": False, "error": str(exc)}
 
 
@@ -76,7 +80,8 @@ async def read_social_file(
         return {"success": True, "content": content, "size": len(content)}
     except UnicodeDecodeError:
         return {"success": False, "error": "File encoding not supported"}
-    except Exception as exc:
+    except (OSError, ValueError) as exc:
+        logger.warning("Social file read failed for user_id=%s filename=%s: %s", user.id, filename, exc)
         return {"success": False, "error": str(exc)}
 
 
@@ -103,7 +108,8 @@ async def write_social_file(
             await f.write(content)
 
         return {"success": True, "path": str(file_path), "size": len(content)}
-    except Exception as exc:
+    except (OSError, ValueError) as exc:
+        logger.warning("Social file write failed for user_id=%s filename=%s: %s", user.id, filename, exc)
         return {"success": False, "error": str(exc)}
 
 
@@ -127,5 +133,6 @@ async def delete_social_file(
         os.remove(file_path)
 
         return {"success": True, "path": str(file_path)}
-    except Exception as exc:
+    except (OSError, ValueError) as exc:
+        logger.warning("Social file delete failed for user_id=%s filename=%s: %s", user.id, filename, exc)
         return {"success": False, "error": str(exc)}

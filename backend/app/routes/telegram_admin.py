@@ -6,11 +6,13 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.database import get_db
+from app.core.logging import get_logger
 from app.models import User
 from app.services.hermes_admin import HermesAdminService
 from app.services.telegram import send_telegram_message
 
 router = APIRouter(prefix="/webhook", tags=["telegram-admin"])
+logger = get_logger(__name__)
 
 
 def _build_runtime_admin(user_name: str | None, *, role: str, email: str) -> User:
@@ -69,7 +71,8 @@ async def _handle_admin_webhook(
         reply_text = result.get("response", "Erro ao processar mensagem")
         await send_telegram_message(chat_id, reply_text, force_token=reply_token)
         return {"status": "ok", "response": reply_text}
-    except Exception as exc:  # noqa: BLE001
+    except (RuntimeError, ValueError) as exc:
+        logger.warning("Telegram admin webhook failed for chat_id=%s role=%s: %s", chat_id, role, exc)
         error_msg = f"Erro ao processar mensagem: {str(exc)}"
         await send_telegram_message(chat_id, error_msg, force_token=reply_token)
         return {"status": "error", "error": error_msg}
