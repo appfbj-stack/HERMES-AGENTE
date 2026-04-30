@@ -100,6 +100,25 @@ function formatDateTime(value?: string | null) {
   return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
 }
 
+function parseAutomationLines(content: string) {
+  const lines = content.split("\n").map((line) => line.trim()).filter(Boolean);
+  const automationLines: string[] = [];
+  const bodyLines: string[] = [];
+
+  for (const line of lines) {
+    if (line.startsWith("✅") || line.startsWith("⏰")) {
+      automationLines.push(line);
+    } else {
+      bodyLines.push(line);
+    }
+  }
+
+  return {
+    automationLines,
+    body: bodyLines.join("\n"),
+  };
+}
+
 function Layout({
   profile,
   children,
@@ -282,6 +301,13 @@ function DashboardPage({ chats, credits, leads, tasks }: { chats: Chat[]; credit
     { label: "Tarefas", value: tasks.length },
     { label: "Créditos", value: currencyCredits(credits) },
   ];
+  const recentTasks = [...tasks]
+    .sort((a, b) => {
+      const dateA = a.due_date ? new Date(a.due_date).getTime() : new Date(a.created_at).getTime();
+      const dateB = b.due_date ? new Date(b.due_date).getTime() : new Date(b.created_at).getTime();
+      return dateA - dateB;
+    })
+    .slice(0, 5);
 
   return (
     <div className="space-y-6">
@@ -306,11 +332,23 @@ function DashboardPage({ chats, credits, leads, tasks }: { chats: Chat[]; credit
           </div>
         </div>
         <div className="rounded-[32px] bg-ink p-6 text-white shadow-soft">
-          <h2 className="font-serif text-2xl">Resumo operacional</h2>
+          <h2 className="font-serif text-2xl">Lembretes do Hermes</h2>
           <div className="mt-5 space-y-4 text-sm text-white/80">
-            <div>Plano: operação multi-tenant com créditos por mensagem.</div>
-            <div>Canal: Telegram com resposta automática e atendimento humano.</div>
-            <div>Estado: CRM integrado na base atual, em evolução por fases.</div>
+            {recentTasks.length > 0 ? (
+              recentTasks.map((task) => (
+                <div key={task.id} className="rounded-2xl bg-white/10 px-4 py-3">
+                  <div className="font-medium text-white">{task.title}</div>
+                  <div className="text-xs text-white/70">
+                    {task.due_date ? `Vencimento ${formatDateTime(task.due_date)}` : `Criada em ${formatDateTime(task.created_at)}`}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <>
+                <div>Nenhum lembrete ou tarefa recente criado pelo Hermes.</div>
+                <div>Exemplo: “me lembre de ajustar o CRM amanhã às 8”.</div>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -399,7 +437,22 @@ function ChatPage({
                           : "ml-auto bg-[#d8edff]"
                     }`}
                   >
-                    {message.content}
+                    {(() => {
+                      const parsed = parseAutomationLines(message.content);
+                      return (
+                        <div className="space-y-2">
+                          {parsed.automationLines.map((line, index) => (
+                            <div
+                              key={`${message.id}-auto-${index}`}
+                              className="rounded-2xl bg-black/5 px-3 py-2 text-xs font-semibold text-slate-700"
+                            >
+                              {line}
+                            </div>
+                          ))}
+                          {parsed.body ? <div className="whitespace-pre-wrap">{parsed.body}</div> : null}
+                        </div>
+                      );
+                    })()}
                   </div>
                 ))}
               </div>
@@ -1587,8 +1640,12 @@ function ProtectedApp() {
                 onSendMessage={async (content) => {
                   if (!selectedChat) return;
                   await sendMessage(selectedChat.id, content);
-                  const items = await getMessages(selectedChat.id);
+                  const [items, nextTasks] = await Promise.all([
+                    getMessages(selectedChat.id),
+                    profile.modules.crm ? getTasks() : Promise.resolve(tasks),
+                  ]);
                   setMessages(items);
+                  setTasks(nextTasks);
                   await refreshChats();
                   setCredits(await getCredits());
                 }}
