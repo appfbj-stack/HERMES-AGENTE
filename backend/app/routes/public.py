@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.models import Chat, Credit, Message, Tenant, UsageLog
-from app.services.agent import build_context, maybe_create_lead, maybe_create_task
+from app.services.agent import build_context, maybe_create_lead, merge_automation_confirmations, process_inbound_automation
 from app.services.deepseek import generate_reply
 
 router = APIRouter(prefix="/public", tags=["public"])
@@ -163,7 +163,7 @@ async def public_chat_send(
     db.flush()
 
     maybe_create_lead(db, tenant_id, chat, text)
-    maybe_create_task(db, tenant_id, text)
+    automation_confirmations = process_inbound_automation(db, tenant_id, chat, text)
 
     # Verifica créditos
     credit = db.query(Credit).filter(Credit.tenant_id == tenant_id).first()
@@ -196,6 +196,7 @@ async def public_chat_send(
     # Chama IA
     context = build_context(db, tenant_id, chat)
     reply_text, tokens_used = await generate_reply(context, tenant_id=tenant_id)
+    reply_text = merge_automation_confirmations(reply_text, automation_confirmations)
 
     bot_msg = Message(
         tenant_id=tenant_id,

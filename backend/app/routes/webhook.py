@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.models import Chat, Credit, CrmSetting, CrmWhatsAppConnection, Message, Tenant, TenantModule, UsageLog, User
-from app.services.agent import build_context, maybe_create_task
+from app.services.agent import build_context, merge_automation_confirmations, process_inbound_automation
 from app.services.billing_rules import can_use_ai, count_message
 from app.services.crm import ensure_crm_conversation, ensure_crm_defaults, ensure_crm_lead, sync_crm_message
 from app.services.crm_agent import get_or_create_lead_from_chat, parse_and_execute_crm_commands
@@ -275,7 +275,7 @@ async def telegram_webhook(
     db.flush()
 
     lead = get_or_create_lead_from_chat(db, resolved_tenant_id, chat, inbound_text)
-    maybe_create_task(db, resolved_tenant_id, inbound_text)
+    automation_confirmations = process_inbound_automation(db, resolved_tenant_id, chat, inbound_text)
 
     module = db.query(TenantModule).filter(TenantModule.tenant_id == resolved_tenant_id).first()
     crm_conversation = None
@@ -325,6 +325,7 @@ async def telegram_webhook(
     context = build_context(db, resolved_tenant_id, chat, lead=lead)
     reply_text, tokens_used = await generate_reply(context, tenant_id=resolved_tenant_id)
     clean_reply = parse_and_execute_crm_commands(db, resolved_tenant_id, lead, reply_text)
+    clean_reply = merge_automation_confirmations(clean_reply, automation_confirmations)
 
     outbound_message = Message(tenant_id=resolved_tenant_id, chat_id=chat.id, sender_type="assistant", content=clean_reply)
     chat.last_message = clean_reply
@@ -410,7 +411,7 @@ async def evolution_go_webhook(
     db.flush()
 
     lead = get_or_create_lead_from_chat(db, tenant_id, chat, inbound_text)
-    maybe_create_task(db, tenant_id, inbound_text)
+    automation_confirmations = process_inbound_automation(db, tenant_id, chat, inbound_text)
 
     module = db.query(TenantModule).filter(TenantModule.tenant_id == tenant_id).first()
     crm_conversation = None
@@ -451,6 +452,7 @@ async def evolution_go_webhook(
     context = build_context(db, tenant_id, chat, lead=lead)
     reply_text, tokens_used = await generate_reply(context, tenant_id=tenant_id)
     clean_reply = parse_and_execute_crm_commands(db, tenant_id, lead, reply_text)
+    clean_reply = merge_automation_confirmations(clean_reply, automation_confirmations)
 
     outbound_message = Message(tenant_id=tenant_id, chat_id=chat.id, sender_type="assistant", content=clean_reply)
     chat.last_message = clean_reply
