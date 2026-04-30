@@ -131,8 +131,7 @@ function Layout({
     ...(profile.modules.youtube ? [{ label: "YouTube", path: "/youtube" }] : []),
     ...(profile.modules.content_publisher ? [{ label: "Publicador", path: "/publisher" }] : []),
     ...(profile.user.is_super_admin ? [{ label: "Master", path: "/master" }] : []),
-    { label: "Leads", path: "/leads" },
-    { label: "Tarefas", path: "/tasks" },
+    ...(profile.modules.crm ? [{ label: "Leads", path: "/leads" }, { label: "Tarefas", path: "/tasks" }] : []),
     { label: "Créditos", path: "/credits" },
     { label: "Configurações", path: "/settings" },
   ];
@@ -1442,8 +1441,14 @@ function ProtectedApp() {
   const [credits, setCredits] = useState<Credit>();
 
   useEffect(() => {
-    Promise.all([me(), getChats(), getLeads(), getTasks(), getCredits()])
-      .then(([profileData, chatsData, leadsData, tasksData, creditsData]) => {
+    me()
+      .then(async (profileData) => {
+        const [chatsData, creditsData, leadsData, tasksData] = await Promise.all([
+          getChats(),
+          getCredits(),
+          profileData.modules.crm ? getLeads() : Promise.resolve([]),
+          profileData.modules.crm ? getTasks() : Promise.resolve([]),
+        ]);
         setProfile(profileData);
         setChats(chatsData);
         setLeads(leadsData);
@@ -1569,8 +1574,22 @@ function ProtectedApp() {
           }
         />
         <Route path="/master" element={<MasterPage profile={profile} onProfileRefresh={refreshProfile} />} />
-        <Route path="/leads" element={<TablePage title="Leads" rows={leads} render={(row) => [row.name, row.phone || "-", row.interest || "-", row.status]} />} />
-        <Route path="/tasks" element={<TablePage title="Tarefas" rows={tasks} render={(row) => [row.title, row.description || "-", row.status, row.due_date || "-"]} />} />
+        <Route
+          path="/leads"
+          element={
+            <ModuleRoute enabled={profile.modules.crm}>
+              <TablePage title="Leads" rows={leads} render={(row) => [row.name, row.phone || "-", row.interest || "-", row.status]} />
+            </ModuleRoute>
+          }
+        />
+        <Route
+          path="/tasks"
+          element={
+            <ModuleRoute enabled={profile.modules.crm}>
+              <TablePage title="Tarefas" rows={tasks} render={(row) => [row.title, row.description || "-", row.status, row.due_date || "-"]} />
+            </ModuleRoute>
+          }
+        />
         <Route path="/credits" element={<CreditsPage credits={credits} />} />
         <Route path="/settings" element={<SettingsPage profile={profile} />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />

@@ -2,11 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.deps import get_current_user
+from app.deps import get_current_user, require_crm_module
 from app.models import Lead, Task, User
 from app.schemas import TaskCreate, TaskOut, TaskUpdate
 
-router = APIRouter(prefix="/tasks", tags=["tasks"])
+router = APIRouter(prefix="/tasks", tags=["tasks"], dependencies=[Depends(require_crm_module)])
 
 
 @router.get("", response_model=list[TaskOut])
