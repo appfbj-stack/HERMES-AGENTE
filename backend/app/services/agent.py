@@ -42,6 +42,25 @@ def _slugify(text: str, max_len: int = 48) -> str:
     return (slug or "memoria")[:max_len].strip("-") or "memoria"
 
 
+_WEEKDAY_MAP = {
+    "segunda": 0,
+    "segunda-feira": 0,
+    "terca": 1,
+    "terca-feira": 1,
+    "terça": 1,
+    "terça-feira": 1,
+    "quarta": 2,
+    "quarta-feira": 2,
+    "quinta": 3,
+    "quinta-feira": 3,
+    "sexta": 4,
+    "sexta-feira": 4,
+    "sabado": 5,
+    "sábado": 5,
+    "domingo": 6,
+}
+
+
 def _memory_key_prefix(chat: Chat) -> str:
     return f"chat:{chat.chat_external_id}:"
 
@@ -89,7 +108,18 @@ def _extract_memory_text(inbound_text: str) -> str | None:
 
 def _extract_due_date(inbound_text: str) -> datetime | None:
     text = inbound_text or ""
+    normalized = _normalize_text(text)
     now = _utcnow()
+
+    relative_match = re.search(r"\bdaqui\s+(\d+)\s+(minuto|minutos|hora|horas|dia|dias)\b", normalized)
+    if relative_match:
+        amount, unit = relative_match.groups()
+        value = int(amount)
+        if "minuto" in unit:
+            return now + timedelta(minutes=value)
+        if "hora" in unit:
+            return now + timedelta(hours=value)
+        return now + timedelta(days=value)
 
     full_match = re.search(r"(\d{2})/(\d{2})/(\d{4})(?:\s+[^\d]?(\d{1,2}):(\d{2}))?", text)
     if full_match:
@@ -128,10 +158,53 @@ def _extract_due_date(inbound_text: str) -> datetime | None:
                 return None
         return candidate
 
+    hour_match = re.search(r"\b(?:as|às)?\s*(\d{1,2})h(?:\s*(\d{2}))?\b", normalized)
+    explicit_time = None
+    if hour_match:
+        hour, minute = hour_match.groups()
+        explicit_time = (int(hour), int(minute or 0))
+
     time_match = re.search(r"\b(\d{1,2}):(\d{2})\b", text)
     if time_match:
         hour, minute = time_match.groups()
         candidate = now.replace(hour=int(hour), minute=int(minute), second=0, microsecond=0)
+        if candidate < now:
+            candidate = candidate + timedelta(days=1)
+        return candidate
+
+    if explicit_time is None:
+        compact_match = re.search(r"\b(?:as|às)\s+(\d{1,2})\b", normalized)
+        if compact_match:
+            explicit_time = (int(compact_match.group(1)), 0)
+
+    if "amanha" in normalized:
+        hour, minute = explicit_time or (9, 0)
+        return (now + timedelta(days=1)).replace(hour=hour, minute=minute, second=0, microsecond=0)
+
+    if "hoje" in normalized:
+        hour, minute = explicit_time or (now.hour, now.minute)
+        candidate = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if candidate < now:
+            candidate = candidate + timedelta(days=1)
+        return candidate
+
+    weekday_match = re.search(
+        r"\b(segunda-feira|terca-feira|terça-feira|quarta-feira|quinta-feira|sexta-feira|sabado|sábado|domingo|segunda|terca|terça|quarta|quinta|sexta)\b",
+        normalized,
+    )
+    if weekday_match:
+        weekday_name = weekday_match.group(1)
+        target_weekday = _WEEKDAY_MAP.get(weekday_name)
+        if target_weekday is not None:
+            days_ahead = (target_weekday - now.weekday()) % 7
+            if days_ahead == 0:
+                days_ahead = 7
+            hour, minute = explicit_time or (9, 0)
+            return (now + timedelta(days=days_ahead)).replace(hour=hour, minute=minute, second=0, microsecond=0)
+
+    if explicit_time is not None:
+        hour, minute = explicit_time
+        candidate = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
         if candidate < now:
             candidate = candidate + timedelta(days=1)
         return candidate
@@ -155,7 +228,12 @@ def _extract_task_title(inbound_text: str) -> str:
     else:
         candidate = text
 
-    candidate = re.sub(r"\b(?:hoje|amanh[aã]|depois|às|as)\b.*$", "", candidate, flags=re.IGNORECASE).strip(" .:-")
+    candidate = re.sub(
+        r"\b(?:hoje|amanh[aã]|depois|às|as|segunda(?:-feira)?|ter[cç]a(?:-feira)?|quarta(?:-feira)?|quinta(?:-feira)?|sexta(?:-feira)?|s[áa]bado|domingo|daqui)\b.*$",
+        "",
+        candidate,
+        flags=re.IGNORECASE,
+    ).strip(" .:-")
     if not candidate:
         candidate = text[:120].strip()
     return candidate[:120] or "Tarefa automática"
