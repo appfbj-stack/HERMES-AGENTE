@@ -781,7 +781,13 @@ function CrmWhatsAppPage() {
   );
 }
 
-function MasterPage({ profile }: { profile: MeResponse }) {
+function MasterPage({
+  profile,
+  onProfileRefresh,
+}: {
+  profile: MeResponse;
+  onProfileRefresh: () => Promise<void>;
+}) {
   const [tenants, setTenants] = useState<AdminTenant[]>([]);
   const [savingTenantId, setSavingTenantId] = useState<number | null>(null);
   const [error, setError] = useState("");
@@ -861,6 +867,9 @@ function MasterPage({ profile }: { profile: MeResponse }) {
                           setError("");
                           try {
                             const updated = await updateAdminTenantModules(tenant.id, { crm: event.target.checked });
+                            if (updated.id === profile.tenant.id) {
+                              await onProfileRefresh();
+                            }
                             setTenants((current) =>
                               current.map((item) => (item.id === updated.id ? updated : item)),
                             );
@@ -885,6 +894,9 @@ function MasterPage({ profile }: { profile: MeResponse }) {
                           setError("");
                           try {
                             const updated = await updateAdminTenantModules(tenant.id, { whatsapp: event.target.checked });
+                            if (updated.id === profile.tenant.id) {
+                              await onProfileRefresh();
+                            }
                             setTenants((current) =>
                               current.map((item) => (item.id === updated.id ? updated : item)),
                             );
@@ -909,6 +921,9 @@ function MasterPage({ profile }: { profile: MeResponse }) {
                           setError("");
                           try {
                             const updated = await updateAdminTenantModules(tenant.id, { kanban: event.target.checked });
+                            if (updated.id === profile.tenant.id) {
+                              await onProfileRefresh();
+                            }
                             setTenants((current) =>
                               current.map((item) => (item.id === updated.id ? updated : item)),
                             );
@@ -933,6 +948,9 @@ function MasterPage({ profile }: { profile: MeResponse }) {
                           setError("");
                           try {
                             const updated = await updateAdminTenantModules(tenant.id, { agenda: event.target.checked });
+                            if (updated.id === profile.tenant.id) {
+                              await onProfileRefresh();
+                            }
                             setTenants((current) =>
                               current.map((item) => (item.id === updated.id ? updated : item)),
                             );
@@ -957,6 +975,9 @@ function MasterPage({ profile }: { profile: MeResponse }) {
                           setError("");
                           try {
                             const updated = await updateAdminTenantModules(tenant.id, { instagram: event.target.checked });
+                            if (updated.id === profile.tenant.id) {
+                              await onProfileRefresh();
+                            }
                             setTenants((current) =>
                               current.map((item) => (item.id === updated.id ? updated : item)),
                             );
@@ -981,6 +1002,9 @@ function MasterPage({ profile }: { profile: MeResponse }) {
                           setError("");
                           try {
                             const updated = await updateAdminTenantModules(tenant.id, { youtube: event.target.checked });
+                            if (updated.id === profile.tenant.id) {
+                              await onProfileRefresh();
+                            }
                             setTenants((current) =>
                               current.map((item) => (item.id === updated.id ? updated : item)),
                             );
@@ -1005,6 +1029,9 @@ function MasterPage({ profile }: { profile: MeResponse }) {
                           setError("");
                           try {
                             const updated = await updateAdminTenantModules(tenant.id, { content_publisher: event.target.checked });
+                            if (updated.id === profile.tenant.id) {
+                              await onProfileRefresh();
+                            }
                             setTenants((current) =>
                               current.map((item) => (item.id === updated.id ? updated : item)),
                             );
@@ -1056,6 +1083,11 @@ function ProtectedApp() {
       });
   }, []);
 
+  async function refreshProfile() {
+    const profileData = await me();
+    setProfile(profileData);
+  }
+
   useEffect(() => {
     if (!selectedChatId) return;
     getMessages(selectedChatId).then(setMessages).catch(() => setMessages([]));
@@ -1104,11 +1136,11 @@ function ProtectedApp() {
             )
           }
         />
-        <Route
-          path="/crm"
-          element={
-            <ModuleRoute enabled={profile.modules.crm}>
-              <CrmWorkspace profile={profile} />
+          <Route
+            path="/crm/*"
+            element={
+              <ModuleRoute enabled={profile.modules.crm}>
+                <CrmWorkspace profile={profile} />
             </ModuleRoute>
           }
         />
@@ -1160,7 +1192,7 @@ function ProtectedApp() {
             </ModuleRoute>
           }
         />
-        <Route path="/master" element={<MasterPage profile={profile} />} />
+        <Route path="/master" element={<MasterPage profile={profile} onProfileRefresh={refreshProfile} />} />
         <Route path="/leads" element={<TablePage title="Leads" rows={leads} render={(row) => [row.name, row.phone || "-", row.interest || "-", row.status]} />} />
         <Route path="/tasks" element={<TablePage title="Tarefas" rows={tasks} render={(row) => [row.title, row.description || "-", row.status, row.due_date || "-"]} />} />
         <Route path="/credits" element={<CreditsPage credits={credits} />} />

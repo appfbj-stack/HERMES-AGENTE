@@ -125,6 +125,7 @@ def create_tenant(
         remaining=payload.credits,
     )
     db.add(credit)
+    db.add(TenantModule(tenant_id=tenant.id))
 
     db.commit()
     db.refresh(tenant)
