@@ -88,6 +88,12 @@ Também aceita `content`, `answer` ou formato OpenAI compatível em `choices[0].
 
 Ver [docs/DEPLOY.md](docs/DEPLOY.md) para Coolify, Docker Compose e VPS.
 
+### Defaults de produção desta base
+
+- frontend consumindo a API por `VITE_API_BASE_URL=/api`
+- `nginx` do frontend fazendo proxy de `/api/*` para `backend:8000`
+- `PublicChat` usando o mesmo fallback `/api`, sem depender de `localhost`
+
 ## CRM Phase 1
 
 Esta base agora inclui a fundação do módulo CRM sem recriar autenticação, cobrança,

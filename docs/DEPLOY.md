@@ -69,10 +69,25 @@ Mapeamento:
 
 - `DATABASE_URL`
 - `JWT_SECRET`
-- `AI_PROVIDER`
-- `HERMES_AGENT_URL`
-- `DEEPSEEK_API_KEY`
 - `BOOTSTRAP_TOKEN`
+
+## Variáveis obrigatórias por provedor de IA
+
+- Se `AI_PROVIDER=hermes`:
+  - `HERMES_AGENT_URL`
+  - `HERMES_AGENT_PATH`
+- Se `AI_PROVIDER=deepseek`:
+  - `DEEPSEEK_API_KEY`
+  - `DEEPSEEK_BASE_URL`
+  - `DEEPSEEK_MODEL`
+
+## Variáveis recomendadas para produção
+
+- `VITE_API_BASE_URL=/api`
+- `PUBLIC_PANEL_URL=https://meuchat.fbautomacao.space`
+- `CORS_ORIGINS=["https://meuchat.fbautomacao.space","https://api.meuchat.fbautomacao.space"]`
+- `TELEGRAM_ADMIN_TOKEN`
+- `TELEGRAM_CLIENT_TOKEN` ou `TELEGRAM_BOT_TOKEN`
 
 ## Domínios
 
