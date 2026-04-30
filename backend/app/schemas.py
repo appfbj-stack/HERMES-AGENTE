@@ -1,6 +1,10 @@
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
+
+class ORMModel(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TokenResponse(BaseModel):
@@ -25,7 +29,7 @@ class BootstrapRequest(BaseModel):
     credits: int = 500
 
 
-class UserOut(BaseModel):
+class UserOut(ORMModel):
     id: int
     tenant_id: int
     name: str
@@ -33,11 +37,7 @@ class UserOut(BaseModel):
     role: str
     is_super_admin: bool = False
 
-    class Config:
-        from_attributes = True
-
-
-class TenantOut(BaseModel):
+class TenantOut(ORMModel):
     id: int
     name: str
     email: EmailStr
@@ -48,10 +48,6 @@ class TenantOut(BaseModel):
     bot_display_name: str | None = None
     welcome_message: str | None = None
     telegram_bot_username: str | None = None
-
-    class Config:
-        from_attributes = True
-
 
 class TenantModulesOut(BaseModel):
     crm: bool
@@ -82,10 +78,6 @@ class TenantAdminOut(TenantOut):
     instagram_enabled: bool = False
     youtube_enabled: bool = False
     content_publisher_enabled: bool = False
-
-    class Config:
-        from_attributes = True
-
 
 class TenantCreateAdmin(BaseModel):
     name: str
@@ -119,7 +111,7 @@ class CreditsAddRequest(BaseModel):
     amount: int = Field(gt=0)
 
 
-class PlanOut(BaseModel):
+class PlanOut(ORMModel):
     id: int
     code: str
     name: str
@@ -127,11 +119,7 @@ class PlanOut(BaseModel):
     price_cents: int
     description: str | None = None
 
-    class Config:
-        from_attributes = True
-
-
-class SubscriptionOut(BaseModel):
+class SubscriptionOut(ORMModel):
     id: int
     plan_id: int
     plan: PlanOut | None = None
@@ -140,11 +128,7 @@ class SubscriptionOut(BaseModel):
     last_paid_at: datetime | None = None
     asaas_subscription_id: str | None = None
 
-    class Config:
-        from_attributes = True
-
-
-class PaymentOut(BaseModel):
+class PaymentOut(ORMModel):
     id: int
     type: str
     value_cents: int
@@ -157,10 +141,6 @@ class PaymentOut(BaseModel):
     due_date: datetime | None
     paid_at: datetime | None
     created_at: datetime
-
-    class Config:
-        from_attributes = True
-
 
 class CreateSubscriptionRequest(BaseModel):
     plan_id: int
@@ -176,7 +156,7 @@ class BuyCreditsRequest(BaseModel):
     cpf_cnpj: str | None = None
 
 
-class ChatOut(BaseModel):
+class ChatOut(ORMModel):
     id: int
     channel: str
     contact_name: str | None
@@ -189,20 +169,12 @@ class ChatOut(BaseModel):
     assigned_user_id: int | None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
-
-
-class MessageOut(BaseModel):
+class MessageOut(ORMModel):
     id: int
     chat_id: int
     sender_type: str
     content: str
     created_at: datetime
-
-    class Config:
-        from_attributes = True
-
 
 class SendMessageRequest(BaseModel):
     content: str = Field(min_length=1)
@@ -233,7 +205,7 @@ class LeadUpdate(BaseModel):
     last_contact_at: datetime | None = None
 
 
-class LeadOut(BaseModel):
+class LeadOut(ORMModel):
     id: int
     tenant_id: int
     name: str
@@ -248,10 +220,6 @@ class LeadOut(BaseModel):
     last_contact_at: datetime | None = None
     created_at: datetime
     updated_at: datetime | None = None
-
-    class Config:
-        from_attributes = True
-
 
 class TaskCreate(BaseModel):
     title: str
@@ -273,7 +241,7 @@ class TaskUpdate(BaseModel):
     assigned_user_id: int | None = None
 
 
-class TaskOut(BaseModel):
+class TaskOut(ORMModel):
     id: int
     tenant_id: int
     title: str
@@ -286,18 +254,10 @@ class TaskOut(BaseModel):
     created_at: datetime
     updated_at: datetime | None = None
 
-    class Config:
-        from_attributes = True
-
-
-class CreditOut(BaseModel):
+class CreditOut(ORMModel):
     total: int
     used: int
     remaining: int
-
-    class Config:
-        from_attributes = True
-
 
 class AssignChatRequest(BaseModel):
     assigned_user_id: int
@@ -312,14 +272,10 @@ class CrmTagCreate(BaseModel):
     color: str | None = None
 
 
-class CrmTagOut(CrmTagCreate):
+class CrmTagOut(CrmTagCreate, ORMModel):
     id: int
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
-
 
 class CrmLeadBase(BaseModel):
     name: str
@@ -347,7 +303,7 @@ class CrmLeadUpdate(BaseModel):
     tag_ids: list[int] | None = None
 
 
-class CrmLeadOut(BaseModel):
+class CrmLeadOut(ORMModel):
     id: int
     tenant_id: int
     name: str
@@ -362,11 +318,7 @@ class CrmLeadOut(BaseModel):
     updated_at: datetime
     tags: list[CrmTagOut] = []
 
-    class Config:
-        from_attributes = True
-
-
-class CrmConversationOut(BaseModel):
+class CrmConversationOut(ORMModel):
     id: int
     lead_id: int | None
     chat_id: int | None
@@ -382,10 +334,6 @@ class CrmConversationOut(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-
-
 class CrmConversationStateUpdate(BaseModel):
     assigned_user_id: int | None = None
     ai_enabled: bool | None = None
@@ -396,7 +344,7 @@ class CrmConversationMessageCreate(BaseModel):
     content: str = Field(min_length=1)
 
 
-class CrmMessageOut(BaseModel):
+class CrmMessageOut(ORMModel):
     id: int
     conversation_id: int
     legacy_message_id: int | None
@@ -406,11 +354,7 @@ class CrmMessageOut(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-
-
-class CrmActivityLogOut(BaseModel):
+class CrmActivityLogOut(ORMModel):
     id: int
     tenant_id: int
     lead_id: int | None
@@ -421,11 +365,7 @@ class CrmActivityLogOut(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-
-
-class CrmKanbanColumnOut(BaseModel):
+class CrmKanbanColumnOut(ORMModel):
     id: int
     name: str
     position: int
@@ -433,10 +373,6 @@ class CrmKanbanColumnOut(BaseModel):
     is_default: bool
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
-
 
 class CrmKanbanColumnCreate(BaseModel):
     name: str
@@ -478,15 +414,11 @@ class CrmFollowUpUpdate(BaseModel):
     responsible_user_id: int | None = None
 
 
-class CrmFollowUpOut(CrmFollowUpCreate):
+class CrmFollowUpOut(CrmFollowUpCreate, ORMModel):
     id: int
     tenant_id: int
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
-
 
 class CrmTaskCreate(BaseModel):
     title: str
@@ -508,15 +440,11 @@ class CrmTaskUpdate(BaseModel):
     lead_id: int | None = None
 
 
-class CrmTaskOut(CrmTaskCreate):
+class CrmTaskOut(CrmTaskCreate, ORMModel):
     id: int
     tenant_id: int
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
-
 
 class CrmSettingsUpdate(BaseModel):
     column_names: list[str] | None = None
@@ -572,7 +500,7 @@ class CrmWhatsAppConnectionUpsert(BaseModel):
     webhook_url: str | None = None
 
 
-class CrmWhatsAppConnectionOut(BaseModel):
+class CrmWhatsAppConnectionOut(ORMModel):
     id: int
     tenant_id: int
     provider: str
@@ -588,10 +516,6 @@ class CrmWhatsAppConnectionOut(BaseModel):
     last_webhook_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
-
 
 class CrmWhatsAppStatusOut(BaseModel):
     status: str
@@ -697,7 +621,7 @@ class RoutineCancelRequest(BaseModel):
     job_id: str = Field(min_length=1)
 
 
-class SkillExecutionOut(BaseModel):
+class SkillExecutionOut(ORMModel):
     id: int
     tenant_id: int
     skill_name: str
@@ -709,10 +633,6 @@ class SkillExecutionOut(BaseModel):
     completed_at: datetime | None
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
-
 
 class SkillExecutionsListOut(BaseModel):
     executions: list[SkillExecutionOut]
@@ -747,7 +667,7 @@ class AdminTaskUpdate(BaseModel):
     due_date: datetime | None = None
 
 
-class AdminTaskOut(BaseModel):
+class AdminTaskOut(ORMModel):
     id: int
     title: str
     description: str | None
@@ -759,10 +679,6 @@ class AdminTaskOut(BaseModel):
     completed_at: datetime | None
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
-
 
 class AdminTaskListOut(BaseModel):
     tasks: list[AdminTaskOut]
@@ -784,7 +700,7 @@ class AdminProjectUpdate(BaseModel):
     due_date: datetime | None = None
 
 
-class AdminProjectOut(BaseModel):
+class AdminProjectOut(ORMModel):
     id: int
     name: str
     description: str | None
@@ -794,10 +710,6 @@ class AdminProjectOut(BaseModel):
     completed_at: datetime | None
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
-
 
 class AdminProjectListOut(BaseModel):
     projects: list[AdminProjectOut]
@@ -819,7 +731,7 @@ class AdminRoutineUpdate(BaseModel):
     is_active: bool | None = None
 
 
-class AdminRoutineOut(BaseModel):
+class AdminRoutineOut(ORMModel):
     id: int
     name: str
     description: str | None
@@ -830,10 +742,6 @@ class AdminRoutineOut(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
-
 
 class AdminRoutineListOut(BaseModel):
     routines: list[AdminRoutineOut]
@@ -854,7 +762,7 @@ class AdminMemoryUpdate(BaseModel):
     meta_data: str | None = None
 
 
-class AdminMemoryOut(BaseModel):
+class AdminMemoryOut(ORMModel):
     id: int
     category: str
     key: str
@@ -863,16 +771,12 @@ class AdminMemoryOut(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-
-
 class AdminMemoryListOut(BaseModel):
     memories: list[AdminMemoryOut]
     total: int
 
 
-class AdminActionLogOut(BaseModel):
+class AdminActionLogOut(ORMModel):
     id: int
     action: str
     entity_type: str
@@ -881,10 +785,6 @@ class AdminActionLogOut(BaseModel):
     performed_by_user_id: int | None
     tenant_id: int | None
     created_at: datetime
-
-    class Config:
-        from_attributes = True
-
 
 class AdminActionLogListOut(BaseModel):
     logs: list[AdminActionLogOut]
@@ -923,7 +823,7 @@ class AdminSkillUpdate(BaseModel):
     active: bool | None = None
 
 
-class AdminSkillOut(BaseModel):
+class AdminSkillOut(ORMModel):
     id: int
     name: str
     description: str | None
@@ -937,10 +837,6 @@ class AdminSkillOut(BaseModel):
     last_run_status: str | None
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
-
 
 class AdminSkillListOut(BaseModel):
     skills: list[AdminSkillOut]
