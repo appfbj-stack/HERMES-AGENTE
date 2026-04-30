@@ -42,6 +42,10 @@ def _slugify(text: str, max_len: int = 48) -> str:
     return (slug or "memoria")[:max_len].strip("-") or "memoria"
 
 
+def _memory_key_prefix(chat: Chat) -> str:
+    return f"chat:{chat.chat_external_id}:"
+
+
 def _extract_memory_text(inbound_text: str) -> str | None:
     text = inbound_text.strip()
     normalized = _normalize_text(text)
@@ -150,7 +154,7 @@ def maybe_save_memory(db: Session, tenant_id: int, chat: Chat, inbound_text: str
     if not memory_text:
         return None
 
-    memory_key = f"chat:{chat.chat_external_id}:{_slugify(memory_text)}"
+    memory_key = f"{_memory_key_prefix(chat)}{_slugify(memory_text)}"
     memory = (
         db.query(AssistantMemory)
         .filter(AssistantMemory.tenant_id == tenant_id, AssistantMemory.key == memory_key)
@@ -181,18 +185,34 @@ def build_context(
     )
     messages.reverse()  # cronológico de novo
 
-    memory = db.query(AssistantMemory).filter(AssistantMemory.tenant_id == tenant_id).all()
+    memory = (
+        db.query(AssistantMemory)
+        .filter(AssistantMemory.tenant_id == tenant_id)
+        .order_by(AssistantMemory.id.desc())
+        .limit(30)
+        .all()
+    )
 
     # Usa o system_prompt customizado do tenant se houver, senão default
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     base_prompt = tenant.system_prompt if tenant and tenant.system_prompt else DEFAULT_SYSTEM_PROMPT
 
-    memory_text = "\n".join(f"{item.key}: {item.value}" for item in memory) or "Sem memória adicional."
+    prefix = _memory_key_prefix(chat)
+    chat_memory = [item for item in memory if item.key.startswith(prefix)]
+    tenant_memory = [item for item in memory if not item.key.startswith(prefix)]
+
+    chat_memory_text = "\n".join(f"- {item.value}" for item in reversed(chat_memory[-8:])) or "Nenhuma memória desta conversa."
+    tenant_memory_text = "\n".join(f"- {item.key}: {item.value}" for item in reversed(tenant_memory[-10:])) or "Nenhuma memória geral do tenant."
 
     # Bloco CRM (vazio se CRM inativo ou lead não encontrado)
     crm_block = build_crm_context_block(db, tenant_id, lead)
 
-    system_content = f"{base_prompt}\n\nMemória do tenant:\n{memory_text}{crm_block}"
+    system_content = (
+        f"{base_prompt}\n\n"
+        f"Memória desta conversa/sessão:\n{chat_memory_text}\n\n"
+        f"Memória geral do tenant:\n{tenant_memory_text}"
+        f"{crm_block}"
+    )
 
     context: list[dict[str, str]] = [
         {"role": "system", "content": system_content}
@@ -263,6 +283,61 @@ def merge_automation_confirmations(reply_text: str, confirmations: list[str]) ->
     if not reply_text:
         return prefix
     return f"{prefix}\n\n{reply_text}"
+
+
+def maybe_handle_memory_query(db: Session, tenant_id: int, chat: Chat, inbound_text: str) -> str | None:
+    normalized = _normalize_text(inbound_text)
+    if not normalized:
+        return None
+
+    is_memory_query = any(
+        token in normalized
+        for token in (
+            "o que voce guardou",
+            "o que voce salvou",
+            "o que tem na memoria",
+            "quais memorias",
+            "quais memorias voce tem",
+            "me diga o que voce guardou",
+            "lembra do",
+            "lembra da",
+            "me lembra do",
+            "me lembra da",
+        )
+    )
+    if not is_memory_query:
+        return None
+
+    items = (
+        db.query(AssistantMemory)
+        .filter(
+            AssistantMemory.tenant_id == tenant_id,
+            AssistantMemory.key.like(f"{_memory_key_prefix(chat)}%"),
+        )
+        .order_by(AssistantMemory.id.desc())
+        .limit(20)
+        .all()
+    )
+    if not items:
+        return "Ainda não encontrei memórias salvas para esta conversa."
+
+    specific_match = re.search(
+        r"(?:lembra|memoria|memória).+?(?:do|da|de)\s+(.+)$",
+        inbound_text,
+        flags=re.IGNORECASE,
+    )
+    search_term = _normalize_text(specific_match.group(1).strip(" ?.!")) if specific_match else None
+
+    ordered_items = list(reversed(items))
+    if search_term:
+        ordered_items = [item for item in ordered_items if search_term in _normalize_text(item.value)]
+        if not ordered_items:
+            return "Não encontrei essa informação na memória desta conversa."
+
+    lines = ["🧠 O que está salvo nesta conversa:"]
+    for item in ordered_items[-8:]:
+        lines.append(f"- {item.value}")
+    return "\n".join(lines)
 
 
 def maybe_create_lead(db: Session, tenant_id: int, chat: Chat, inbound_text: str) -> None:

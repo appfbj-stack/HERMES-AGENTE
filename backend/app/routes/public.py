@@ -20,7 +20,13 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.models import Chat, Credit, Message, Tenant, UsageLog
-from app.services.agent import build_context, maybe_create_lead, merge_automation_confirmations, process_inbound_automation
+from app.services.agent import (
+    build_context,
+    maybe_create_lead,
+    maybe_handle_memory_query,
+    merge_automation_confirmations,
+    process_inbound_automation,
+)
 from app.services.deepseek import generate_reply
 
 router = APIRouter(prefix="/public", tags=["public"])
@@ -193,10 +199,14 @@ async def public_chat_send(
             blocked_reason="Sua mensagem foi recebida. Em breve um atendente humano responderá.",
         )
 
-    # Chama IA
-    context = build_context(db, tenant_id, chat)
-    reply_text, tokens_used = await generate_reply(context, tenant_id=tenant_id)
-    reply_text = merge_automation_confirmations(reply_text, automation_confirmations)
+    direct_memory_reply = maybe_handle_memory_query(db, tenant_id, chat, text)
+    tokens_used = 0
+    if direct_memory_reply is not None:
+        reply_text = merge_automation_confirmations(direct_memory_reply, automation_confirmations)
+    else:
+        context = build_context(db, tenant_id, chat)
+        reply_text, tokens_used = await generate_reply(context, tenant_id=tenant_id)
+        reply_text = merge_automation_confirmations(reply_text, automation_confirmations)
 
     bot_msg = Message(
         tenant_id=tenant_id,
