@@ -211,3 +211,62 @@ def admin_recovery(payload: AdminRecoveryRequest, db: Session = Depends(get_db))
 
     tenant.active = True
     user.is_super_admin = True
+    db.commit()
+    db.refresh(user)
+    db.refresh(tenant)
+
+    token = create_access_token(str(user.id), user.tenant_id)
+    return {
+        "success": True,
+        "message": "Admin recuperado. Use o access_token para entrar.",
+        "user_id": user.id,
+        "email": user.email,
+        "tenant_id": tenant.id,
+        "tenant_active": tenant.active,
+        "access_token": token,
+        "password_updated": bool(payload.new_password),
+    }
+
+
+@router.post("/logout")
+def logout(current_user: User = Depends(get_current_user)):
+    """Logout stateless para o frontend encerrar a sessao local."""
+    return {"success": True, "message": "Logout realizado com sucesso"}
+
+
+@router.get("/me", response_model=MeResponse)
+def me(
+    current_user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(get_current_tenant),
+    modules: TenantModule = Depends(get_current_modules),
+):
+    return MeResponse(
+        user=UserOut.model_validate(current_user),
+        tenant=TenantOut.model_validate(tenant),
+        modules=TenantModulesOut(
+            crm=modules.crm,
+            whatsapp=modules.whatsapp,
+            kanban=modules.kanban,
+            agenda=modules.agenda,
+            instagram=modules.instagram,
+            youtube=modules.youtube,
+            content_publisher=modules.content_publisher,
+        ),
+    )
+
+
+@router.get("/modules", response_model=TenantModulesOut)
+def get_modules(
+    current_user: User = Depends(get_current_user),
+    modules: TenantModule = Depends(get_current_modules),
+):
+    """Retorna apenas os modulos ativos do tenant atual."""
+    return TenantModulesOut(
+        crm=modules.crm,
+        whatsapp=modules.whatsapp,
+        kanban=modules.kanban,
+        agenda=modules.agenda,
+        instagram=modules.instagram,
+        youtube=modules.youtube,
+        content_publisher=modules.content_publisher,
+    )
