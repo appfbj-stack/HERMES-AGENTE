@@ -303,7 +303,23 @@ function LoginPage({ onLogged }: { onLogged: () => void }) {
   );
 }
 
-function DashboardPage({ chats, credits, leads, tasks }: { chats: Chat[]; credits?: Credit; leads: Lead[]; tasks: Task[] }) {
+function DashboardPage({
+  chats,
+  credits,
+  leads,
+  tasks,
+  clientProfile,
+  clientSkills,
+  clientSuggestions,
+}: {
+  chats: Chat[];
+  credits?: Credit;
+  leads: Lead[];
+  tasks: Task[];
+  clientProfile: ClientProfile | null;
+  clientSkills: ClientSkill[];
+  clientSuggestions: ClientSuggestion[];
+}) {
   const cards = [
     { label: "Conversas", value: chats.length },
     { label: "Leads", value: leads.length },
@@ -369,6 +385,9 @@ function ChatPage({
   chats,
   selectedChat,
   messages,
+  clientProfile,
+  clientSuggestions,
+  clientSkills,
   onSelectChat,
   onSendMessage,
   onToggleAi,
@@ -376,6 +395,9 @@ function ChatPage({
   chats: Chat[];
   selectedChat?: Chat;
   messages: Message[];
+  clientProfile: ClientProfile | null;
+  clientSuggestions: ClientSuggestion[];
+  clientSkills: ClientSkill[];
   onSelectChat: (chat: Chat) => void;
   onSendMessage: (content: string) => Promise<void>;
   onToggleAi: () => Promise<void>;
@@ -394,6 +416,17 @@ function ChatPage({
       <section className="overflow-hidden rounded-[32px] bg-white shadow-soft">
         <div className="border-b border-black/5 p-5">
           <input className="input" placeholder="Buscar contatos" />
+        </div>
+        <div className="border-b border-black/5 bg-panel/60 px-5 py-4">
+          <div className="text-xs uppercase tracking-[0.25em] text-slate-400">Hermes Cliente</div>
+          <div className="mt-2 text-sm text-slate-700">
+            {clientProfile?.tipo_negocio || "Perfil ainda não definido"} • automação {clientProfile?.nivel_automacao || "medio"}
+          </div>
+          <div className="mt-2 text-xs text-slate-500">
+            {clientSuggestions.filter((item) => !item.active).length > 0
+              ? `${clientSuggestions.filter((item) => !item.active).length} sugestão(ões) aguardando confirmação`
+              : `${clientSkills.filter((item) => item.ativa).length} skill(s) ativa(s)`}
+          </div>
         </div>
         <div className="overflow-y-auto">
           {chats.map((chat) => (
@@ -1812,21 +1845,30 @@ function ProtectedApp() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [credits, setCredits] = useState<Credit>();
+  const [clientProfile, setClientProfile] = useState<ClientProfile | null>(null);
+  const [clientSkills, setClientSkills] = useState<ClientSkill[]>([]);
+  const [clientSuggestions, setClientSuggestions] = useState<ClientSuggestion[]>([]);
 
   useEffect(() => {
     me()
       .then(async (profileData) => {
-        const [chatsData, creditsData, leadsData, tasksData] = await Promise.all([
+        const [chatsData, creditsData, leadsData, tasksData, clientProfileData, clientSkillsData, clientSuggestionsData] = await Promise.all([
           getChats(),
           getCredits(),
           profileData.modules.crm ? getLeads() : Promise.resolve([]),
           profileData.modules.crm ? getTasks() : Promise.resolve([]),
+          getClientProfile().catch(() => null),
+          getClientSkills().catch(() => []),
+          getClientSuggestions().catch(() => []),
         ]);
         setProfile(profileData);
         setChats(chatsData);
         setLeads(leadsData);
         setTasks(tasksData);
         setCredits(creditsData);
+        setClientProfile(clientProfileData);
+        setClientSkills(clientSkillsData);
+        setClientSuggestions(clientSuggestionsData);
         if (chatsData.length > 0) {
           setSelectedChatId(chatsData[0].id);
         }
@@ -1840,6 +1882,17 @@ function ProtectedApp() {
   async function refreshProfile() {
     const profileData = await me();
     setProfile(profileData);
+  }
+
+  async function refreshClientHermes() {
+    const [profileData, skillsData, suggestionsData] = await Promise.all([
+      getClientProfile().catch(() => null),
+      getClientSkills().catch(() => []),
+      getClientSuggestions().catch(() => []),
+    ]);
+    setClientProfile(profileData);
+    setClientSkills(skillsData);
+    setClientSuggestions(suggestionsData);
   }
 
   useEffect(() => {
@@ -1861,7 +1914,20 @@ function ProtectedApp() {
   return (
     <Layout profile={profile}>
       <Routes>
-        <Route path="/dashboard" element={<DashboardPage chats={chats} credits={credits} leads={leads} tasks={tasks} />} />
+        <Route
+          path="/dashboard"
+          element={
+            <DashboardPage
+              chats={chats}
+              credits={credits}
+              leads={leads}
+              tasks={tasks}
+              clientProfile={clientProfile}
+              clientSkills={clientSkills}
+              clientSuggestions={clientSuggestions}
+            />
+          }
+        />
         <Route
           path="/chat"
           element={
@@ -1872,6 +1938,9 @@ function ProtectedApp() {
                 chats={chats}
                 selectedChat={selectedChat}
                 messages={messages}
+                clientProfile={clientProfile}
+                clientSuggestions={clientSuggestions}
+                clientSkills={clientSkills}
                 onSelectChat={(chat) => setSelectedChatId(chat.id)}
                 onSendMessage={async (content) => {
                   if (!selectedChat) return;
@@ -1882,6 +1951,7 @@ function ProtectedApp() {
                   ]);
                   setMessages(items);
                   setTasks(nextTasks);
+                  await refreshClientHermes();
                   await refreshChats();
                   setCredits(await getCredits());
                 }}
