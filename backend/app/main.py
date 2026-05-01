@@ -570,6 +570,41 @@ def ensure_env_super_admin() -> None:
         logger.info("Seeded super_admin from environment for email=%s", settings.admin_email)
 
 
+def sync_env_super_admin() -> dict[str, object]:
+    if not settings.admin_email or not settings.admin_password:
+        return {"success": False, "detail": "ADMIN_EMAIL ou ADMIN_PASSWORD ausentes"}
+
+    ensure_env_super_admin()
+
+    with engine.begin() as conn:
+        row = conn.execute(
+            text(
+                """
+                SELECT u.id, u.email, u.role, u.is_super_admin, u.tenant_id, t.active
+                FROM users u
+                JOIN tenants t ON t.id = u.tenant_id
+                WHERE u.email = :email
+                ORDER BY u.id ASC
+                LIMIT 1
+                """
+            ),
+            {"email": settings.admin_email},
+        ).first()
+
+    if not row:
+        return {"success": False, "detail": "Usuário admin não foi encontrado após sincronização"}
+
+    return {
+        "success": True,
+        "email": row.email,
+        "user_id": row.id,
+        "tenant_id": row.tenant_id,
+        "role": row.role,
+        "is_super_admin": bool(row.is_super_admin),
+        "tenant_active": bool(row.active),
+    }
+
+
 @app.on_event("startup")
 def on_startup() -> None:
     Base.metadata.create_all(bind=engine)

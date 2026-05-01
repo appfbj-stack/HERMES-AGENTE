@@ -29,6 +29,10 @@ class BootstrapRequest(BaseModel):
     credits: int = 500
 
 
+class AdminSeedSyncRequest(BaseModel):
+    token: str
+
+
 class UserOut(ORMModel):
     id: int
     tenant_id: int

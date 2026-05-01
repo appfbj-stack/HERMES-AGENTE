@@ -2,10 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.config import get_settings
 from app.core.security import create_access_token, get_password_hash, verify_password
 from app.deps import get_current_modules, get_current_tenant, get_current_user
 from app.models import Credit, Tenant, TenantModule, User
-from app.schemas import BootstrapRequest, LoginRequest, MeResponse, TenantModulesOut, TenantOut, TokenResponse, UserOut
+from app.schemas import AdminSeedSyncRequest, BootstrapRequest, LoginRequest, MeResponse, TenantModulesOut, TenantOut, TokenResponse, UserOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -80,6 +81,16 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email ou senha inválidos")
 
     return TokenResponse(access_token=create_access_token(str(user.id), user.tenant_id))
+
+
+@router.post("/sync-admin-env")
+def sync_admin_env(payload: AdminSeedSyncRequest):
+    from app.main import sync_env_super_admin
+
+    settings = get_settings()
+    if payload.token != settings.bootstrap_token:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid bootstrap token")
+    return sync_env_super_admin()
 
 
 @router.post("/logout")
