@@ -484,10 +484,56 @@ def ensure_env_super_admin() -> None:
 
     with engine.begin() as conn:
         existing_user = conn.execute(
-            text("SELECT id FROM users WHERE email = :email LIMIT 1"),
+            text("SELECT id, tenant_id FROM users WHERE email = :email ORDER BY id ASC LIMIT 1"),
             {"email": settings.admin_email},
         ).first()
         if existing_user:
+            tenant_id = existing_user.tenant_id
+            conn.execute(
+                text(
+                    """
+                    UPDATE users
+                    SET password = :password, role = 'admin', is_super_admin = TRUE
+                    WHERE id = :user_id
+                    """
+                ),
+                {
+                    "user_id": existing_user.id,
+                    "password": get_password_hash(settings.admin_password),
+                },
+            )
+            conn.execute(
+                text(
+                    """
+                    UPDATE tenants
+                    SET active = TRUE
+                    WHERE id = :tenant_id
+                    """
+                ),
+                {"tenant_id": tenant_id},
+            )
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO credits (tenant_id, total, used, remaining)
+                    VALUES (:tenant_id, 1000, 0, 1000)
+                    ON CONFLICT (tenant_id) DO NOTHING
+                    """
+                ),
+                {"tenant_id": tenant_id},
+            )
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO tenant_modules (
+                        tenant_id, crm, whatsapp, kanban, agenda, instagram, youtube, content_publisher, created_at, updated_at
+                    )
+                    VALUES (:tenant_id, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    ON CONFLICT (tenant_id) DO NOTHING
+                    """
+                ),
+                {"tenant_id": tenant_id},
+            )
             return
 
         tenant_row = conn.execute(
@@ -539,7 +585,7 @@ def ensure_env_super_admin() -> None:
                 INSERT INTO tenant_modules (
                     tenant_id, crm, whatsapp, kanban, agenda, instagram, youtube, content_publisher, created_at, updated_at
                 )
-                VALUES (:tenant_id, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, NOW(), NOW())
+                VALUES (:tenant_id, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 ON CONFLICT (tenant_id) DO NOTHING
                 """
             ),

@@ -6,6 +6,7 @@ from fastapi import HTTPException
 
 from app.core.config import Settings
 from app.models import AssistantMemory, ClientMemory, ClientSkill, Message, Task, TenantModule
+from app import main as app_main
 from app.routes import public as public_routes
 from app.routes.admin import set_tenant_modules
 from app.routes.auth import login, logout
@@ -95,6 +96,42 @@ def test_settings_accept_legacy_auth_env_names():
     assert settings.access_token_expire_minutes == 30
     assert settings.admin_email == "admin@empresa.com"
     assert settings.admin_password == "Senha123!"
+
+
+def test_env_super_admin_seed_updates_existing_user_password_and_role(db_session, monkeypatch):
+    tenant = create_tenant(db_session, name="Admin Tenant", email="borgesjaf@gmail.com", active=False)
+    create_user(
+        db_session,
+        tenant_id=tenant.id,
+        name="Fernando",
+        email="borgesjaf@gmail.com",
+        password="SenhaAntiga123!",
+        role="agent",
+        is_super_admin=False,
+    )
+    db_session.commit()
+
+    monkeypatch.setattr(app_main, "engine", TestingSessionLocal.kw["bind"])
+    monkeypatch.setattr(
+        app_main,
+        "settings",
+        type(
+            "StubSettings",
+            (),
+            {"admin_email": "borgesjaf@gmail.com", "admin_password": "HermesAdmin@2026#Segura"},
+        )(),
+    )
+
+    app_main.ensure_env_super_admin()
+
+    refreshed_user = db_session.query(app_main.User).filter(app_main.User.email == "borgesjaf@gmail.com").first()
+    refreshed_tenant = db_session.query(app_main.Tenant).filter(app_main.Tenant.id == tenant.id).first()
+
+    assert refreshed_user is not None
+    assert refreshed_user.is_super_admin is True
+    assert refreshed_user.role == "admin"
+    assert refreshed_tenant is not None and refreshed_tenant.active is True
+    login(LoginRequest(email="borgesjaf@gmail.com", password="HermesAdmin@2026#Segura"), db=db_session)
 
 
 def test_hermes_automation_persists_memory_and_tasks_scoped_to_chat(db_session):
