@@ -82,6 +82,12 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     return TokenResponse(access_token=create_access_token(str(user.id), user.tenant_id))
 
 
+@router.post("/logout")
+def logout(current_user: User = Depends(get_current_user)):
+    """Logout stateless para o frontend encerrar a sessão local."""
+    return {"success": True, "message": "Logout realizado com sucesso"}
+
+
 @router.get("/me", response_model=MeResponse)
 def me(
     current_user: User = Depends(get_current_user),

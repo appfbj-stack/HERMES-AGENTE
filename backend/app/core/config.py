@@ -7,8 +7,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    database_url: str
-    jwt_secret: str
+    database_url: str = Field(validation_alias=AliasChoices("DATABASE_URL"))
+    jwt_secret: str = Field(validation_alias=AliasChoices("JWT_SECRET", "SECRET_KEY"))
     ai_provider: str = "hermes"
     hermes_agent_url: str = "https://apihermes.fbautomacao.space"
     hermes_agent_path: str = "/chat"
@@ -42,7 +42,10 @@ class Settings(BaseSettings):
     asaas_webhook_token: str = ""
     asaas_overdue_grace_days: int = 7
 
-    access_token_expire_minutes: int = 1440
+    access_token_expire_minutes: int = Field(
+        default=1440,
+        validation_alias=AliasChoices("ACCESS_TOKEN_EXPIRE_MINUTES", "JWT_EXPIRE_MINUTES"),
+    )
     bootstrap_token: str = "hermes-bootstrap"
     cors_origins: list[str] = Field(
         default_factory=lambda: ["http://localhost:5173", "http://localhost:8080"]
@@ -55,6 +58,8 @@ class Settings(BaseSettings):
     github_repo: str = ""
     social_files_path: str = "./social"
     admin_telegram_id: str = ""
+    admin_email: str = Field(default="", validation_alias=AliasChoices("ADMIN_EMAIL"))
+    admin_password: str = Field(default="", validation_alias=AliasChoices("ADMIN_PASSWORD"))
 
     log_level: str = "INFO"
 

@@ -4,10 +4,11 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from fastapi import HTTPException
 
+from app.core.config import Settings
 from app.models import AssistantMemory, Message, Task, TenantModule
 from app.routes import public as public_routes
 from app.routes.admin import set_tenant_modules
-from app.routes.auth import login
+from app.routes.auth import login, logout
 from app.routes.public import PublicSendRequest
 from app.schemas import LoginRequest, TenantModuleUpdate
 from app.services import task_reminders
@@ -65,6 +66,34 @@ def test_set_tenant_modules_updates_flags_for_tenant(db_session):
     assert modules.content_publisher is True
     assert response["crm_enabled"] is True
     assert response["content_publisher_enabled"] is True
+
+
+def test_logout_returns_success_for_authenticated_user(db_session):
+    tenant = create_tenant(db_session, name="Tenant Auth", email="auth@empresa.com")
+    user = create_user(db_session, tenant_id=tenant.id, name="Auth User", email="auth-user@empresa.com")
+    db_session.commit()
+
+    response = logout(current_user=user)
+
+    assert response["success"] is True
+    assert "Logout realizado" in response["message"]
+
+
+def test_settings_accept_legacy_auth_env_names():
+    settings = Settings.model_validate(
+        {
+            "DATABASE_URL": "sqlite://",
+            "SECRET_KEY": "legacy-secret-key-with-at-least-32-chars",
+            "JWT_EXPIRE_MINUTES": 30,
+            "ADMIN_EMAIL": "admin@empresa.com",
+            "ADMIN_PASSWORD": "Senha123!",
+        }
+    )
+
+    assert settings.jwt_secret == "legacy-secret-key-with-at-least-32-chars"
+    assert settings.access_token_expire_minutes == 30
+    assert settings.admin_email == "admin@empresa.com"
+    assert settings.admin_password == "Senha123!"
 
 
 def test_hermes_automation_persists_memory_and_tasks_scoped_to_chat(db_session):

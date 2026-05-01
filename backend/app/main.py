@@ -7,11 +7,13 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.core.config import get_settings
 from app.core.database import Base, engine
 from app.core.logging import get_logger, setup_logging
+from app.core.security import get_password_hash
 from app.middleware import (
     global_exception_handler,
     sqlalchemy_exception_handler,
     validation_exception_handler,
 )
+from app.models import Credit, Tenant, TenantModule, User
 from app.routes.admin import router as admin_router
 from app.routes.admin_hermes import router as admin_hermes_router
 from app.routes.auth import router as auth_router
@@ -437,6 +439,76 @@ MIGRATIONS = [
 ]
 
 
+def ensure_env_super_admin() -> None:
+    if not settings.admin_email or not settings.admin_password:
+        return
+
+    with engine.begin() as conn:
+        existing_user = conn.execute(
+            text("SELECT id FROM users WHERE email = :email LIMIT 1"),
+            {"email": settings.admin_email},
+        ).first()
+        if existing_user:
+            return
+
+        tenant_row = conn.execute(
+            text("SELECT id FROM tenants WHERE email = :email LIMIT 1"),
+            {"email": settings.admin_email},
+        ).first()
+
+        if tenant_row:
+            tenant_id = tenant_row.id
+        else:
+            tenant_id = conn.execute(
+                text(
+                    """
+                    INSERT INTO tenants (name, email, plan, active, created_at)
+                    VALUES (:name, :email, 'pro', TRUE, NOW())
+                    RETURNING id
+                    """
+                ),
+                {"name": "Admin Master", "email": settings.admin_email},
+            ).scalar_one()
+
+        conn.execute(
+            text(
+                """
+                INSERT INTO users (tenant_id, name, email, password, role, is_super_admin, created_at)
+                VALUES (:tenant_id, :name, :email, :password, 'admin', TRUE, NOW())
+                """
+            ),
+            {
+                "tenant_id": tenant_id,
+                "name": "Admin Master",
+                "email": settings.admin_email,
+                "password": get_password_hash(settings.admin_password),
+            },
+        )
+        conn.execute(
+            text(
+                """
+                INSERT INTO credits (tenant_id, total, used, remaining)
+                VALUES (:tenant_id, 1000, 0, 1000)
+                ON CONFLICT (tenant_id) DO NOTHING
+                """
+            ),
+            {"tenant_id": tenant_id},
+        )
+        conn.execute(
+            text(
+                """
+                INSERT INTO tenant_modules (
+                    tenant_id, crm, whatsapp, kanban, agenda, instagram, youtube, content_publisher, created_at, updated_at
+                )
+                VALUES (:tenant_id, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, NOW(), NOW())
+                ON CONFLICT (tenant_id) DO NOTHING
+                """
+            ),
+            {"tenant_id": tenant_id},
+        )
+        logger.info("Seeded super_admin from environment for email=%s", settings.admin_email)
+
+
 @app.on_event("startup")
 def on_startup() -> None:
     Base.metadata.create_all(bind=engine)
@@ -446,6 +518,7 @@ def on_startup() -> None:
                 conn.execute(text(sql))
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Migration skipped: %s... -> %s", sql[:60], exc)
+    ensure_env_super_admin()
     start_due_task_reminder_scheduler()
 
 
