@@ -917,4 +917,15 @@ class AdminSkillRunRequest(BaseModel):
 
 class AdminSkillRunResponse(BaseModel):
     skill_id: int
-    skill_na
+    skill_name: str
+    status: str
+    result: str | None
+    error: str | None
+    execution_time: float
+    executed_at: datetime
+
+
+class SkillSuggestionResponse(BaseModel):
+    suggestion: AdminSkillCreate
+    confidence: float
+    reason: str
