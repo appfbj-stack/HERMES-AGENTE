@@ -134,6 +134,36 @@ def test_env_super_admin_seed_updates_existing_user_password_and_role(db_session
     login(LoginRequest(email="borgesjaf@gmail.com", password="HermesAdmin@2026#Segura"), db=db_session)
 
 
+def test_login_env_super_admin_fallback_rehashes_mismatched_password(db_session, monkeypatch):
+    tenant = create_tenant(db_session, name="Admin Tenant", email="admin-tenant@empresa.com", active=True)
+    create_user(
+        db_session,
+        tenant_id=tenant.id,
+        name="Fernando",
+        email="fernandojaborges@gmail.com",
+        password="OutraSenha123!",
+        role="admin",
+        is_super_admin=True,
+    )
+    db_session.commit()
+
+    monkeypatch.setattr(
+        "app.routes.auth.get_settings",
+        lambda: type(
+            "StubSettings",
+            (),
+            {"admin_email": "fernandojaborges@gmail.com", "admin_password": "HermesAdmin@2026#Segura"},
+        )(),
+    )
+
+    response = login(LoginRequest(email="fernandojaborges@gmail.com", password="HermesAdmin@2026#Segura"), db=db_session)
+    refreshed_user = db_session.query(app_main.User).filter(app_main.User.email == "fernandojaborges@gmail.com").first()
+
+    assert response.access_token
+    assert refreshed_user is not None
+    assert login(LoginRequest(email="fernandojaborges@gmail.com", password="HermesAdmin@2026#Segura"), db=db_session)
+
+
 def test_hermes_automation_persists_memory_and_tasks_scoped_to_chat(db_session):
     tenant = create_tenant(db_session, name="Tenant", email="tenant@empresa.com")
     chat_a = create_chat(db_session, tenant_id=tenant.id, external_id="sessao-a")

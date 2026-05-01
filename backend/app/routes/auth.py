@@ -46,6 +46,7 @@ def bootstrap(payload: BootstrapRequest, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
+    settings = get_settings()
     user = None
     if payload.tenant_email:
         tenant = db.query(Tenant).filter(Tenant.email == payload.tenant_email).first()
@@ -77,7 +78,25 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
             if inactive_user:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant inactive")
 
-    if not user or not verify_password(payload.password, user.password):
+    password_valid = bool(user) and verify_password(payload.password, user.password)
+
+    # Recovery path for the env-seeded super admin if the stored hash drifted.
+    if (
+        user
+        and not password_valid
+        and user.is_super_admin
+        and settings.admin_email.strip()
+        and settings.admin_password.strip()
+        and user.email == settings.admin_email.strip()
+        and payload.password == settings.admin_password.strip()
+    ):
+        user.password = get_password_hash(settings.admin_password.strip())
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        password_valid = True
+
+    if not user or not password_valid:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email ou senha inválidos")
 
     return TokenResponse(access_token=create_access_token(str(user.id), user.tenant_id))
