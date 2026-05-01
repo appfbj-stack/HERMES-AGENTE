@@ -119,6 +119,7 @@ export default function KanbanPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
+  const [seedError, setSeedError] = useState("");
   const draggingId = useRef<number | null>(null);
 
   async function load() {
@@ -134,17 +135,31 @@ export default function KanbanPage() {
 
   useEffect(() => { load(); }, []);
 
-  async function seedDefaultColumns() {
+  async function seedDefaultColumns(silent = false) {
+    if (seeding) return;
     setSeeding(true);
+    if (!silent) {
+      setSeedError("");
+    }
     try {
       for (const col of DEFAULT_COLUMNS) {
         await createKanbanColumn(col);
       }
       await load();
+    } catch (err) {
+      if (!silent) {
+        setSeedError(err instanceof Error ? err.message : "Falha ao criar colunas padrão");
+      }
     } finally {
       setSeeding(false);
     }
   }
+
+  useEffect(() => {
+    if (!loading && columns.length === 0 && !seeding) {
+      seedDefaultColumns(true);
+    }
+  }, [columns.length, loading, seeding]);
 
   async function handleDrop(columnId: number) {
     const id = draggingId.current;
@@ -183,12 +198,13 @@ export default function KanbanPage() {
           Crie as colunas padrão para começar a organizar seus leads visualmente.
         </p>
         <button
-          onClick={seedDefaultColumns}
+          onClick={() => seedDefaultColumns()}
           disabled={seeding}
           className="rounded-full bg-violet-600 px-6 py-2.5 font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
         >
-          {seeding ? "Criando colunas..." : "✨ Criar colunas padrão"}
+          {seeding ? "Criando colunas..." : "Criar colunas padrão"}
         </button>
+        {seedError ? <div className="text-sm text-red-600">{seedError}</div> : null}
       </div>
     );
   }
