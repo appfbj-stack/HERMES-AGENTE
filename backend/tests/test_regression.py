@@ -10,6 +10,7 @@ from app import main as app_main
 from app.routes import public as public_routes
 from app.routes import health as health_routes
 from app.routes import webhook as webhook_routes
+from app.routes import admin_hermes as admin_hermes_routes
 from app.routes.admin import list_tenants, set_tenant_modules
 from app.routes.auth import login, logout
 from app.routes.client import activate_client_skill_route, create_client_skill, get_client_profile, list_client_skills, list_client_suggestions, toggle_client_skill, update_client_profile
@@ -235,6 +236,37 @@ def test_list_tenants_returns_admin_module_flags_for_super_admin(db_session):
     assert target_payload["whatsapp_enabled"] is True
     assert target_payload["whatsapp_evolution_enabled"] is True
     assert target_payload["kanban_enabled"] is True
+
+
+def test_hermes_admin_chat_accepts_authenticated_super_admin(db_session, monkeypatch):
+    admin_tenant = create_tenant(db_session, name="Admin", email="admin-hermes@empresa.com")
+    admin_user = create_user(
+        db_session,
+        tenant_id=admin_tenant.id,
+        name="Super",
+        email="super-hermes@empresa.com",
+        is_super_admin=True,
+    )
+    db_session.commit()
+
+    class FakeHermesAdminService:
+        def __init__(self, db):
+            self.db = db
+
+        async def chat(self, user, message):
+            return {"response": f"echo:{message}"}
+
+    monkeypatch.setattr(admin_hermes_routes, "HermesAdminService", FakeHermesAdminService)
+
+    response = asyncio.run(
+        admin_hermes_routes.hermes_chat(
+            payload=type("Payload", (), {"message": "oi"})(),
+            db=db_session,
+            user=admin_user,
+        )
+    )
+
+    assert response["response"] == "echo:oi"
 
 
 def test_logout_returns_success_for_authenticated_user(db_session):
