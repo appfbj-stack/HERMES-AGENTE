@@ -7,7 +7,7 @@ from app.core.config import get_settings
 from app.core.security import create_access_token, get_password_hash, verify_password
 from app.deps import get_current_modules, get_current_tenant, get_current_user
 from app.models import Credit, Tenant, TenantModule, User
-from app.schemas import AdminSeedSyncRequest, BootstrapRequest, LoginRequest, MeResponse, TenantModulesOut, TenantOut, TokenResponse, UserOut
+from app.schemas import AdminRecoveryRequest, AdminSeedSyncRequest, BootstrapRequest, LoginRequest, MeResponse, TenantModulesOut, TenantOut, TokenResponse, UserOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -50,7 +50,7 @@ def _get_active_user_by_email(db: Session, email: str) -> User | None:
     if len(users) > 1:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Esse email existe em mais de uma empresa. Informe também o email da empresa.",
+            detail="Esse email existe em mais de uma empresa. Informe tambem o email da empresa.",
         )
     return users[0] if users else None
 
@@ -77,7 +77,7 @@ def bootstrap(payload: BootstrapRequest, db: Session = Depends(get_db)):
         email=payload.user_email,
         password=get_password_hash(payload.password),
         role="admin",
-        is_super_admin=True,  # primeiro user = dono do SaaS
+        is_super_admin=True,
     )
     db.add(user)
     db.add(Credit(tenant_id=tenant.id, total=payload.credits, used=0, remaining=payload.credits))
@@ -107,7 +107,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         if tenant and not tenant.active:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant inactive")
         if not tenant:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email da empresa não encontrado")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email da empresa nao encontrado")
         user = db.query(User).filter(User.tenant_id == tenant.id, func.lower(User.email) == email).first()
     else:
         user = _get_active_user_by_email(db, email)
@@ -152,7 +152,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         password_valid = True
 
     if not user or not password_valid:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email ou senha inválidos")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email ou senha invalidos")
 
     return TokenResponse(access_token=create_access_token(str(user.id), user.tenant_id))
 
@@ -167,45 +167,47 @@ def sync_admin_env(payload: AdminSeedSyncRequest):
     return sync_env_super_admin()
 
 
-@router.post("/logout")
-def logout(current_user: User = Depends(get_current_user)):
-    """Logout stateless para o frontend encerrar a sessão local."""
-    return {"success": True, "message": "Logout realizado com sucesso"}
+@router.post("/admin-recovery")
+def admin_recovery(payload: AdminRecoveryRequest, db: Session = Depends(get_db)):
+    """
+    Recuperacao de acesso super admin usando apenas o BOOTSTRAP_TOKEN.
+    Ativa o tenant, garante is_super_admin=True e opcionalmente redefine a senha.
+    So funciona se ja existir pelo menos um usuario admin no banco.
+    """
+    settings = get_settings()
+    if payload.token != settings.bootstrap_token:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Token invalido")
 
-
-@router.get("/me", response_model=MeResponse)
-def me(
-    current_user: User = Depends(get_current_user),
-    tenant: Tenant = Depends(get_current_tenant),
-    modules: TenantModule = Depends(get_current_modules),
-):
-    return MeResponse(
-        user=UserOut.model_validate(current_user),
-        tenant=TenantOut.model_validate(tenant),
-        modules=TenantModulesOut(
-            crm=modules.crm,
-            whatsapp=modules.whatsapp,
-            kanban=modules.kanban,
-            agenda=modules.agenda,
-            instagram=modules.instagram,
-            youtube=modules.youtube,
-            content_publisher=modules.content_publisher,
-        ),
+    # Busca o super admin mais antigo (independente de tenant estar ativo)
+    user = (
+        db.query(User)
+        .filter(User.is_super_admin.is_(True))
+        .order_by(User.id.asc())
+        .first()
     )
 
+    # Se nao encontrou por is_super_admin, tenta o primeiro usuario com role admin
+    if not user:
+        user = (
+            db.query(User)
+            .filter(User.role == "admin")
+            .order_by(User.id.asc())
+            .first()
+        )
 
-@router.get("/modules", response_model=TenantModulesOut)
-def get_modules(
-    current_user: User = Depends(get_current_user),
-    modules: TenantModule = Depends(get_current_modules),
-):
-    """Retorna apenas os módulos ativos do tenant atual."""
-    return TenantModulesOut(
-        crm=modules.crm,
-        whatsapp=modules.whatsapp,
-        kanban=modules.kanban,
-        agenda=modules.agenda,
-        instagram=modules.instagram,
-        youtube=modules.youtube,
-        content_publisher=modules.content_publisher,
-    )
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Nenhum usuario admin encontrado no banco",
+        )
+
+    # Ativa o tenant do admin
+    tenant = db.query(Tenant).filter(Tenant.id == user.tenant_id).first()
+    if not tenant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tenant do admin nao encontrado",
+        )
+
+    tenant.active = True
+    user.is_super_admin = True

@@ -40,6 +40,11 @@ class AdminSeedSyncRequest(BaseModel):
     token: str
 
 
+class AdminRecoveryRequest(BaseModel):
+    token: str
+    new_password: str | None = None
+
+
 class UserOut(ORMModel):
     id: int
     tenant_id: int
@@ -912,15 +917,4 @@ class AdminSkillRunRequest(BaseModel):
 
 class AdminSkillRunResponse(BaseModel):
     skill_id: int
-    skill_name: str
-    status: str
-    result: str | None
-    error: str | None
-    execution_time: float
-    executed_at: datetime
-
-
-class SkillSuggestionResponse(BaseModel):
-    suggestion: AdminSkillCreate
-    confidence: float
-    reason: str
+    skill_na
