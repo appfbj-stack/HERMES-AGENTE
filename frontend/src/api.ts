@@ -44,13 +44,18 @@ function getToken() {
   return localStorage.getItem("hermes_token");
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+type RequestOptions = RequestInit & {
+  skipAuth?: boolean;
+};
+
+async function request<T>(path: string, init?: RequestOptions): Promise<T> {
   const token = getToken();
+  const skipAuth = init?.skipAuth;
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(!skipAuth && token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init?.headers || {}),
     },
   });
@@ -68,9 +73,20 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export async function login(email: string, password: string, tenant_email?: string) {
+  const cleanEmail = email.trim();
+  const cleanTenantEmail = tenant_email?.trim();
+  const payload: Record<string, string> = {
+    email: cleanEmail,
+    password,
+  };
+  if (cleanTenantEmail) {
+    payload.tenant_email = cleanTenantEmail;
+  }
+
   return request<LoginResponse>("/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email, password, tenant_email: tenant_email || null }),
+    body: JSON.stringify(payload),
+    skipAuth: true,
   });
 }
 

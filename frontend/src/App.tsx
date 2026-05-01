@@ -219,7 +219,8 @@ function LoginPage({ onLogged }: { onLogged: () => void }) {
     setLoading(true);
 
     try {
-      const result = await login(email, password, tenantEmail.trim() || undefined);
+      localStorage.removeItem("hermes_token");
+      const result = await login(email.trim(), password, tenantEmail.trim() || undefined);
       localStorage.setItem("hermes_token", result.access_token);
       onLogged();
     } catch (err) {
