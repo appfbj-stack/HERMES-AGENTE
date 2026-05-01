@@ -522,18 +522,6 @@ def ensure_env_super_admin() -> None:
                 ),
                 {"tenant_id": tenant_id},
             )
-            conn.execute(
-                text(
-                    """
-                    INSERT INTO tenant_modules (
-                        tenant_id, crm, whatsapp, kanban, agenda, instagram, youtube, content_publisher, created_at, updated_at
-                    )
-                    VALUES (:tenant_id, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                    ON CONFLICT (tenant_id) DO NOTHING
-                    """
-                ),
-                {"tenant_id": tenant_id},
-            )
             return
 
         tenant_row = conn.execute(
@@ -579,29 +567,19 @@ def ensure_env_super_admin() -> None:
             ),
             {"tenant_id": tenant_id},
         )
-        conn.execute(
-            text(
-                """
-                INSERT INTO tenant_modules (
-                    tenant_id, crm, whatsapp, kanban, agenda, instagram, youtube, content_publisher, created_at, updated_at
-                )
-                VALUES (:tenant_id, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                ON CONFLICT (tenant_id) DO NOTHING
-                """
-            ),
-            {"tenant_id": tenant_id},
-        )
         logger.info("Seeded super_admin from environment for email=%s", settings.admin_email)
 
 
 @app.on_event("startup")
 def on_startup() -> None:
     Base.metadata.create_all(bind=engine)
-    with engine.begin() as conn:
+    with engine.connect() as conn:
         for sql in MIGRATIONS:
             try:
                 conn.execute(text(sql))
+                conn.commit()
             except Exception as exc:  # noqa: BLE001
+                conn.rollback()
                 logger.warning("Migration skipped: %s... -> %s", sql[:60], exc)
     ensure_env_super_admin()
     start_due_task_reminder_scheduler()
