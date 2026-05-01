@@ -5,7 +5,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.core.config import Settings
-from app.models import AssistantMemory, Message, Task, TenantModule
+from app.models import AssistantMemory, ClientMemory, ClientSkill, Message, Task, TenantModule
 from app.routes import public as public_routes
 from app.routes.admin import set_tenant_modules
 from app.routes.auth import login, logout
@@ -129,6 +129,64 @@ def test_hermes_automation_persists_memory_and_tasks_scoped_to_chat(db_session):
     assert task_reply is not None and "ajustar o CRM" in task_reply
     assert other_chat_task_reply == "Ainda não encontrei tarefas ou lembretes salvos para esta conversa."
     assert task is not None and task.due_date is not None
+
+
+def test_client_memory_is_isolated_per_tenant(db_session):
+    tenant_a = create_tenant(db_session, name="Tenant A", email="ta@empresa.com")
+    tenant_b = create_tenant(db_session, name="Tenant B", email="tb@empresa.com")
+    chat_a = create_chat(db_session, tenant_id=tenant_a.id, external_id="sessao-a")
+    chat_b = create_chat(db_session, tenant_id=tenant_b.id, external_id="sessao-b")
+
+    process_inbound_automation(db_session, tenant_a.id, chat_a, "preciso fazer follow-up com os leads")
+    process_inbound_automation(db_session, tenant_a.id, chat_a, "vou agendar reunião com os clientes")
+    process_inbound_automation(db_session, tenant_b.id, chat_b, "respondo à noite")
+    db_session.commit()
+
+    tenant_a_memory = db_session.query(ClientMemory).filter(ClientMemory.tenant_id == tenant_a.id).all()
+    tenant_b_memory = db_session.query(ClientMemory).filter(ClientMemory.tenant_id == tenant_b.id).all()
+
+    assert any(item.chave == "followup_mentions" for item in tenant_a_memory)
+    assert all(item.chave != "horario_resposta" for item in tenant_a_memory)
+    assert any(item.chave == "horario_resposta" for item in tenant_b_memory)
+    assert all(item.tenant_id == tenant_a.id for item in tenant_a_memory)
+    assert all(item.tenant_id == tenant_b.id for item in tenant_b_memory)
+
+
+def test_hermes_learns_patterns_and_suggests_without_auto_activating_skills(db_session):
+    tenant = create_tenant(db_session, name="Tenant Learn", email="learn@empresa.com")
+    chat = create_chat(db_session, tenant_id=tenant.id, external_id="sessao-learn")
+
+    confirmations_1 = process_inbound_automation(db_session, tenant.id, chat, "preciso fazer follow-up do lead 1")
+    confirmations_2 = process_inbound_automation(db_session, tenant.id, chat, "vamos fazer follow-up do lead 2")
+    confirmations_3 = process_inbound_automation(db_session, tenant.id, chat, "mais um follow-up para amanhã")
+    db_session.commit()
+
+    followup_counter = (
+        db_session.query(ClientMemory)
+        .filter(
+            ClientMemory.tenant_id == tenant.id,
+            ClientMemory.tipo == "comportamento",
+            ClientMemory.chave == "followup_mentions",
+        )
+        .first()
+    )
+    suggestion_marker = (
+        db_session.query(ClientMemory)
+        .filter(
+            ClientMemory.tenant_id == tenant.id,
+            ClientMemory.tipo == "insight",
+            ClientMemory.chave == "suggestion:follow_up_automatico",
+        )
+        .first()
+    )
+    skills = db_session.query(ClientSkill).filter(ClientSkill.tenant_id == tenant.id).all()
+
+    assert all("follow-up automático" not in item for item in confirmations_1)
+    assert all("follow-up automático" not in item for item in confirmations_2)
+    assert any("follow-up automático" in item for item in confirmations_3)
+    assert followup_counter is not None and "\"count\":3" in followup_counter.valor
+    assert suggestion_marker is not None
+    assert skills == []
 
 
 def test_public_chat_send_returns_hermes_reply_and_persists_messages(db_session, monkeypatch):

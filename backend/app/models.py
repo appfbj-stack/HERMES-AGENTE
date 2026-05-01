@@ -133,6 +133,41 @@ class AssistantMemory(Base):
     __table_args__ = (UniqueConstraint("tenant_id", "key", name="uq_memory_tenant_key"),)
 
 
+class ClientMemory(Base, TimestampMixin):
+    __tablename__ = "client_memory"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    tipo: Mapped[str] = mapped_column(String(50), index=True)
+    chave: Mapped[str] = mapped_column(String(100))
+    valor: Mapped[str] = mapped_column(Text)
+
+    __table_args__ = (UniqueConstraint("tenant_id", "tipo", "chave", name="uq_client_memory_tenant_type_key"),)
+
+
+class ClientProfile(Base, TimestampMixin):
+    __tablename__ = "client_profile"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), unique=True, index=True)
+    tipo_negocio: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    objetivo: Mapped[str | None] = mapped_column(Text, nullable=True)
+    horario_funcionamento: Mapped[str | None] = mapped_column(Text, nullable=True)
+    preferencias: Mapped[str | None] = mapped_column(Text, nullable=True)
+    nivel_automacao: Mapped[str] = mapped_column(String(20), default="medio")
+
+
+class ClientSkill(Base, TimestampMixin):
+    __tablename__ = "client_skills"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    nome_skill: Mapped[str] = mapped_column(String(120))
+    descricao: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ativa: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    configuracao: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
 class Credit(Base):
     __tablename__ = "credits"
 

@@ -436,6 +436,44 @@ MIGRATIONS = [
     """CREATE INDEX IF NOT EXISTS ix_social_posts_status ON social_posts(status)""",
     """CREATE INDEX IF NOT EXISTS ix_social_posts_scheduled_at ON social_posts(scheduled_at)""",
     """CREATE INDEX IF NOT EXISTS ix_social_posts_created_at ON social_posts(created_at DESC)""",
+    # ===== Hermes Client Learning =====
+    """CREATE TABLE IF NOT EXISTS client_memory (
+        id SERIAL PRIMARY KEY,
+        tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        tipo VARCHAR(50) NOT NULL,
+        chave VARCHAR(100) NOT NULL,
+        valor TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        CONSTRAINT uq_client_memory_tenant_type_key UNIQUE (tenant_id, tipo, chave)
+    )""",
+    """CREATE TABLE IF NOT EXISTS client_profile (
+        id SERIAL PRIMARY KEY,
+        tenant_id INTEGER NOT NULL UNIQUE REFERENCES tenants(id) ON DELETE CASCADE,
+        tipo_negocio VARCHAR(120),
+        objetivo TEXT,
+        horario_funcionamento TEXT,
+        preferencias TEXT,
+        nivel_automacao VARCHAR(20) NOT NULL DEFAULT 'medio',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+    )""",
+    """CREATE TABLE IF NOT EXISTS client_skills (
+        id SERIAL PRIMARY KEY,
+        tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        nome_skill VARCHAR(120) NOT NULL,
+        descricao TEXT,
+        ativa BOOLEAN NOT NULL DEFAULT FALSE,
+        configuracao TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+    )""",
+    """CREATE INDEX IF NOT EXISTS ix_client_memory_tenant_id ON client_memory(tenant_id)""",
+    """CREATE INDEX IF NOT EXISTS ix_client_memory_tipo ON client_memory(tipo)""",
+    """CREATE INDEX IF NOT EXISTS ix_client_memory_updated_at ON client_memory(updated_at DESC)""",
+    """CREATE INDEX IF NOT EXISTS ix_client_profile_tenant_id ON client_profile(tenant_id)""",
+    """CREATE INDEX IF NOT EXISTS ix_client_skills_tenant_id ON client_skills(tenant_id)""",
+    """CREATE INDEX IF NOT EXISTS ix_client_skills_ativa ON client_skills(ativa)""",
 ]
 
 

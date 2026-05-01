@@ -1,3 +1,4 @@
+import json
 import re
 import unicodedata
 from datetime import datetime, timedelta, timezone
@@ -5,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.models import AssistantMemory, Chat, Lead, Message, Task, Tenant
+from app.models import AssistantMemory, Chat, ClientMemory, ClientProfile, ClientSkill, Lead, Message, Task, Tenant
 from app.services.crm_agent import build_crm_context_block
 
 
@@ -75,6 +76,80 @@ def _task_notify_key_prefix(task_id: int) -> str:
 
 def _is_internal_memory_key(key: str) -> bool:
     return key.startswith("taskref:") or key.startswith("tasknotify:")
+
+
+def _load_json_blob(raw_value: str | None) -> object | None:
+    if not raw_value:
+        return None
+    try:
+        return json.loads(raw_value)
+    except json.JSONDecodeError:
+        return raw_value
+
+
+def _dump_json_blob(value: object) -> str:
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+
+def _get_client_memory_record(db: Session, tenant_id: int, tipo: str, chave: str) -> ClientMemory | None:
+    return (
+        db.query(ClientMemory)
+        .filter(ClientMemory.tenant_id == tenant_id, ClientMemory.tipo == tipo, ClientMemory.chave == chave)
+        .first()
+    )
+
+
+def _upsert_client_memory(db: Session, tenant_id: int, tipo: str, chave: str, value: object) -> ClientMemory:
+    record = _get_client_memory_record(db, tenant_id, tipo, chave)
+    payload = _dump_json_blob(value)
+    if not record:
+        record = ClientMemory(tenant_id=tenant_id, tipo=tipo, chave=chave, valor=payload)
+        db.add(record)
+        db.flush()
+    else:
+        record.valor = payload
+    return record
+
+
+def _increment_client_counter(db: Session, tenant_id: int, tipo: str, chave: str) -> int:
+    record = _get_client_memory_record(db, tenant_id, tipo, chave)
+    current_value = _load_json_blob(record.valor) if record else None
+    if not isinstance(current_value, dict):
+        current_value = {"count": 0}
+    count = int(current_value.get("count", 0)) + 1
+    current_value["count"] = count
+    _upsert_client_memory(db, tenant_id, tipo, chave, current_value)
+    return count
+
+
+def _has_active_client_skill(db: Session, tenant_id: int, nome_skill: str) -> bool:
+    return (
+        db.query(ClientSkill)
+        .filter(ClientSkill.tenant_id == tenant_id, ClientSkill.nome_skill == nome_skill, ClientSkill.ativa.is_(True))
+        .first()
+        is not None
+    )
+
+
+def _emit_client_suggestion_once(
+    db: Session,
+    tenant_id: int,
+    suggestion_key: str,
+    suggestion_text: str,
+) -> str | None:
+    if _has_active_client_skill(db, tenant_id, suggestion_key):
+        return None
+    marker = _get_client_memory_record(db, tenant_id, "insight", f"suggestion:{suggestion_key}")
+    if marker is not None:
+        return None
+    _upsert_client_memory(
+        db,
+        tenant_id,
+        "insight",
+        f"suggestion:{suggestion_key}",
+        {"suggested_at": _utcnow().isoformat(), "message": suggestion_text},
+    )
+    return suggestion_text
 
 
 def _extract_memory_text(inbound_text: str) -> str | None:
@@ -300,11 +375,58 @@ def build_context(
     chat_memory_text = "\n".join(f"- {item.value}" for item in reversed(chat_memory[-8:])) or "Nenhuma memória desta conversa."
     tenant_memory_text = "\n".join(f"- {item.key}: {item.value}" for item in reversed(tenant_memory[-10:])) or "Nenhuma memória geral do tenant."
 
+    client_profile = db.query(ClientProfile).filter(ClientProfile.tenant_id == tenant_id).first()
+    client_profile_lines: list[str] = []
+    if client_profile:
+        if client_profile.tipo_negocio:
+            client_profile_lines.append(f"- Tipo de negócio: {client_profile.tipo_negocio}")
+        if client_profile.objetivo:
+            client_profile_lines.append(f"- Objetivo: {client_profile.objetivo}")
+        if client_profile.horario_funcionamento:
+            client_profile_lines.append(f"- Horário: {client_profile.horario_funcionamento}")
+        if client_profile.preferencias:
+            client_profile_lines.append(f"- Preferências: {client_profile.preferencias}")
+        client_profile_lines.append(f"- Nível de automação: {client_profile.nivel_automacao}")
+    client_profile_text = "\n".join(client_profile_lines) or "Nenhum perfil estratégico do cliente cadastrado."
+
+    client_memory_items = (
+        db.query(ClientMemory)
+        .filter(ClientMemory.tenant_id == tenant_id)
+        .order_by(ClientMemory.updated_at.desc())
+        .limit(12)
+        .all()
+    )
+    client_memory_lines: list[str] = []
+    for item in reversed(client_memory_items):
+        parsed = _load_json_blob(item.valor)
+        if item.tipo == "comportamento" and isinstance(parsed, dict) and "count" in parsed:
+            client_memory_lines.append(f"- {item.tipo}/{item.chave}: observado {parsed['count']} vez(es)")
+        elif item.tipo == "preferencia":
+            client_memory_lines.append(f"- {item.tipo}/{item.chave}: {parsed}")
+        elif item.tipo == "insight" and isinstance(parsed, dict) and "message" in parsed:
+            client_memory_lines.append(f"- sugestão registrada: {parsed['message']}")
+    client_memory_text = "\n".join(client_memory_lines) or "Nenhuma memória estratégica do tenant."
+
+    active_client_skills = (
+        db.query(ClientSkill)
+        .filter(ClientSkill.tenant_id == tenant_id, ClientSkill.ativa.is_(True))
+        .order_by(ClientSkill.created_at.desc())
+        .limit(8)
+        .all()
+    )
+    active_client_skills_text = (
+        "\n".join(f"- {item.nome_skill}: {item.descricao or 'Skill ativa'}" for item in active_client_skills)
+        or "Nenhuma skill automática ativa para este cliente."
+    )
+
     # Bloco CRM (vazio se CRM inativo ou lead não encontrado)
     crm_block = build_crm_context_block(db, tenant_id, lead)
 
     system_content = (
         f"{base_prompt}\n\n"
+        f"Perfil estratégico do cliente:\n{client_profile_text}\n\n"
+        f"Aprendizados estratégicos do tenant:\n{client_memory_text}\n\n"
+        f"Skills ativas do cliente:\n{active_client_skills_text}\n\n"
         f"Memória desta conversa/sessão:\n{chat_memory_text}\n\n"
         f"Memória geral do tenant:\n{tenant_memory_text}"
         f"{crm_block}"
@@ -368,6 +490,48 @@ def maybe_create_task(db: Session, tenant_id: int, chat: Chat, inbound_text: str
     return task
 
 
+def observe_client_patterns(db: Session, tenant_id: int, inbound_text: str) -> list[str]:
+    normalized = _normalize_text(inbound_text)
+    suggestions: list[str] = []
+
+    if any(token in normalized for token in ("follow-up", "follow up", "followup", "retorno", "retornar")):
+        count = _increment_client_counter(db, tenant_id, "comportamento", "followup_mentions")
+        if count >= 3:
+            suggestion = _emit_client_suggestion_once(
+                db,
+                tenant_id,
+                "follow_up_automatico",
+                "💡 Sugestão: percebi muitos follow-ups. Posso criar uma rotina de follow-up automático se você confirmar.",
+            )
+            if suggestion:
+                suggestions.append(suggestion)
+
+    if any(token in normalized for token in ("agendar", "agenda", "reuniao", "reunião", "seminario", "seminário", "horario", "horário")):
+        count = _increment_client_counter(db, tenant_id, "comportamento", "scheduling_mentions")
+        if count >= 3:
+            suggestion = _emit_client_suggestion_once(
+                db,
+                tenant_id,
+                "agenda_automatica",
+                "💡 Sugestão: percebi muitos agendamentos. Posso criar uma rotina de agenda automática se você confirmar.",
+            )
+            if suggestion:
+                suggestions.append(suggestion)
+
+    if any(token in normalized for token in ("respondo tarde", "respondo a noite", "respondo à noite", "so vejo depois", "só vejo depois", "atendo a noite", "atendo à noite")):
+        _upsert_client_memory(db, tenant_id, "preferencia", "horario_resposta", {"periodo": "noite"})
+        suggestion = _emit_client_suggestion_once(
+            db,
+            tenant_id,
+            "resposta_automatica_fora_do_horario",
+            "💡 Sugestão: notei que você costuma responder mais tarde. Posso preparar uma rotina de resposta automática fora do horário, se você confirmar.",
+        )
+        if suggestion:
+            suggestions.append(suggestion)
+
+    return suggestions
+
+
 def process_inbound_automation(db: Session, tenant_id: int, chat: Chat, inbound_text: str) -> list[str]:
     confirmations: list[str] = []
 
@@ -378,6 +542,8 @@ def process_inbound_automation(db: Session, tenant_id: int, chat: Chat, inbound_
     task = maybe_create_task(db, tenant_id, chat, inbound_text)
     if task is not None:
         confirmations.append(f"✅ Tarefa criada: {task.title}")
+
+    confirmations.extend(observe_client_patterns(db, tenant_id, inbound_text))
 
     return confirmations
 
