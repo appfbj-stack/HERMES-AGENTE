@@ -6,6 +6,7 @@ from app.core.database import get_db
 from app.core.security import decode_token
 from app.models import Credit, Tenant, TenantModule, User
 from app.services.crm import ensure_crm_defaults, get_or_create_tenant_module
+from app.services.modules import module_enabled
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
@@ -46,7 +47,7 @@ def get_current_modules(db: Session = Depends(get_db), tenant: Tenant = Depends(
 
 
 def has_module(modules: TenantModule, module_key: str) -> bool:
-    return bool(getattr(modules, module_key, False))
+    return module_enabled(modules, module_key)
 
 
 def tenant_has_module(db: Session, tenant_id: int, module_key: str) -> bool:

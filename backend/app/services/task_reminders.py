@@ -5,7 +5,7 @@ import schedule
 
 from app.core.database import SessionLocal
 from app.core.logging import get_logger
-from app.models import AssistantMemory, Chat, CrmWhatsAppConnection, Message, Task
+from app.models import AgentReminder, AssistantMemory, Chat, CrmWhatsAppConnection, Message, Task
 from app.services.agent import find_task_refs, mark_task_reminder_sent, task_reminder_already_sent
 from app.services.scheduler import start_scheduler
 from app.services.telegram import send_telegram_message
@@ -129,6 +129,52 @@ def process_due_task_reminders() -> None:
 
             if delivered:
                 mark_task_reminder_sent(db, task.tenant_id, task.id, "delivered")
+                db.commit()
+
+        due_reminders = (
+            db.query(AgentReminder)
+            .filter(
+                AgentReminder.remind_at <= now,
+                AgentReminder.status.in_(["pending", "scheduled"]),
+            )
+            .order_by(AgentReminder.remind_at.asc())
+            .all()
+        )
+
+        for reminder in due_reminders:
+            if reminder.chat_id is None:
+                continue
+            chat = (
+                db.query(Chat)
+                .filter(Chat.id == reminder.chat_id, Chat.tenant_id == reminder.tenant_id)
+                .first()
+            )
+            if not chat:
+                continue
+
+            reminder_text = f"⏰ Lembrete: {reminder.title}"
+            try:
+                delivered = asyncio.run(_deliver_task_reminder(db, Task(tenant_id=reminder.tenant_id, title=reminder.title), chat, reminder_text))
+            except RuntimeError:
+                logger.exception(
+                    "Runtime failure delivering agent reminder reminder_id=%s tenant_id=%s chat_id=%s",
+                    reminder.id,
+                    reminder.tenant_id,
+                    chat.id,
+                )
+                continue
+            except ValueError:
+                logger.exception(
+                    "Value failure delivering agent reminder reminder_id=%s tenant_id=%s chat_id=%s",
+                    reminder.id,
+                    reminder.tenant_id,
+                    chat.id,
+                )
+                continue
+
+            if delivered:
+                reminder.status = "sent"
+                reminder.sent_at = now
                 db.commit()
     finally:
         db.close()

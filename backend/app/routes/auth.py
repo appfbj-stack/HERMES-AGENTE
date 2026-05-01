@@ -8,6 +8,7 @@ from app.core.security import create_access_token, get_password_hash, verify_pas
 from app.deps import get_current_modules, get_current_tenant, get_current_user
 from app.models import Credit, Tenant, TenantModule, User
 from app.schemas import AdminRecoveryRequest, AdminSeedSyncRequest, BootstrapRequest, LoginRequest, MeResponse, TenantModulesOut, TenantOut, TokenResponse, UserOut
+from app.services.modules import build_modules_out
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -211,6 +212,21 @@ def admin_recovery(payload: AdminRecoveryRequest, db: Session = Depends(get_db))
 
     tenant.active = True
     user.is_super_admin = True
+    user.role = "admin"
+
+    # Garante creditos minimos
+    credit = db.query(Credit).filter(Credit.tenant_id == tenant.id).first()
+    if not credit:
+        db.add(Credit(tenant_id=tenant.id, total=1000, used=0, remaining=1000))
+
+    # Atualiza senha se fornecida
+    if payload.new_password:
+        if len(payload.new_password) < 6:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Senha minima de 6 caracteres",
+            )
+        user.password = get_password_hash(payload.new_password)
     db.commit()
     db.refresh(user)
     db.refresh(tenant)
@@ -243,15 +259,7 @@ def me(
     return MeResponse(
         user=UserOut.model_validate(current_user),
         tenant=TenantOut.model_validate(tenant),
-        modules=TenantModulesOut(
-            crm=modules.crm,
-            whatsapp=modules.whatsapp,
-            kanban=modules.kanban,
-            agenda=modules.agenda,
-            instagram=modules.instagram,
-            youtube=modules.youtube,
-            content_publisher=modules.content_publisher,
-        ),
+        modules=build_modules_out(modules),
     )
 
 
@@ -261,12 +269,4 @@ def get_modules(
     modules: TenantModule = Depends(get_current_modules),
 ):
     """Retorna apenas os modulos ativos do tenant atual."""
-    return TenantModulesOut(
-        crm=modules.crm,
-        whatsapp=modules.whatsapp,
-        kanban=modules.kanban,
-        agenda=modules.agenda,
-        instagram=modules.instagram,
-        youtube=modules.youtube,
-        content_publisher=modules.content_publisher,
-    )
+    return build_modules_out(modules)

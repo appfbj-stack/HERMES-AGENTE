@@ -272,8 +272,10 @@ export type AdminTenant = {
   credits_remaining?: number;
   crm_enabled: boolean;
   whatsapp_enabled: boolean;
+  whatsapp_evolution_enabled: boolean;
   kanban_enabled: boolean;
   agenda_enabled: boolean;
+  followup_enabled: boolean;
   instagram_enabled: boolean;
   youtube_enabled: boolean;
   content_publisher_enabled: boolean;
@@ -351,6 +353,18 @@ export type LoginResponse = {
   token_type: string;
 };
 
+export type TenantModules = {
+  crm: boolean;
+  whatsapp: boolean;
+  whatsapp_evolution: boolean;
+  kanban: boolean;
+  agenda: boolean;
+  followup: boolean;
+  instagram: boolean;
+  youtube: boolean;
+  content_publisher: boolean;
+};
+
 export type MeResponse = {
   user: {
     id: number;
@@ -367,15 +381,7 @@ export type MeResponse = {
     plan: string;
     active: boolean;
   };
-  modules: {
-    crm: boolean;
-    whatsapp: boolean;
-    kanban: boolean;
-    agenda: boolean;
-    instagram: boolean;
-    youtube: boolean;
-    content_publisher: boolean;
-  };
+  modules: TenantModules;
 };
 
 

@@ -5,12 +5,15 @@ import pytest
 from fastapi import HTTPException
 
 from app.core.config import Settings
-from app.models import AssistantMemory, ClientMemory, ClientSkill, Message, Task, TenantModule
+from app.models import AgentAppointment, AgentReminder, AssistantMemory, ClientMemory, ClientSkill, CrmWhatsAppConnection, Message, Task, TenantModule
 from app import main as app_main
 from app.routes import public as public_routes
-from app.routes.admin import set_tenant_modules
+from app.routes import health as health_routes
+from app.routes import webhook as webhook_routes
+from app.routes.admin import list_tenants, set_tenant_modules
 from app.routes.auth import login, logout
 from app.routes.client import activate_client_skill_route, create_client_skill, get_client_profile, list_client_skills, list_client_suggestions, toggle_client_skill, update_client_profile
+from app.routes.messages import send_message
 from app.routes.public import PublicSendRequest
 from app.schemas import ClientProfileUpdate, ClientSkillActivationRequest, ClientSkillCreate, ClientSkillToggleRequest, LoginRequest, TenantModuleUpdate
 from app.services import task_reminders
@@ -20,8 +23,44 @@ from app.services.agent import (
     process_inbound_automation,
     task_reminder_already_sent,
 )
+from app.services.telegram import send_telegram_message
 
 from conftest import TestingSessionLocal, create_chat, create_tenant, create_user
+
+
+class _FakeConnection:
+    def __init__(self, should_fail: bool = False):
+        self.should_fail = should_fail
+        self.executed: list[str] = []
+        self.rollbacks = 0
+        self.commits = 0
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def execute(self, statement):
+        sql = str(statement)
+        self.executed.append(sql)
+        if self.should_fail and "FAIL SQL" in sql:
+            raise RuntimeError("boom")
+        return 1
+
+    def commit(self):
+        self.commits += 1
+
+    def rollback(self):
+        self.rollbacks += 1
+
+
+class _FakeEngine:
+    def __init__(self, connection: _FakeConnection):
+        self.connection = connection
+
+    def connect(self):
+        return self.connection
 
 
 def test_login_requires_tenant_email_when_same_email_exists_in_multiple_tenants(db_session):
@@ -39,6 +78,102 @@ def test_login_requires_tenant_email_when_same_email_exists_in_multiple_tenants(
 
     assert exc_info.value.status_code == 400
     assert "mais de uma empresa" in exc_info.value.detail
+
+
+def test_run_startup_migrations_raises_on_first_failure(monkeypatch):
+    connection = _FakeConnection(should_fail=True)
+
+    monkeypatch.setattr(app_main, "engine", _FakeEngine(connection))
+    monkeypatch.setattr(app_main, "MIGRATIONS", ["SELECT 1", "FAIL SQL", "SELECT 2"])
+
+    with pytest.raises(RuntimeError) as exc_info:
+        app_main.run_startup_migrations()
+
+    assert "Startup migrations failed" in str(exc_info.value)
+    assert connection.commits == 2
+    assert connection.rollbacks == 1
+
+
+def test_health_reports_database_check(monkeypatch):
+    connection = _FakeConnection()
+
+    monkeypatch.setattr(health_routes, "engine", _FakeEngine(connection))
+
+    payload = health_routes.health()
+
+    assert payload["status"] == "ok"
+    assert payload["database"] == "ok"
+    assert connection.executed
+
+
+def test_resolve_tenant_id_ignores_inactive_tenant_fallbacks(db_session):
+    inactive_tenant = create_tenant(db_session, name="Inactive", email="inactive@empresa.com", active=False)
+    inactive_tenant.telegram_bot_token = "tenant-token-inactive"
+    db_session.commit()
+
+    by_query = webhook_routes._resolve_tenant_id(
+        db_session,
+        chat_external_id="telegram-user-1",
+        inbound_text="oi",
+        bot_token_received=None,
+        fallback_query=inactive_tenant.id,
+    )
+    by_token = webhook_routes._resolve_tenant_id(
+        db_session,
+        chat_external_id="telegram-user-1",
+        inbound_text="oi",
+        bot_token_received="tenant-token-inactive",
+        fallback_query=None,
+    )
+
+    assert by_query is None
+    assert by_token is None
+
+
+def test_generic_telegram_webhook_rejects_admin_tokens(db_session, monkeypatch):
+    monkeypatch.setattr(
+        "app.services.telegram.get_settings",
+        lambda: type(
+            "StubSettings",
+            (),
+            {
+                "telegram_admin_token": "admin-token",
+                "hermes_master_bot_token": "master-token",
+            },
+        )(),
+    )
+    monkeypatch.setattr(
+        webhook_routes,
+        "get_settings",
+        lambda: type(
+            "StubSettings",
+            (),
+            {
+                "max_input_chars": 800,
+                "hermes_master_bot_token": "master-token",
+            },
+        )(),
+    )
+
+    payload = {
+        "message": {
+            "text": "oi",
+            "chat": {"id": 123},
+            "from": {"id": 123, "first_name": "Admin"},
+        }
+    }
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            webhook_routes.telegram_webhook(
+                payload=payload,
+                bot_token="admin-token",
+                x_telegram_bot_api_secret_token=None,
+                db=db_session,
+            )
+        )
+
+    assert exc_info.value.status_code == 401
 
 
 def test_login_request_accepts_blank_tenant_email_as_none():
@@ -74,6 +209,32 @@ def test_set_tenant_modules_updates_flags_for_tenant(db_session):
     assert modules.content_publisher is True
     assert response["crm_enabled"] is True
     assert response["content_publisher_enabled"] is True
+
+
+def test_list_tenants_returns_admin_module_flags_for_super_admin(db_session):
+    admin_tenant = create_tenant(db_session, name="Admin", email="admin-master@empresa.com")
+    admin_user = create_user(
+        db_session,
+        tenant_id=admin_tenant.id,
+        name="Super",
+        email="super-master@empresa.com",
+        is_super_admin=True,
+    )
+    target_tenant = create_tenant(
+        db_session,
+        name="Cliente CRM",
+        email="cliente-crm@empresa.com",
+        modules={"crm": True, "whatsapp": True, "kanban": True},
+    )
+    db_session.commit()
+
+    response = list_tenants(_=admin_user, db=db_session)
+    target_payload = next(item for item in response if item["id"] == target_tenant.id)
+
+    assert target_payload["crm_enabled"] is True
+    assert target_payload["whatsapp_enabled"] is True
+    assert target_payload["whatsapp_evolution_enabled"] is True
+    assert target_payload["kanban_enabled"] is True
 
 
 def test_logout_returns_success_for_authenticated_user(db_session):
@@ -322,7 +483,7 @@ def test_hermes_automation_persists_memory_and_tasks_scoped_to_chat(db_session):
         chat_a,
         "guarde que o seminário de missões é dia 16/05",
     )
-    confirmations_task = process_inbound_automation(
+    confirmations_reminder = process_inbound_automation(
         db_session,
         tenant.id,
         chat_a,
@@ -335,15 +496,44 @@ def test_hermes_automation_persists_memory_and_tasks_scoped_to_chat(db_session):
     task_reply = maybe_handle_task_query(db_session, tenant.id, chat_a, "quais tarefas")
     other_chat_task_reply = maybe_handle_task_query(db_session, tenant.id, chat_b, "quais tarefas")
 
-    task = db_session.query(Task).filter(Task.tenant_id == tenant.id).first()
+    reminder = db_session.query(AgentReminder).filter(AgentReminder.tenant_id == tenant.id).first()
 
     assert any("Salvo na memória" in item for item in confirmations_memory)
-    assert any("Tarefa criada" in item for item in confirmations_task)
+    assert any("Lembrete criado" in item for item in confirmations_reminder)
     assert memory_reply is not None and "seminário de missões" in memory_reply
     assert other_chat_memory_reply == "Ainda não encontrei memórias salvas para esta conversa."
     assert task_reply is not None and "ajustar o CRM" in task_reply
     assert other_chat_task_reply == "Ainda não encontrei tarefas ou lembretes salvos para esta conversa."
+    assert reminder is not None and reminder.remind_at is not None
+
+
+def test_hermes_automation_creates_task_and_appointment_formally(db_session):
+    tenant = create_tenant(db_session, name="Tenant Ops", email="ops@empresa.com")
+    chat = create_chat(db_session, tenant_id=tenant.id, external_id="sessao-ops")
+
+    confirmations_task = process_inbound_automation(
+        db_session,
+        tenant.id,
+        chat,
+        "preciso ajustar o CRM hoje às 18:00",
+    )
+    confirmations_appointment = process_inbound_automation(
+        db_session,
+        tenant.id,
+        chat,
+        "agendar reunião com o cliente amanhã às 10:00",
+    )
+    db_session.commit()
+
+    task = db_session.query(Task).filter(Task.tenant_id == tenant.id).first()
+    appointment = db_session.query(AgentAppointment).filter(AgentAppointment.tenant_id == tenant.id).first()
+    task_reply = maybe_handle_task_query(db_session, tenant.id, chat, "o que está agendado")
+
+    assert any("Tarefa criada" in item for item in confirmations_task)
+    assert any("Agendamento registrado" in item for item in confirmations_appointment)
     assert task is not None and task.due_date is not None
+    assert appointment is not None and appointment.scheduled_at is not None
+    assert task_reply is not None and "agendamento:" in task_reply
 
 
 def test_client_memory_is_isolated_per_tenant(db_session):
@@ -565,3 +755,103 @@ def test_due_task_reminder_creates_message_and_marks_task_as_notified(db_session
         assert task_reminder_already_sent(refreshed_session, tenant.id, task.id) is True
     finally:
         refreshed_session.close()
+
+
+def test_due_agent_reminder_creates_message_and_marks_reminder_as_sent(db_session, monkeypatch):
+    tenant = create_tenant(db_session, name="Tenant Agent Reminder", email="agent-reminder@empresa.com")
+    chat = create_chat(db_session, tenant_id=tenant.id, external_id="sessao-agent-reminder", channel="web")
+    reminder = AgentReminder(
+        tenant_id=tenant.id,
+        chat_id=chat.id,
+        title="Enviar proposta",
+        remind_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+        status="pending",
+    )
+    db_session.add(reminder)
+    db_session.commit()
+
+    monkeypatch.setattr(task_reminders, "SessionLocal", TestingSessionLocal)
+    task_reminders.process_due_task_reminders()
+
+    refreshed_session = TestingSessionLocal()
+    try:
+        reminder_message = (
+            refreshed_session.query(Message)
+            .filter(Message.chat_id == chat.id, Message.sender_type == "assistant")
+            .order_by(Message.id.desc())
+            .first()
+        )
+        refreshed_reminder = refreshed_session.query(AgentReminder).filter(AgentReminder.id == reminder.id).first()
+        assert reminder_message is not None
+        assert "⏰ Lembrete: Enviar proposta" in reminder_message.content
+        assert refreshed_reminder is not None
+        assert refreshed_reminder.status == "sent"
+        assert refreshed_reminder.sent_at is not None
+    finally:
+        refreshed_session.close()
+
+
+def test_send_message_uses_telegram_channel_only_for_telegram_chat(db_session, monkeypatch):
+    tenant = create_tenant(db_session, name="Tenant Telegram", email="telegram@empresa.com", credits=10)
+    user = create_user(db_session, tenant_id=tenant.id, name="Admin", email="telegram-user@empresa.com")
+    chat = create_chat(db_session, tenant_id=tenant.id, external_id="telegram-chat", channel="telegram")
+    db_session.commit()
+
+    calls: list[tuple[str, str]] = []
+
+    async def fake_send(chat_external_id: str, text: str, **kwargs):
+        calls.append((chat_external_id, text))
+
+    monkeypatch.setattr("app.routes.messages.send_telegram_message", fake_send)
+
+    response = asyncio.run(
+        send_message(
+            chat.id,
+            payload=type("Payload", (), {"content": "Olá Telegram"})(),
+            db=db_session,
+            current_user=user,
+            credit=db_session.query(app_main.Credit).filter(app_main.Credit.tenant_id == tenant.id).first(),
+        )
+    )
+
+    assert response.content == "Olá Telegram"
+    assert calls == [("telegram-chat", "Olá Telegram")]
+
+
+def test_send_message_uses_whatsapp_provider_for_whatsapp_chat(db_session, monkeypatch):
+    tenant = create_tenant(db_session, name="Tenant WhatsApp", email="whatsapp@empresa.com", credits=10)
+    user = create_user(db_session, tenant_id=tenant.id, name="Admin", email="whatsapp-user@empresa.com")
+    chat = create_chat(db_session, tenant_id=tenant.id, external_id="5511999999999", channel="whatsapp")
+    db_session.add(
+        CrmWhatsAppConnection(
+            tenant_id=tenant.id,
+            provider="evolution_go",
+            instance_name="tenant-whatsapp",
+            api_base_url="https://evolution.example.com",
+            api_key="secret",
+            status="connected",
+        )
+    )
+    db_session.commit()
+
+    sent_payloads: list[tuple[str, str]] = []
+
+    class FakeProvider:
+        async def send_text(self, connection, number: str, text: str):
+            sent_payloads.append((number, text))
+            return {"success": True}
+
+    monkeypatch.setattr("app.routes.messages.get_provider", lambda connection: FakeProvider())
+
+    response = asyncio.run(
+        send_message(
+            chat.id,
+            payload=type("Payload", (), {"content": "Olá WhatsApp"})(),
+            db=db_session,
+            current_user=user,
+            credit=db_session.query(app_main.Credit).filter(app_main.Credit.tenant_id == tenant.id).first(),
+        )
+    )
+
+    assert response.content == "Olá WhatsApp"
+    assert sent_payloads == [("5511999999999", "Olá WhatsApp")]

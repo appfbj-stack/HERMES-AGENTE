@@ -29,6 +29,7 @@ from app.routes.messages import router as messages_router
 from app.routes.public import router as public_router
 from app.routes.tasks import router as tasks_router
 from app.routes.telegram_admin import router as telegram_admin_router
+from app.routes.tenant import router as tenant_router
 from app.routes.tools import router as tools_router
 from app.routes.webhook import router as webhook_router
 from app.services.task_reminders import start_due_task_reminder_scheduler
@@ -62,6 +63,13 @@ def _normalize_env_value(value: str | None) -> str:
 
 def _normalized_admin_credentials() -> tuple[str, str]:
     return _normalize_env_value(settings.admin_email).lower(), _normalize_env_value(settings.admin_password)
+
+
+def _sql_snippet(sql: str, limit: int = 120) -> str:
+    compact = " ".join(sql.split())
+    if len(compact) <= limit:
+        return compact
+    return f"{compact[: limit - 3]}..."
 
 
 # Migrações leves (idempotentes) — adicionam colunas novas em DBs existentes.
@@ -448,6 +456,47 @@ MIGRATIONS = [
     """CREATE INDEX IF NOT EXISTS ix_social_posts_status ON social_posts(status)""",
     """CREATE INDEX IF NOT EXISTS ix_social_posts_scheduled_at ON social_posts(scheduled_at)""",
     """CREATE INDEX IF NOT EXISTS ix_social_posts_created_at ON social_posts(created_at DESC)""",
+    # ===== Hermes persistence =====
+    """CREATE TABLE IF NOT EXISTS assistant_memory (
+        id SERIAL PRIMARY KEY,
+        tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        key VARCHAR(255) NOT NULL,
+        value TEXT NOT NULL,
+        CONSTRAINT uq_memory_tenant_key UNIQUE (tenant_id, key)
+    )""",
+    """CREATE TABLE IF NOT EXISTS agent_reminders (
+        id SERIAL PRIMARY KEY,
+        tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        chat_id INTEGER REFERENCES chats(id) ON DELETE SET NULL,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        remind_at TIMESTAMPTZ NOT NULL,
+        status VARCHAR(50) NOT NULL DEFAULT 'pending',
+        recurrence_rule VARCHAR(120),
+        sent_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+    )""",
+    """CREATE TABLE IF NOT EXISTS agent_appointments (
+        id SERIAL PRIMARY KEY,
+        tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        chat_id INTEGER REFERENCES chats(id) ON DELETE SET NULL,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        scheduled_at TIMESTAMPTZ NOT NULL,
+        location VARCHAR(255),
+        status VARCHAR(50) NOT NULL DEFAULT 'scheduled',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+    )""",
+    """CREATE INDEX IF NOT EXISTS ix_assistant_memory_tenant_id ON assistant_memory(tenant_id)""",
+    """CREATE INDEX IF NOT EXISTS ix_agent_reminders_tenant_id ON agent_reminders(tenant_id)""",
+    """CREATE INDEX IF NOT EXISTS ix_agent_reminders_chat_id ON agent_reminders(chat_id)""",
+    """CREATE INDEX IF NOT EXISTS ix_agent_reminders_remind_at ON agent_reminders(remind_at)""",
+    """CREATE INDEX IF NOT EXISTS ix_agent_reminders_status ON agent_reminders(status)""",
+    """CREATE INDEX IF NOT EXISTS ix_agent_appointments_tenant_id ON agent_appointments(tenant_id)""",
+    """CREATE INDEX IF NOT EXISTS ix_agent_appointments_chat_id ON agent_appointments(chat_id)""",
+    """CREATE INDEX IF NOT EXISTS ix_agent_appointments_scheduled_at ON agent_appointments(scheduled_at)""",
     # ===== Hermes Client Learning =====
     """CREATE TABLE IF NOT EXISTS client_memory (
         id SERIAL PRIMARY KEY,
@@ -618,17 +667,36 @@ def sync_env_super_admin() -> dict[str, object]:
     }
 
 
-@app.on_event("startup")
-def on_startup() -> None:
-    Base.metadata.create_all(bind=engine)
+def run_startup_migrations() -> None:
+    total = len(MIGRATIONS)
+    logger.info("Running %s startup migrations", total)
+    failures: list[tuple[int, str, str]] = []
+
     with engine.connect() as conn:
-        for sql in MIGRATIONS:
+        for index, sql in enumerate(MIGRATIONS, start=1):
             try:
                 conn.execute(text(sql))
                 conn.commit()
             except Exception as exc:  # noqa: BLE001
                 conn.rollback()
-                logger.warning("Migration skipped: %s... -> %s", sql[:60], exc)
+                snippet = _sql_snippet(sql)
+                failures.append((index, snippet, str(exc)))
+                logger.exception("Startup migration failed [%s/%s]: %s", index, total, snippet)
+
+    if failures:
+        first_index, first_sql, first_error = failures[0]
+        raise RuntimeError(
+            "Startup migrations failed "
+            f"({len(failures)}/{total}). First failure [{first_index}/{total}] {first_sql}: {first_error}"
+        )
+
+    logger.info("Startup migrations completed successfully")
+
+
+@app.on_event("startup")
+def on_startup() -> None:
+    Base.metadata.create_all(bind=engine)
+    run_startup_migrations()
     ensure_env_super_admin()
     start_due_task_reminder_scheduler()
 
@@ -646,6 +714,7 @@ app.include_router(tasks_router)
 app.include_router(credits_router)
 app.include_router(webhook_router)
 app.include_router(telegram_admin_router)
+app.include_router(tenant_router)
 app.include_router(public_router)
 app.include_router(billing_router)
 app.include_router(crm_router)

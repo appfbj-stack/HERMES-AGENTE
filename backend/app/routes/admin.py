@@ -20,6 +20,7 @@ from app.schemas import (
     TenantUpdateAdmin,
 )
 from app.services.crm import ensure_crm_defaults
+from app.services.modules import build_admin_modules_out, normalize_module_update
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 logger = get_logger(__name__)
@@ -51,7 +52,7 @@ def _require_super_admin(user: User = Depends(get_current_user)) -> User:
 def _to_admin_out(db: Session, tenant: Tenant) -> dict:
     credit = db.query(Credit).filter(Credit.tenant_id == tenant.id).first()
     mod = db.query(TenantModule).filter(TenantModule.tenant_id == tenant.id).first()
-    return {
+    payload = {
         "id": tenant.id,
         "name": tenant.name,
         "email": tenant.email,
@@ -65,14 +66,9 @@ def _to_admin_out(db: Session, tenant: Tenant) -> dict:
         "credits_total": credit.total if credit else 0,
         "credits_used": credit.used if credit else 0,
         "credits_remaining": credit.remaining if credit else 0,
-        "crm_enabled": mod.crm if mod else False,
-        "whatsapp_enabled": mod.whatsapp if mod else False,
-        "kanban_enabled": mod.kanban if mod else False,
-        "agenda_enabled": mod.agenda if mod else False,
-        "instagram_enabled": mod.instagram if mod else False,
-        "youtube_enabled": mod.youtube if mod else False,
-        "content_publisher_enabled": mod.content_publisher if mod else False,
     }
+    payload.update(build_admin_modules_out(mod).model_dump())
+    return payload
 
 
 @router.get("/tenants", response_model=list[TenantAdminOut])
@@ -193,7 +189,7 @@ def set_tenant_modules(
         mod = TenantModule(tenant_id=tenant_id)
         db.add(mod)
 
-    module_data = payload.model_dump(exclude_unset=True)
+    module_data = normalize_module_update(payload)
     for k, v in module_data.items():
         setattr(mod, k, v)
 
@@ -206,7 +202,7 @@ def set_tenant_modules(
         try:
             ensure_crm_defaults(db, tenant_id)
             db.commit()
-        except (SQLAlchemyError, ValueError) as exc:
+        except (SQLAlchemyError, ValueError):
             logger.exception("Erro ao inicializar CRM para tenant_id=%s", tenant_id)
             db.rollback()
 
@@ -215,4 +211,37 @@ def set_tenant_modules(
 
 @router.delete("/tenants/{tenant_id}", status_code=204)
 def delete_tenant(
-    tenant_id: 
+    tenant_id: int,
+    _: User = Depends(_require_super_admin),
+    db: Session = Depends(get_db),
+):
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404)
+    db.delete(tenant)
+    db.commit()
+    return None
+
+
+@router.post("/tenants/{tenant_id}/reset-user-password")
+def reset_user_password(
+    tenant_id: int,
+    payload: dict,
+    _: User = Depends(_require_super_admin),
+    db: Session = Depends(get_db),
+):
+    """Redefine a senha do usuario admin de um tenant pelo super admin."""
+    new_password = payload.get("new_password", "")
+    if len(new_password) < 6:
+        raise HTTPException(status_code=400, detail="Senha minima de 6 caracteres")
+    user = (
+        db.query(User)
+        .filter(User.tenant_id == tenant_id)
+        .order_by(User.id.asc())
+        .first()
+    )
+    if not user:
+        raise HTTPException(status_code=404, detail="Nenhum usuario encontrado nesse tenant")
+    user.password = get_password_hash(new_password)
+    db.commit()
+    return {"success": True, "user_id": user.id, "email": user.email}

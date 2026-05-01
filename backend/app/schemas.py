@@ -68,8 +68,10 @@ class TenantOut(ORMModel):
 class TenantModulesOut(BaseModel):
     crm: bool
     whatsapp: bool = False
+    whatsapp_evolution: bool = False
     kanban: bool = False
     agenda: bool = False
+    followup: bool = False
     instagram: bool = False
     youtube: bool = False
     content_publisher: bool = False
@@ -81,19 +83,24 @@ class MeResponse(BaseModel):
     modules: TenantModulesOut
 
 
-class TenantAdminOut(TenantOut):
-    telegram_bot_token: str | None = None
-    created_at: datetime
+class TenantAdminModulesOut(BaseModel):
     credits_total: int = 0
     credits_used: int = 0
     credits_remaining: int = 0
     crm_enabled: bool = False
     whatsapp_enabled: bool = False
+    whatsapp_evolution_enabled: bool = False
     kanban_enabled: bool = False
     agenda_enabled: bool = False
+    followup_enabled: bool = False
     instagram_enabled: bool = False
     youtube_enabled: bool = False
     content_publisher_enabled: bool = False
+
+
+class TenantAdminOut(TenantOut, TenantAdminModulesOut):
+    telegram_bot_token: str | None = None
+    created_at: datetime
 
 class TenantCreateAdmin(BaseModel):
     name: str
@@ -553,8 +560,10 @@ class CrmModuleUpdate(BaseModel):
 class TenantModuleUpdate(BaseModel):
     crm: bool | None = None
     whatsapp: bool | None = None
+    whatsapp_evolution: bool | None = None
     kanban: bool | None = None
     agenda: bool | None = None
+    followup: bool | None = None
     instagram: bool | None = None
     youtube: bool | None = None
     content_publisher: bool | None = None

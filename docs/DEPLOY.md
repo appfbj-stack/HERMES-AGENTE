@@ -58,6 +58,33 @@ Mapeamento:
 - `HERMES_MASTER_BOT_TOKEN`: usar com `/webhook/telegram-master`
 - `TELEGRAM_CLIENT_TOKEN` ou `TELEGRAM_BOT_TOKEN`: usar com `/webhook/telegram`
 
+Recomendação operacional:
+
+- prefira as rotas dedicadas `/webhook/telegram-admin` e `/webhook/telegram-master` para bots administrativos
+- use `/webhook/telegram` apenas para atendimento de cliente
+- configure também os segredos de webhook:
+  - `TELEGRAM_ADMIN_WEBHOOK_SECRET`
+  - `HERMES_MASTER_WEBHOOK_SECRET`
+- para bots de cliente por tenant, prefira identificar o tenant pelo token do bot do próprio tenant; use `tenant_id` na query apenas como fallback controlado
+
+### Webhook Evolution Go
+
+URL padrão:
+
+```text
+https://api.meuchat.fbautomacao.space/webhook/evolution-go
+```
+
+Recomendação:
+
+- configurar a instância com `instance_name` único por tenant
+- salvar `webhook_url` na conexão WhatsApp do tenant
+- se necessário, usar fallback com:
+
+```text
+https://api.meuchat.fbautomacao.space/webhook/evolution-go?tenant_id=<TENANT_ID>&instance_name=<INSTANCE_NAME>
+```
+
 ### Opção 2: Serviços separados
 
 - `backend`: Dockerfile em `backend/Dockerfile`
@@ -87,7 +114,11 @@ Mapeamento:
 - `PUBLIC_PANEL_URL=https://meuchat.fbautomacao.space`
 - `CORS_ORIGINS=["https://meuchat.fbautomacao.space","https://api.meuchat.fbautomacao.space"]`
 - `TELEGRAM_ADMIN_TOKEN`
+- `TELEGRAM_ADMIN_WEBHOOK_SECRET`
+- `HERMES_MASTER_WEBHOOK_SECRET`
 - `TELEGRAM_CLIENT_TOKEN` ou `TELEGRAM_BOT_TOKEN`
+- `ADMIN_EMAIL`
+- `ADMIN_PASSWORD`
 
 ## Domínios
 
@@ -98,10 +129,18 @@ Mapeamento:
 ## Healthcheck
 
 - endpoint: `/health`
+- retorno esperado: `status=ok` e `database=ok`
 
 ## Pós-deploy
 
 1. rode o bootstrap inicial
 2. faça login no painel
-3. crie o webhook do Telegram com o `tenant_id`
-4. valide envio e consumo de créditos
+3. confirme que o usuário central tenha `is_super_admin = true`
+4. crie os webhooks:
+   - cliente em `/webhook/telegram`
+   - admin em `/webhook/telegram-admin`
+   - master legado em `/webhook/telegram-master`
+   - WhatsApp em `/webhook/evolution-go`
+5. valide `GET /health`
+6. valide envio e consumo de créditos
+7. rode `cd backend && pytest` e `cd frontend && npx tsc -b` antes de promover

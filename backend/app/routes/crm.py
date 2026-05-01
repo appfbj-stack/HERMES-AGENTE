@@ -74,6 +74,7 @@ from app.services.crm import (
     serialize_settings,
     sync_crm_message,
 )
+from app.services.modules import build_modules_out
 from app.services.telegram import send_telegram_message
 from app.services.whatsapp_provider import WhatsAppProviderError, get_provider
 
@@ -108,15 +109,7 @@ def _serialize_whatsapp_connection(connection: CrmWhatsAppConnection) -> CrmWhat
 @router.get("/modules", response_model=TenantModulesOut)
 @router.get("/module", response_model=TenantModulesOut)
 def get_crm_modules(modules=Depends(get_current_modules)):
-    return TenantModulesOut(
-        crm=modules.crm,
-        whatsapp=modules.whatsapp,
-        kanban=modules.kanban,
-        agenda=modules.agenda,
-        instagram=modules.instagram,
-        youtube=modules.youtube,
-        content_publisher=modules.content_publisher,
-    )
+    return build_modules_out(modules)
 
 
 @router.put("/module", response_model=TenantModulesOut)
@@ -131,15 +124,7 @@ def update_crm_module(
         ensure_crm_defaults(db, current_user.tenant_id)
     db.commit()
     db.refresh(module)
-    return TenantModulesOut(
-        crm=module.crm,
-        whatsapp=module.whatsapp,
-        kanban=module.kanban,
-        agenda=module.agenda,
-        instagram=module.instagram,
-        youtube=module.youtube,
-        content_publisher=module.content_publisher,
-    )
+    return build_modules_out(module)
 
 
 @router.get("/whatsapp", response_model=CrmWhatsAppConnectionOut | None, dependencies=[Depends(require_whatsapp_module)])

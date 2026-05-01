@@ -11,5 +11,7 @@ RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/* && \
 
 COPY app ./app
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+RUN python -m compileall -q app && \
+    DATABASE_URL=sqlite:// JWT_SECRET=build-secret-with-at-least-32-chars python -c "import app.main"
 
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

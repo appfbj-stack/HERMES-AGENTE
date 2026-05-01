@@ -36,10 +36,10 @@ import type {
   SocialIntegrationStats,
   SocialOAuthStartResponse,
   SocialPost,
+  TenantModules,
 } from "./types";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
-const API_FALLBACK_URL = "https://api.meuchat.fbautomacao.space";
+const API_BASE_URL = normalizeBaseUrl(import.meta.env.VITE_API_BASE_URL || "/api");
 
 function getToken() {
   return localStorage.getItem("hermes_token");
@@ -49,17 +49,6 @@ function normalizeBaseUrl(baseUrl: string) {
   return baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
 }
 
-function getApiBaseCandidates() {
-  const savedBase = localStorage.getItem("hermes_api_base");
-  return Array.from(
-    new Set(
-      [savedBase, API_BASE_URL, API_FALLBACK_URL]
-        .filter((value): value is string => Boolean(value && value.trim()))
-        .map((value) => normalizeBaseUrl(value)),
-    ),
-  );
-}
-
 type RequestOptions = RequestInit & {
   skipAuth?: boolean;
 };
@@ -67,38 +56,41 @@ type RequestOptions = RequestInit & {
 async function request<T>(path: string, init?: RequestOptions): Promise<T> {
   const token = getToken();
   const skipAuth = init?.skipAuth;
-  let lastError: Error | null = null;
+  try {
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        ...(!skipAuth && token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(init?.headers || {}),
+      },
+    });
 
-  for (const baseUrl of getApiBaseCandidates()) {
-    try {
-      const response = await fetch(`${baseUrl}${path}`, {
-        ...init,
-        headers: {
-          "Content-Type": "application/json",
-          ...(!skipAuth && token ? { Authorization: `Bearer ${token}` } : {}),
-          ...(init?.headers || {}),
-        },
-      });
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ detail: "Request failed" }));
-        lastError = new Error(error.detail || "Request failed");
-        continue;
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "" }));
+      if (response.status === 401) {
+        throw new Error("Sessão expirada ou token inválido");
       }
-
-      localStorage.setItem("hermes_api_base", baseUrl);
-
-      if (response.status === 204) {
-        return undefined as T;
+      if (response.status === 403) {
+        throw new Error("Acesso negado para este recurso");
       }
-
-      return response.json() as Promise<T>;
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error("Request failed");
+      if (response.status >= 500) {
+        throw new Error(error.detail || "Falha interna no servidor");
+      }
+      throw new Error(error.detail || "Falha na requisição");
     }
-  }
 
-  throw lastError ?? new Error("Request failed");
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
+    return response.json() as Promise<T>;
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new Error("Falha de conexão com a API");
+    }
+    throw error instanceof Error ? error : new Error("Falha na requisição");
+  }
 }
 
 export async function login(email: string, password: string, tenant_email?: string) {
@@ -576,7 +568,20 @@ export async function getAdminTenants() {
   return request<AdminTenant[]>("/admin/tenants");
 }
 
-export async function updateAdminTenantModules(tenantId: number, payload: Partial<{ crm: boolean; whatsapp: boolean; kanban: boolean; agenda: boolean; instagram: boolean; youtube: boolean; content_publisher: boolean }>) {
+export async function updateAdminTenantModules(
+  tenantId: number,
+  payload: Partial<{
+    crm: boolean;
+    whatsapp: boolean;
+    whatsapp_evolution: boolean;
+    kanban: boolean;
+    agenda: boolean;
+    followup: boolean;
+    instagram: boolean;
+    youtube: boolean;
+    content_publisher: boolean;
+  }>,
+) {
   return request<AdminTenant>(`/admin/tenants/${tenantId}/modules`, {
     method: "PUT",
     body: JSON.stringify(payload),
@@ -613,15 +618,7 @@ export const setAdminTenantModules = updateAdminTenantModules;
 
 
 export async function getTenantModules() {
-  return request<{
-    crm: boolean;
-    whatsapp: boolean;
-    kanban: boolean;
-    agenda: boolean;
-    instagram: boolean;
-    youtube: boolean;
-    content_publisher: boolean;
-  }>("/auth/modules");
+  return request<TenantModules>("/tenant/modules");
 }
 
 

@@ -80,20 +80,31 @@ def _resolve_tenant_id(
     bot_token_received: str | None,
     fallback_query: int | None,
 ) -> int | None:
+    active_tenant_filter = (Tenant.active.is_(True),)
+
     start_tenant = _extract_start_tenant(inbound_text)
-    if start_tenant and db.query(Tenant).filter(Tenant.id == start_tenant, Tenant.active.is_(True)).first():
+    if start_tenant and db.query(Tenant).filter(Tenant.id == start_tenant, *active_tenant_filter).first():
         return start_tenant
 
-    existing = db.query(Chat).filter(Chat.channel == "telegram", Chat.chat_external_id == chat_external_id).first()
+    existing = (
+        db.query(Chat)
+        .join(Tenant, Tenant.id == Chat.tenant_id)
+        .filter(
+            Chat.channel == "telegram",
+            Chat.chat_external_id == chat_external_id,
+            *active_tenant_filter,
+        )
+        .first()
+    )
     if existing:
         return existing.tenant_id
 
     if bot_token_received:
-        tenant = db.query(Tenant).filter(Tenant.telegram_bot_token == bot_token_received).first()
+        tenant = db.query(Tenant).filter(Tenant.telegram_bot_token == bot_token_received, *active_tenant_filter).first()
         if tenant:
             return tenant.id
 
-    if fallback_query and db.query(Tenant).filter(Tenant.id == fallback_query).first():
+    if fallback_query and db.query(Tenant).filter(Tenant.id == fallback_query, *active_tenant_filter).first():
         return fallback_query
     return None
 
@@ -243,7 +254,10 @@ async def telegram_webhook(
 
     token_hint = x_telegram_bot_api_secret_token or bot_token
     if is_admin_token(token_hint):
-        return await _handle_admin_telegram_message(payload, db, token_hint)
+        raise HTTPException(
+            status_code=401,
+            detail="Admin Telegram tokens must use dedicated admin webhook routes",
+        )
 
     resolved_tenant_id = _resolve_tenant_id(
         db,

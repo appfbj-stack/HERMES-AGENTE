@@ -8,13 +8,23 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.models import AssistantMemory, Chat, ClientMemory, ClientProfile, ClientSkill, Lead, Message, Task, Tenant
 from app.services.crm_agent import build_crm_context_block
+from app.services.hermes_actions import (
+    create_appointment,
+    create_reminder,
+    create_task,
+    list_appointments,
+    list_reminders,
+    list_tasks,
+    save_memory,
+    search_memory,
+)
 
 
 DEFAULT_SYSTEM_PROMPT = """
 Você é um assistente de negócios.
 Você deve responder clientes, captar leads, organizar informações, criar tarefas,
-sugerir ações e manter contexto do cliente.
-Você opera dentro do sistema Hermes e pode salvar memórias do tenant e tarefas quando o usuário pedir.
+sugerir ações, criar lembretes, registrar agendamentos e manter contexto do cliente.
+Você opera dentro do sistema Hermes e pode salvar memórias do tenant, tarefas, lembretes e agendamentos quando o usuário pedir.
 Nunca diga que não consegue salvar dados, memória, agenda ou contexto desta conversa no sistema.
 Quando algo já tiver sido salvo automaticamente, apenas confirme de forma objetiva e siga com a resposta.
 Responda de forma útil, objetiva e comercialmente clara.
@@ -403,19 +413,7 @@ def maybe_save_memory(db: Session, tenant_id: int, chat: Chat, inbound_text: str
     memory_text = _extract_memory_text(inbound_text)
     if not memory_text:
         return None
-
-    memory_key = f"{_memory_key_prefix(chat)}{_slugify(memory_text)}"
-    memory = (
-        db.query(AssistantMemory)
-        .filter(AssistantMemory.tenant_id == tenant_id, AssistantMemory.key == memory_key)
-        .first()
-    )
-    if not memory:
-        memory = AssistantMemory(tenant_id=tenant_id, key=memory_key, value=memory_text[:4000])
-        db.add(memory)
-    else:
-        memory.value = memory_text[:4000]
-    return memory
+    return save_memory(db, tenant_id, chat, memory_text)
 
 
 def build_context(
@@ -524,49 +522,73 @@ def build_context(
 
 
 def maybe_create_task(db: Session, tenant_id: int, chat: Chat, inbound_text: str) -> Task | None:
-    """Cria tarefa automática se houver palavras-chave de compromisso."""
+    """Cria tarefa automática se houver compromisso operacional sem lembrete explícito."""
     text = _normalize_text(inbound_text)
-    triggers = ["ligar", "retornar", "agendar", "reuniao", "orcamento", "me lembre", "lembrar", "tarefa"]
+    triggers = ["ligar", "retornar", "orcamento", "orçamento", "tarefa", "preciso fazer", "preciso ajustar"]
     if not any(item in text for item in triggers):
-        return
+        return None
+    if "me lembre" in text or "lembrete" in text:
+        return None
 
     title = _extract_task_title(inbound_text)
-    ref_key = f"{_task_ref_key_prefix(chat)}{_slugify(title)}"
-    task_ref = (
-        db.query(AssistantMemory)
-        .filter(AssistantMemory.tenant_id == tenant_id, AssistantMemory.key == ref_key)
-        .first()
-    )
-    if task_ref:
-        try:
-            task_id = int(task_ref.value.strip())
-        except (TypeError, ValueError):
-            task_id = None
-        if task_id:
-            existing_task = (
-                db.query(Task)
-                .filter(Task.id == task_id, Task.tenant_id == tenant_id, Task.status.in_(["pending", "open", "pendente"]))
-                .first()
-            )
-            if existing_task:
-                return None
-
-    task = Task(
-        tenant_id=tenant_id,
+    existing_tasks = list_tasks(db, tenant_id, chat)
+    if any(task.title.casefold() == title.casefold() for task in existing_tasks):
+        return None
+    return create_task(
+        db,
+        tenant_id,
+        chat,
         title=title,
         description=inbound_text[:500],
         due_date=_extract_due_date(inbound_text),
-        status="pending",
     )
-    db.add(task)
-    db.flush()
 
-    if not task_ref:
-        task_ref = AssistantMemory(tenant_id=tenant_id, key=ref_key, value=str(task.id))
-        db.add(task_ref)
-    else:
-        task_ref.value = str(task.id)
-    return task
+
+def maybe_create_reminder(db: Session, tenant_id: int, chat: Chat, inbound_text: str):
+    text = _normalize_text(inbound_text)
+    if "me lembre" not in text and "lembrete" not in text:
+        return None
+    remind_at = _extract_due_date(inbound_text)
+    if remind_at is None:
+        return None
+
+    title = _extract_task_title(inbound_text)
+    reminders = list_reminders(db, tenant_id, chat)
+    if any(reminder.title.casefold() == title.casefold() and reminder.remind_at == remind_at for reminder in reminders):
+        return None
+
+    return create_reminder(
+        db,
+        tenant_id,
+        chat,
+        title=title,
+        description=inbound_text[:500],
+        remind_at=remind_at,
+    )
+
+
+def maybe_create_appointment(db: Session, tenant_id: int, chat: Chat, inbound_text: str):
+    text = _normalize_text(inbound_text)
+    triggers = ["agendar reuniao", "agendar reunião", "agendar consulta", "marcar reuniao", "marcar reunião", "marcar encontro"]
+    if not any(trigger in text for trigger in triggers):
+        return None
+    scheduled_at = _extract_due_date(inbound_text)
+    if scheduled_at is None:
+        return None
+
+    title = _extract_task_title(inbound_text)
+    appointments = list_appointments(db, tenant_id, chat)
+    if any(item.title.casefold() == title.casefold() and item.scheduled_at == scheduled_at for item in appointments):
+        return None
+
+    return create_appointment(
+        db,
+        tenant_id,
+        chat,
+        title=title,
+        description=inbound_text[:500],
+        scheduled_at=scheduled_at,
+    )
 
 
 def observe_client_patterns(db: Session, tenant_id: int, inbound_text: str) -> list[str]:
@@ -622,6 +644,14 @@ def process_inbound_automation(db: Session, tenant_id: int, chat: Chat, inbound_
     if task is not None:
         confirmations.append(f"✅ Tarefa criada: {task.title}")
 
+    reminder = maybe_create_reminder(db, tenant_id, chat, inbound_text)
+    if reminder is not None:
+        confirmations.append(f"✅ Lembrete criado: {reminder.title} em {_format_due_date(reminder.remind_at)}")
+
+    appointment = maybe_create_appointment(db, tenant_id, chat, inbound_text)
+    if appointment is not None:
+        confirmations.append(f"✅ Agendamento registrado: {appointment.title} em {_format_due_date(appointment.scheduled_at)}")
+
     activation = maybe_activate_client_skill(db, tenant_id, inbound_text)
     if activation is not None:
         confirmations.append(activation)
@@ -668,16 +698,7 @@ def maybe_handle_memory_query(db: Session, tenant_id: int, chat: Chat, inbound_t
     if not is_memory_query:
         return None
 
-    items = (
-        db.query(AssistantMemory)
-        .filter(
-            AssistantMemory.tenant_id == tenant_id,
-            AssistantMemory.key.like(f"{_memory_key_prefix(chat)}%"),
-        )
-        .order_by(AssistantMemory.id.desc())
-        .limit(20)
-        .all()
-    )
+    items = search_memory(db, tenant_id, chat)
     if not items:
         return "Ainda não encontrei memórias salvas para esta conversa."
 
@@ -688,7 +709,7 @@ def maybe_handle_memory_query(db: Session, tenant_id: int, chat: Chat, inbound_t
     )
     search_term = _normalize_text(specific_match.group(1).strip(" ?.!")) if specific_match else None
 
-    ordered_items = list(reversed(items))
+    ordered_items = list(items)
     if search_term:
         ordered_items = [item for item in ordered_items if search_term in _normalize_text(item.value)]
         if not ordered_items:
@@ -725,40 +746,19 @@ def maybe_handle_task_query(db: Session, tenant_id: int, chat: Chat, inbound_tex
     if not is_task_query:
         return None
 
-    refs = (
-        db.query(AssistantMemory)
-        .filter(
-            AssistantMemory.tenant_id == tenant_id,
-            AssistantMemory.key.like(f"{_task_ref_key_prefix(chat)}%"),
-        )
-        .order_by(AssistantMemory.id.desc())
-        .all()
-    )
-    if not refs:
+    tasks = list_tasks(db, tenant_id, chat)
+    reminders = list_reminders(db, tenant_id, chat)
+    appointments = list_appointments(db, tenant_id, chat)
+    if not tasks and not reminders and not appointments:
         return "Ainda não encontrei tarefas ou lembretes salvos para esta conversa."
-
-    task_ids: list[int] = []
-    for ref in refs:
-        try:
-            task_ids.append(int(ref.value.strip()))
-        except (TypeError, ValueError):
-            continue
-    if not task_ids:
-        return "Ainda não encontrei tarefas ou lembretes salvos para esta conversa."
-
-    tasks = (
-        db.query(Task)
-        .filter(Task.tenant_id == tenant_id, Task.id.in_(task_ids))
-        .order_by(Task.created_at.asc())
-        .all()
-    )
-    active_tasks = [task for task in tasks if task.status not in {"completed", "cancelled", "done", "feito"}]
-    if not active_tasks:
-        return "As tarefas e lembretes desta conversa já foram concluídos ou não estão mais pendentes."
 
     lines = ["📋 Tarefas e lembretes desta conversa:"]
-    for task in active_tasks[-8:]:
+    for task in tasks[-8:]:
         lines.append(f"- {task.title} ({_format_due_date(task.due_date)})")
+    for reminder in reminders[-8:]:
+        lines.append(f"- lembrete: {reminder.title} ({_format_due_date(reminder.remind_at)})")
+    for appointment in appointments[-8:]:
+        lines.append(f"- agendamento: {appointment.title} ({_format_due_date(appointment.scheduled_at)})")
     return "\n".join(lines)
 
 

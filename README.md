@@ -32,6 +32,28 @@ Frontend: `http://localhost:8080`
 Backend: `http://localhost:8000`  
 Docs OpenAPI: `http://localhost:8080/api/docs`
 
+## Testes rápidos
+
+Backend:
+
+```bash
+cd backend
+pytest
+```
+
+Frontend:
+
+```bash
+cd frontend
+npx tsc -b
+```
+
+Observações:
+
+- os testes backend já configuram `DATABASE_URL=sqlite://` e `JWT_SECRET` para execução local
+- o build completo do frontend depende do ambiente conseguir executar o `esbuild` sem bloqueio do sistema
+- a suíte de regressão atual do backend cobre 27 cenários principais
+
 ## Bootstrap inicial
 
 Crie o primeiro tenant e usuário admin:
@@ -147,6 +169,7 @@ where tenant_id = <TENANT_ID>;
 - `GET/POST /crm/tags`
 - `GET/PUT /crm/settings`
 - `PUT /crm/module`
+- `GET /tenant/modules`
 
 ### Rotas Admin Master
 
@@ -173,8 +196,10 @@ Todas exigem login, isolamento por `tenant_id` e módulo CRM ativo.
 
 ### Papel master
 
-O painel `Master` e as rotas `/admin/*` exigem `user.role = "master"`.
-Hoje isso pode ser promovido manualmente no banco para o usuário operador central.
+O painel `Master` e as rotas `/admin/*` exigem `user.is_super_admin = true`.
+Os webhooks administrativos dedicados continuam aceitando o fluxo legado master no
+endpoint `/webhook/telegram-master`, mas o painel e as rotas REST de administração
+do SaaS ficam restritos ao super admin autenticado.
 
 ### Evolution Go
 
@@ -200,10 +225,17 @@ Uso recomendado:
 - bot cliente: `/webhook/telegram` com `tenant_id` na query quando necessário
 - bot admin super admin: `/webhook/telegram-admin`
 - bot master legado: `/webhook/telegram-master`
+- tokens administrativos não devem ser enviados para `/webhook/telegram`; esse endpoint é apenas para atendimento de cliente
 
 Para o `evolution-go`, o backend tenta identificar a conexão por `instance_name`
 no payload ou por query string. Como fallback operacional, você também pode
 configurar o webhook com `?tenant_id=<TENANT_ID>&instance_name=<INSTANCE_NAME>`.
+
+## Saúde e startup
+
+- `GET /health` valida a API e a conexão com o banco
+- o startup aplica migrations SQL idempotentes e agora falha explicitamente se alguma quebrar
+- o logging grava em console e em `logs/app.log`
 
 ## API no frontend
 

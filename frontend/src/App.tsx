@@ -33,6 +33,7 @@ import {
   getIntegrationAccounts,
   getIntegrationPosts,
   getIntegrationStats,
+  getTenantModules,
   getLeads,
   getMessages,
   getTasks,
@@ -137,30 +138,31 @@ function Layout({
 }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const modules = profile.modules;
 
   const nav = [
     { label: "Dashboard", path: "/dashboard" },
     { label: "Chat", path: "/chat" },
-    ...(profile.modules.crm
+    ...(modules.crm
       ? [
           { label: "CRM Dashboard", path: "/crm/dashboard" },
           { label: "CRM Leads", path: "/crm/leads" },
-          ...(profile.modules.kanban ? [{ label: "CRM Kanban", path: "/crm/kanban" }] : []),
+          ...(modules.kanban ? [{ label: "CRM Kanban", path: "/crm/kanban" }] : []),
           { label: "CRM Conversas", path: "/crm/conversations" },
           { label: "CRM Follow-ups", path: "/crm/followups" },
           { label: "CRM Tarefas", path: "/crm/tasks" },
           { label: "CRM Config", path: "/crm/settings" },
         ]
       : []),
-    ...(profile.modules.whatsapp ? [{ label: "WhatsApp", path: "/crm/whatsapp" }] : []),
-    ...(profile.modules.crm && profile.modules.agenda ? [{ label: "Agenda", path: "/agenda" }] : []),
-    ...(profile.modules.instagram ? [{ label: "Instagram", path: "/instagram" }] : []),
-    ...(profile.modules.youtube ? [{ label: "YouTube", path: "/youtube" }] : []),
-    ...(profile.modules.content_publisher ? [{ label: "Publicador", path: "/publisher" }] : []),
+    ...(modules.whatsapp_evolution ? [{ label: "WhatsApp", path: "/crm/whatsapp" }] : []),
+    ...(modules.crm && modules.agenda ? [{ label: "Agenda", path: "/agenda" }] : []),
+    ...(modules.instagram ? [{ label: "Instagram", path: "/instagram" }] : []),
+    ...(modules.youtube ? [{ label: "YouTube", path: "/youtube" }] : []),
+    ...(modules.content_publisher ? [{ label: "Publicador", path: "/publisher" }] : []),
     ...(profile.user.is_super_admin ? [{ label: "Master", path: "/master" }] : []),
-    ...(profile.modules.crm ? [{ label: "Leads", path: "/leads" }, { label: "Tarefas", path: "/tasks" }] : []),
-    { label: "CrÃ©ditos", path: "/credits" },
-    { label: "ConfiguraÃ§Ãµes", path: "/settings" },
+    ...(modules.crm ? [{ label: "Leads", path: "/leads" }, { label: "Tarefas", path: "/tasks" }] : []),
+    { label: "Créditos", path: "/credits" },
+    { label: "Configurações", path: "/settings" },
   ];
 
   return (
@@ -220,7 +222,6 @@ function LoginPage({ onLogged }: { onLogged: () => void }) {
 
     try {
       localStorage.removeItem("hermes_token");
-      localStorage.removeItem("hermes_api_base");
       const result = await login(email.trim(), password, tenantEmail.trim() || undefined);
       localStorage.setItem("hermes_token", result.access_token);
       onLogged();
@@ -257,6 +258,7 @@ function LoginPage({ onLogged }: { onLogged: () => void }) {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="â¢â¢â¢â¢â¢â¢â¢â¢"
               type="password"
+              autoComplete="current-password"
               required
             />
           </div>
@@ -1671,13 +1673,13 @@ function MasterPage({
                     <label className="flex items-center gap-3">
                       <input
                         type="checkbox"
-                        checked={tenant.whatsapp_enabled}
+                        checked={tenant.whatsapp_evolution_enabled}
                         disabled={savingTenantId === tenant.id}
                         onChange={async (event) => {
                           setSavingTenantId(tenant.id);
                           setError("");
                           try {
-                            const updated = await updateAdminTenantModules(tenant.id, { whatsapp: event.target.checked });
+                            const updated = await updateAdminTenantModules(tenant.id, { whatsapp_evolution: event.target.checked });
                             if (updated.id === profile.tenant.id) {
                               await onProfileRefresh();
                             }
@@ -1691,7 +1693,7 @@ function MasterPage({
                           }
                         }}
                       />
-                      <span className="text-slate-700">{tenant.whatsapp_enabled ? "habilitado" : "desligado"}</span>
+                      <span className="text-slate-700">{tenant.whatsapp_evolution_enabled ? "habilitado" : "desligado"}</span>
                     </label>
                   </td>
                   <td className="px-3 py-4">
@@ -1852,8 +1854,20 @@ function ProtectedApp() {
   const [clientSkills, setClientSkills] = useState<ClientSkill[]>([]);
   const [clientSuggestions, setClientSuggestions] = useState<ClientSuggestion[]>([]);
 
+  async function loadProfileWithModules() {
+    const profileData = await me();
+    const modulesData = await getTenantModules().catch(() => profileData.modules);
+    return {
+      ...profileData,
+      modules: {
+        ...profileData.modules,
+        ...modulesData,
+      },
+    };
+  }
+
   useEffect(() => {
-    me()
+    loadProfileWithModules()
       .then(async (profileData) => {
         const [chatsData, creditsData, leadsData, tasksData, clientProfileData, clientSkillsData, clientSuggestionsData] = await Promise.all([
           getChats(),
@@ -1883,7 +1897,7 @@ function ProtectedApp() {
   }, []);
 
   async function refreshProfile() {
-    const profileData = await me();
+    const profileData = await loadProfileWithModules();
     setProfile(profileData);
   }
 
@@ -1978,7 +1992,7 @@ function ProtectedApp() {
         <Route
           path="/crm/whatsapp"
           element={
-            <ModuleRoute enabled={profile.modules.whatsapp}>
+            <ModuleRoute enabled={profile.modules.whatsapp_evolution}>
               <CrmWhatsAppPage />
             </ModuleRoute>
           }

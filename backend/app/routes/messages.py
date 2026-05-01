@@ -3,10 +3,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.core.database import get_db
 from app.deps import get_current_credit, get_current_user
-from app.models import Chat, CrmSetting, Message, TenantModule, UsageLog, User
+from app.models import Chat, CrmSetting, CrmWhatsAppConnection, Message, TenantModule, UsageLog, User
 from app.schemas import MessageOut, SendMessageRequest
 from app.services.crm import ensure_crm_conversation, ensure_crm_defaults, ensure_crm_lead, sync_crm_message
 from app.services.telegram import send_telegram_message
+from app.services.whatsapp_provider import WhatsAppProviderError, get_provider
 
 router = APIRouter(prefix="/messages", tags=["messages"])
 
@@ -63,5 +64,17 @@ async def send_message(
     db.commit()
     db.refresh(message)
 
-    await send_telegram_message(chat.chat_external_id, payload.content)
+    if chat.channel == "telegram":
+        await send_telegram_message(chat.chat_external_id, payload.content, tenant_id=current_user.tenant_id, db=db)
+    elif chat.channel == "whatsapp":
+        connection = db.query(CrmWhatsAppConnection).filter(CrmWhatsAppConnection.tenant_id == current_user.tenant_id).first()
+        if not connection:
+            raise HTTPException(status_code=404, detail="WhatsApp connection is not configured")
+        try:
+            await get_provider(connection).send_text(connection, chat.chat_external_id, payload.content)
+        except WhatsAppProviderError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+    elif chat.channel != "web":
+        raise HTTPException(status_code=400, detail=f"Unsupported channel for manual message: {chat.channel}")
+
     return message

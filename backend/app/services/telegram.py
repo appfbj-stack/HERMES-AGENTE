@@ -56,13 +56,23 @@ async def send_telegram_message(
 ) -> None:
     token = _resolve_token(tenant_id, db, force_token=force_token)
     if not token:
+        logger.warning("Telegram token ausente para envio chat_external_id=%s tenant_id=%s", chat_external_id, tenant_id)
         return
 
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {"chat_id": chat_external_id, "text": text}
     async with httpx.AsyncClient(timeout=20.0) as client:
         try:
-            await client.post(url, json=payload)
+            response = await client.post(url, json=payload)
+            response.raise_for_status()
+            data = response.json()
+            if not data.get("ok", False):
+                logger.warning(
+                    "Telegram API retornou erro lógico chat_external_id=%s tenant_id=%s response=%s",
+                    chat_external_id,
+                    tenant_id,
+                    data,
+                )
         except Exception as exc:  # noqa: BLE001
             logger.exception("Erro ao enviar mensagem Telegram chat_external_id=%s tenant_id=%s", chat_external_id, tenant_id)
 
