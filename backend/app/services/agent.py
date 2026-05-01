@@ -22,6 +22,25 @@ SEJA BREVE: respostas devem ter no máximo 3-4 parágrafos curtos. Não use flor
 """.strip()
 
 
+CLIENT_SKILL_CATALOG: dict[str, dict[str, object]] = {
+    "follow_up_automatico": {
+        "nome_skill": "follow_up_automatico",
+        "descricao": "Rotina para apoiar follow-ups recorrentes do cliente.",
+        "configuracao": {"trigger": "followup", "mode": "suggested"},
+    },
+    "agenda_automatica": {
+        "nome_skill": "agenda_automatica",
+        "descricao": "Rotina para apoiar agendamentos frequentes do cliente.",
+        "configuracao": {"trigger": "schedule", "mode": "suggested"},
+    },
+    "resposta_automatica_fora_do_horario": {
+        "nome_skill": "resposta_automatica_fora_do_horario",
+        "descricao": "Rotina de resposta assistida fora do horário padrão do cliente.",
+        "configuracao": {"trigger": "off_hours", "mode": "suggested"},
+    },
+}
+
+
 def _truncate(text: str, max_chars: int) -> str:
     if len(text) <= max_chars:
         return text
@@ -131,6 +150,14 @@ def _has_active_client_skill(db: Session, tenant_id: int, nome_skill: str) -> bo
     )
 
 
+def _find_client_skill(db: Session, tenant_id: int, nome_skill: str) -> ClientSkill | None:
+    return (
+        db.query(ClientSkill)
+        .filter(ClientSkill.tenant_id == tenant_id, ClientSkill.nome_skill == nome_skill)
+        .first()
+    )
+
+
 def _emit_client_suggestion_once(
     db: Session,
     tenant_id: int,
@@ -150,6 +177,54 @@ def _emit_client_suggestion_once(
         {"suggested_at": _utcnow().isoformat(), "message": suggestion_text},
     )
     return suggestion_text
+
+
+def _detect_explicit_skill_activation(inbound_text: str) -> str | None:
+    normalized = _normalize_text(inbound_text)
+    if not any(token in normalized for token in ("ative", "ativar", "pode ativar", "quero ativar", "confirmo")):
+        return None
+
+    if "follow" in normalized or "follow-up" in normalized or "follow up" in normalized:
+        return "follow_up_automatico"
+    if "agenda" in normalized or "agendar" in normalized or "reuniao" in normalized or "reunião" in normalized:
+        return "agenda_automatica"
+    if "resposta automatica" in normalized or "resposta automática" in normalized or "fora do horario" in normalized or "fora do horário" in normalized:
+        return "resposta_automatica_fora_do_horario"
+    return None
+
+
+def maybe_activate_client_skill(db: Session, tenant_id: int, inbound_text: str) -> str | None:
+    skill_key = _detect_explicit_skill_activation(inbound_text)
+    if not skill_key:
+        return None
+
+    catalog_entry = CLIENT_SKILL_CATALOG.get(skill_key)
+    if not catalog_entry:
+        return None
+
+    skill = _find_client_skill(db, tenant_id, skill_key)
+    if not skill:
+        skill = ClientSkill(
+            tenant_id=tenant_id,
+            nome_skill=str(catalog_entry["nome_skill"]),
+            descricao=str(catalog_entry["descricao"]),
+            ativa=True,
+            configuracao=_dump_json_blob(catalog_entry["configuracao"]),
+        )
+        db.add(skill)
+    else:
+        skill.descricao = str(catalog_entry["descricao"])
+        skill.ativa = True
+        skill.configuracao = _dump_json_blob(catalog_entry["configuracao"])
+
+    _upsert_client_memory(
+        db,
+        tenant_id,
+        "insight",
+        f"activation:{skill_key}",
+        {"activated_at": _utcnow().isoformat(), "skill": skill_key},
+    )
+    return f"✅ Skill ativada com sua confirmação: {skill_key}"
 
 
 def _extract_memory_text(inbound_text: str) -> str | None:
@@ -542,6 +617,10 @@ def process_inbound_automation(db: Session, tenant_id: int, chat: Chat, inbound_
     task = maybe_create_task(db, tenant_id, chat, inbound_text)
     if task is not None:
         confirmations.append(f"✅ Tarefa criada: {task.title}")
+
+    activation = maybe_activate_client_skill(db, tenant_id, inbound_text)
+    if activation is not None:
+        confirmations.append(activation)
 
     confirmations.extend(observe_client_patterns(db, tenant_id, inbound_text))
 

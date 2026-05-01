@@ -259,6 +259,47 @@ class CreditOut(ORMModel):
     used: int
     remaining: int
 
+
+class ClientProfileOut(ORMModel):
+    tenant_id: int
+    tipo_negocio: str | None = None
+    objetivo: str | None = None
+    horario_funcionamento: str | None = None
+    preferencias: str | None = None
+    nivel_automacao: str = "medio"
+    created_at: datetime
+    updated_at: datetime
+
+
+class ClientProfileUpdate(BaseModel):
+    tipo_negocio: str | None = None
+    objetivo: str | None = None
+    horario_funcionamento: str | None = None
+    preferencias: str | None = None
+    nivel_automacao: str | None = None
+
+
+class ClientSkillOut(ORMModel):
+    id: int
+    tenant_id: int
+    nome_skill: str
+    descricao: str | None = None
+    ativa: bool = False
+    configuracao: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ClientSkillCreate(BaseModel):
+    nome_skill: str
+    descricao: str | None = None
+    ativa: bool = False
+    configuracao: str | None = None
+
+
+class ClientSkillToggleRequest(BaseModel):
+    ativa: bool
+
 class AssignChatRequest(BaseModel):
     assigned_user_id: int
 

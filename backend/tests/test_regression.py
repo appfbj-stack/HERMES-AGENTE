@@ -9,8 +9,9 @@ from app.models import AssistantMemory, ClientMemory, ClientSkill, Message, Task
 from app.routes import public as public_routes
 from app.routes.admin import set_tenant_modules
 from app.routes.auth import login, logout
+from app.routes.client import create_client_skill, get_client_profile, list_client_skills, toggle_client_skill, update_client_profile
 from app.routes.public import PublicSendRequest
-from app.schemas import LoginRequest, TenantModuleUpdate
+from app.schemas import ClientProfileUpdate, ClientSkillCreate, ClientSkillToggleRequest, LoginRequest, TenantModuleUpdate
 from app.services import task_reminders
 from app.services.agent import (
     maybe_handle_memory_query,
@@ -187,6 +188,66 @@ def test_hermes_learns_patterns_and_suggests_without_auto_activating_skills(db_s
     assert followup_counter is not None and "\"count\":3" in followup_counter.valor
     assert suggestion_marker is not None
     assert skills == []
+
+
+def test_explicit_skill_activation_creates_active_client_skill(db_session):
+    tenant = create_tenant(db_session, name="Tenant Skill", email="skill@empresa.com")
+    chat = create_chat(db_session, tenant_id=tenant.id, external_id="sessao-skill")
+
+    process_inbound_automation(db_session, tenant.id, chat, "preciso fazer follow-up do lead 1")
+    process_inbound_automation(db_session, tenant.id, chat, "preciso fazer follow-up do lead 2")
+    process_inbound_automation(db_session, tenant.id, chat, "preciso fazer follow-up do lead 3")
+    confirmations = process_inbound_automation(db_session, tenant.id, chat, "pode ativar o follow-up automático")
+    db_session.commit()
+
+    skill = (
+        db_session.query(ClientSkill)
+        .filter(ClientSkill.tenant_id == tenant.id, ClientSkill.nome_skill == "follow_up_automatico")
+        .first()
+    )
+
+    assert any("Skill ativada com sua confirmação" in item for item in confirmations)
+    assert skill is not None
+    assert skill.ativa is True
+
+
+def test_client_profile_and_skill_routes_are_scoped_to_current_tenant(db_session):
+    tenant_a = create_tenant(db_session, name="Tenant A", email="route-a@empresa.com")
+    tenant_b = create_tenant(db_session, name="Tenant B", email="route-b@empresa.com")
+    user_a = create_user(db_session, tenant_id=tenant_a.id, name="User A", email="user-a@empresa.com")
+    user_b = create_user(db_session, tenant_id=tenant_b.id, name="User B", email="user-b@empresa.com")
+    db_session.commit()
+
+    updated_profile = update_client_profile(
+        ClientProfileUpdate(tipo_negocio="Clínica", objetivo="Responder mais rápido", nivel_automacao="medio"),
+        db=db_session,
+        current_user=user_a,
+    )
+    created_skill = create_client_skill(
+        ClientSkillCreate(nome_skill="campanha_simples", descricao="Skill manual", ativa=False, configuracao="{\"channel\":\"crm\"}"),
+        db=db_session,
+        current_user=user_a,
+    )
+    toggled_skill = toggle_client_skill(
+        created_skill.id,
+        ClientSkillToggleRequest(ativa=True),
+        db=db_session,
+        current_user=user_a,
+    )
+
+    profile_a = get_client_profile(db=db_session, current_user=user_a)
+    profile_b = get_client_profile(db=db_session, current_user=user_b)
+    skills_a = list_client_skills(db=db_session, current_user=user_a)
+    skills_b = list_client_skills(db=db_session, current_user=user_b)
+
+    assert updated_profile.tenant_id == tenant_a.id
+    assert updated_profile.tipo_negocio == "Clínica"
+    assert toggled_skill.ativa is True
+    assert profile_a.tenant_id == tenant_a.id
+    assert profile_b.tenant_id == tenant_b.id
+    assert len(skills_a) == 1
+    assert skills_a[0].tenant_id == tenant_a.id
+    assert skills_b == []
 
 
 def test_public_chat_send_returns_hermes_reply_and_persists_messages(db_session, monkeypatch):

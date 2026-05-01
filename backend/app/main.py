@@ -19,6 +19,7 @@ from app.routes.admin_hermes import router as admin_hermes_router
 from app.routes.auth import router as auth_router
 from app.routes.billing import router as billing_router
 from app.routes.chats import router as chats_router
+from app.routes.client import router as client_router
 from app.routes.credits import router as credits_router
 from app.routes.crm import router as crm_router
 from app.routes.health import router as health_router
@@ -566,6 +567,7 @@ app.include_router(admin_router)
 app.include_router(admin_hermes_router)
 app.include_router(integrations_router)
 app.include_router(chats_router)
+app.include_router(client_router)
 app.include_router(messages_router)
 app.include_router(leads_router)
 app.include_router(tasks_router)
