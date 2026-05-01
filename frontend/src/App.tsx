@@ -115,7 +115,7 @@ function parseAutomationLines(content: string) {
   const bodyLines: string[] = [];
 
   for (const line of lines) {
-    if (line.startsWith("✅") || line.startsWith("⏰")) {
+    if (line.startsWith("â") || line.startsWith("â°")) {
       automationLines.push(line);
     } else {
       bodyLines.push(line);
@@ -159,8 +159,8 @@ function Layout({
     ...(profile.modules.content_publisher ? [{ label: "Publicador", path: "/publisher" }] : []),
     ...(profile.user.is_super_admin ? [{ label: "Master", path: "/master" }] : []),
     ...(profile.modules.crm ? [{ label: "Leads", path: "/leads" }, { label: "Tarefas", path: "/tasks" }] : []),
-    { label: "Créditos", path: "/credits" },
-    { label: "Configurações", path: "/settings" },
+    { label: "CrÃ©ditos", path: "/credits" },
+    { label: "ConfiguraÃ§Ãµes", path: "/settings" },
   ];
 
   return (
@@ -236,7 +236,7 @@ function LoginPage({ onLogged }: { onLogged: () => void }) {
       <form onSubmit={handleSubmit} className="w-full max-w-md rounded-[32px] bg-white p-8 shadow-soft">
         <div className="text-xs uppercase tracking-[0.3em] text-brand/70">Telegram + Hermes</div>
         <h1 className="mt-3 font-serif text-4xl font-semibold text-ink">Entrar</h1>
-        <p className="mt-3 text-sm text-slate-500">Painel estilo chat com CRM, atendimento e operação multi-tenant.</p>
+        <p className="mt-3 text-sm text-slate-500">Painel estilo chat com CRM, atendimento e operaÃ§Ã£o multi-tenant.</p>
         <div className="mt-8 space-y-4">
           <div>
             <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">Email</label>
@@ -245,6 +245,7 @@ function LoginPage({ onLogged }: { onLogged: () => void }) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="seu@email.com"
+              autoComplete="username"
               required
             />
           </div>
@@ -254,7 +255,7 @@ function LoginPage({ onLogged }: { onLogged: () => void }) {
               className="input"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
+              placeholder="â¢â¢â¢â¢â¢â¢â¢â¢"
               type="password"
               required
             />
@@ -269,7 +270,7 @@ function LoginPage({ onLogged }: { onLogged: () => void }) {
               onChange={(e) => setTenantEmail(e.target.value)}
               placeholder="empresa@email.com"
             />
-            <p className="text-xs text-slate-400 mt-1">Preencha apenas se tiver múltiplos tenants</p>
+            <p className="text-xs text-slate-400 mt-1">Preencha apenas se tiver mÃºltiplos tenants</p>
           </div>
         </div>
         {error ? (
@@ -279,17 +280,17 @@ function LoginPage({ onLogged }: { onLogged: () => void }) {
               <div className="mt-2 text-xs text-red-500">
                 Use o campo "Email da empresa" com o email do tenant correto.
               </div>
-            ) : error.includes("Email da empresa não encontrado") ? (
+            ) : error.includes("Email da empresa nÃ£o encontrado") ? (
               <div className="mt-2 text-xs text-red-500">
-                Revise o email da empresa ou tente entrar só com email e senha.
+                Revise o email da empresa ou tente entrar sÃ³ com email e senha.
               </div>
             ) : error.includes("Tenant inactive") ? (
               <div className="mt-2 text-xs text-red-500">
-                Esse tenant está inativo. Reative no painel master antes de tentar novamente.
+                Esse tenant estÃ¡ inativo. Reative no painel master antes de tentar novamente.
               </div>
             ) : (
               <div className="mt-2 text-xs text-red-500">
-                Tente usar apenas o email e senha, sem o email da empresa, se esse login existir em um único tenant.
+                Tente usar apenas o email e senha, sem o email da empresa, se esse login existir em um Ãºnico tenant.
               </div>
             )}
           </div>
@@ -326,7 +327,7 @@ function DashboardPage({
     { label: "Conversas", value: chats.length },
     { label: "Leads", value: leads.length },
     { label: "Tarefas", value: tasks.length },
-    { label: "Créditos", value: currencyCredits(credits) },
+    { label: "CrÃ©ditos", value: currencyCredits(credits) },
   ];
   const recentTasks = [...tasks]
     .sort((a, b) => {
@@ -373,7 +374,7 @@ function DashboardPage({
             ) : (
               <>
                 <div>Nenhum lembrete ou tarefa recente criado pelo Hermes.</div>
-                <div>Exemplo: “me lembre de ajustar o CRM amanhã às 8”.</div>
+                <div>Exemplo: âme lembre de ajustar o CRM amanhÃ£ Ã s 8â.</div>
               </>
             )}
           </div>
@@ -422,11 +423,11 @@ function ChatPage({
         <div className="border-b border-black/5 bg-panel/60 px-5 py-4">
           <div className="text-xs uppercase tracking-[0.25em] text-slate-400">Hermes Cliente</div>
           <div className="mt-2 text-sm text-slate-700">
-            {clientProfile?.tipo_negocio || "Perfil ainda não definido"} • automação {clientProfile?.nivel_automacao || "medio"}
+            {clientProfile?.tipo_negocio || "Perfil ainda nÃ£o definido"} â¢ automaÃ§Ã£o {clientProfile?.nivel_automacao || "medio"}
           </div>
           <div className="mt-2 text-xs text-slate-500">
             {clientSuggestions.filter((item) => !item.active).length > 0
-              ? `${clientSuggestions.filter((item) => !item.active).length} sugestão(ões) aguardando confirmação`
+              ? `${clientSuggestions.filter((item) => !item.active).length} sugestÃ£o(Ãµes) aguardando confirmaÃ§Ã£o`
               : `${clientSkills.filter((item) => item.ativa).length} skill(s) ativa(s)`}
           </div>
         </div>
@@ -607,7 +608,7 @@ function SettingsPage({ profile }: { profile: MeResponse }) {
         nivel_automacao: profileData.nivel_automacao || "medio",
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao carregar configurações do Hermes Cliente");
+      setError(err instanceof Error ? err.message : "Falha ao carregar configuraÃ§Ãµes do Hermes Cliente");
     } finally {
       setLoading(false);
     }
@@ -645,7 +646,7 @@ function SettingsPage({ profile }: { profile: MeResponse }) {
     try {
       await activateClientSkill(skillKey);
       await loadClientHermes();
-      setSuccess(`Skill ${skillKey} ativada com confirmação.`);
+      setSuccess(`Skill ${skillKey} ativada com confirmaÃ§Ã£o.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falha ao ativar skill");
     }
@@ -674,11 +675,11 @@ function SettingsPage({ profile }: { profile: MeResponse }) {
         </div>
       </div>
       <div className="rounded-[32px] bg-white p-6 shadow-soft">
-        <h2 className="font-serif text-2xl">Operação</h2>
+        <h2 className="font-serif text-2xl">OperaÃ§Ã£o</h2>
         <div className="mt-5 space-y-3 text-sm text-slate-700">
-          <div>Canal primário: Telegram</div>
-          <div>Engine IA: Hermes com fallback configurável.</div>
-          <div>Módulo CRM: {profile.modules.crm ? "ativo" : "inativo"}</div>
+          <div>Canal primÃ¡rio: Telegram</div>
+          <div>Engine IA: Hermes com fallback configurÃ¡vel.</div>
+          <div>MÃ³dulo CRM: {profile.modules.crm ? "ativo" : "inativo"}</div>
         </div>
       </div>
 
@@ -687,7 +688,7 @@ function SettingsPage({ profile }: { profile: MeResponse }) {
           <div>
             <h2 className="font-serif text-2xl">Hermes Cliente</h2>
             <p className="mt-2 text-sm text-slate-600">
-              Perfil, aprendizado e automações controladas por confirmação explícita.
+              Perfil, aprendizado e automaÃ§Ãµes controladas por confirmaÃ§Ã£o explÃ­cita.
             </p>
           </div>
           <button
@@ -705,7 +706,7 @@ function SettingsPage({ profile }: { profile: MeResponse }) {
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           <input
             className="input"
-            placeholder="Tipo de negócio"
+            placeholder="Tipo de negÃ³cio"
             value={form.tipo_negocio}
             onChange={(e) => setForm((current) => ({ ...current, tipo_negocio: e.target.value }))}
           />
@@ -715,7 +716,7 @@ function SettingsPage({ profile }: { profile: MeResponse }) {
             onChange={(e) => setForm((current) => ({ ...current, nivel_automacao: e.target.value }))}
           >
             <option value="baixo">Baixo</option>
-            <option value="medio">Médio</option>
+            <option value="medio">MÃ©dio</option>
             <option value="alto">Alto</option>
           </select>
           <textarea
@@ -726,13 +727,13 @@ function SettingsPage({ profile }: { profile: MeResponse }) {
           />
           <input
             className="input"
-            placeholder="Horário de funcionamento"
+            placeholder="HorÃ¡rio de funcionamento"
             value={form.horario_funcionamento}
             onChange={(e) => setForm((current) => ({ ...current, horario_funcionamento: e.target.value }))}
           />
           <textarea
             className="input min-h-24"
-            placeholder="Preferências do Hermes"
+            placeholder="PreferÃªncias do Hermes"
             value={form.preferencias}
             onChange={(e) => setForm((current) => ({ ...current, preferencias: e.target.value }))}
           />
@@ -747,13 +748,13 @@ function SettingsPage({ profile }: { profile: MeResponse }) {
 
         <div className="mt-8 grid gap-6 xl:grid-cols-2">
           <div className="rounded-[28px] bg-panel p-5">
-            <h3 className="font-serif text-xl text-ink">Sugestões do Hermes</h3>
+            <h3 className="font-serif text-xl text-ink">SugestÃµes do Hermes</h3>
             <div className="mt-4 space-y-3">
               {loading ? (
-                <div className="text-sm text-slate-500">Carregando sugestões...</div>
+                <div className="text-sm text-slate-500">Carregando sugestÃµes...</div>
               ) : clientSuggestions.length === 0 ? (
                 <div className="text-sm text-slate-500">
-                  Ainda não há sugestões registradas. Elas aparecem quando o Hermes identifica padrões do tenant.
+                  Ainda nÃ£o hÃ¡ sugestÃµes registradas. Elas aparecem quando o Hermes identifica padrÃµes do tenant.
                 </div>
               ) : (
                 clientSuggestions.map((item) => (
@@ -762,7 +763,7 @@ function SettingsPage({ profile }: { profile: MeResponse }) {
                     <div className="mt-2 text-sm text-slate-600">{item.message}</div>
                     <div className="mt-3 flex items-center justify-between gap-3">
                       <div className="text-xs text-slate-500">
-                        {item.suggested_at ? `Sugerido em ${formatDateTime(item.suggested_at)}` : "Sugestão registrada"}
+                        {item.suggested_at ? `Sugerido em ${formatDateTime(item.suggested_at)}` : "SugestÃ£o registrada"}
                       </div>
                       <button
                         type="button"
@@ -770,7 +771,7 @@ function SettingsPage({ profile }: { profile: MeResponse }) {
                         onClick={() => handleActivateSuggestion(item.skill_key)}
                         className="rounded-2xl bg-ink px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        {item.active ? "Já ativa" : "Confirmar e ativar"}
+                        {item.active ? "JÃ¡ ativa" : "Confirmar e ativar"}
                       </button>
                     </div>
                   </div>
@@ -842,7 +843,7 @@ function SocialAccountsList({
           <div>
             <div className="font-semibold text-slate-900">{account.display_name || account.username || account.provider}</div>
             <div className="text-sm text-slate-600">
-              {account.provider} • {account.status}
+              {account.provider} â¢ {account.status}
             </div>
           </div>
           {onDisconnect ? (
@@ -911,7 +912,7 @@ function InstagramPage({ profile }: { profile: MeResponse }) {
     <div className="space-y-6">
       <div className="rounded-[32px] bg-white p-6 shadow-soft">
         <h2 className="font-serif text-2xl">Instagram</h2>
-        <p className="mt-3 text-slate-600">Gerencie contas conectadas e prepare a publicação integrada ao CRM.</p>
+        <p className="mt-3 text-slate-600">Gerencie contas conectadas e prepare a publicaÃ§Ã£o integrada ao CRM.</p>
         {error ? <div className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div> : null}
         <div className="mt-6 flex gap-3">
           <button onClick={handleConnect} className="rounded-2xl bg-gradient-to-r from-fuchsia-500 to-rose-500 px-6 py-3 text-sm font-semibold text-white">
@@ -981,7 +982,7 @@ function YouTubePage({ profile }: { profile: MeResponse }) {
     <div className="space-y-6">
       <div className="rounded-[32px] bg-white p-6 shadow-soft">
         <h2 className="font-serif text-2xl">YouTube</h2>
-        <p className="mt-3 text-slate-600">Gerencie canais conectados e use o publicador para vídeos e Shorts.</p>
+        <p className="mt-3 text-slate-600">Gerencie canais conectados e use o publicador para vÃ­deos e Shorts.</p>
         {error ? <div className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div> : null}
         <div className="mt-6 flex gap-3">
           <button onClick={handleConnect} className="rounded-2xl bg-gradient-to-r from-red-500 to-red-600 px-6 py-3 text-sm font-semibold text-white">
@@ -1071,7 +1072,7 @@ function ContentPublisherPage() {
       });
       await loadPublisher();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao criar publicação");
+      setError(err instanceof Error ? err.message : "Falha ao criar publicaÃ§Ã£o");
     } finally {
       setSaving(false);
     }
@@ -1082,7 +1083,7 @@ function ContentPublisherPage() {
       await publishIntegrationPost(postId);
       await loadPublisher();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao publicar conteúdo");
+      setError(err instanceof Error ? err.message : "Falha ao publicar conteÃºdo");
     }
   }
 
@@ -1091,7 +1092,7 @@ function ContentPublisherPage() {
       await deleteIntegrationPost(postId);
       await loadPublisher();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao excluir publicação");
+      setError(err instanceof Error ? err.message : "Falha ao excluir publicaÃ§Ã£o");
     }
   }
 
@@ -1118,16 +1119,16 @@ function ContentPublisherPage() {
 
       <div className="grid gap-6 xl:grid-cols-[1.1fr,0.9fr]">
         <form onSubmit={handleCreatePost} className="rounded-[32px] bg-white p-6 shadow-soft">
-          <h2 className="font-serif text-2xl">Nova publicação</h2>
+          <h2 className="font-serif text-2xl">Nova publicaÃ§Ã£o</h2>
           {error ? <div className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div> : null}
           <div className="mt-5 grid gap-4">
-            <input className="input" placeholder="Título" value={form.title} onChange={(e) => setForm((current) => ({ ...current, title: e.target.value }))} required />
-            <textarea className="input min-h-28" placeholder="Conteúdo" value={form.content} onChange={(e) => setForm((current) => ({ ...current, content: e.target.value }))} required />
-            <input className="input" placeholder="URL da mídia" value={form.media_url} onChange={(e) => setForm((current) => ({ ...current, media_url: e.target.value }))} required />
+            <input className="input" placeholder="TÃ­tulo" value={form.title} onChange={(e) => setForm((current) => ({ ...current, title: e.target.value }))} required />
+            <textarea className="input min-h-28" placeholder="ConteÃºdo" value={form.content} onChange={(e) => setForm((current) => ({ ...current, content: e.target.value }))} required />
+            <input className="input" placeholder="URL da mÃ­dia" value={form.media_url} onChange={(e) => setForm((current) => ({ ...current, media_url: e.target.value }))} required />
             <div className="grid gap-4 md:grid-cols-2">
               <select className="input" value={form.media_type} onChange={(e) => setForm((current) => ({ ...current, media_type: e.target.value }))}>
                 <option value="image">Imagem</option>
-                <option value="video">Vídeo</option>
+                <option value="video">VÃ­deo</option>
                 <option value="reel">Reel</option>
                 <option value="short">Short</option>
               </select>
@@ -1148,29 +1149,29 @@ function ContentPublisherPage() {
             </div>
           </div>
           <button disabled={saving} className="mt-6 rounded-2xl bg-brand px-5 py-3 font-medium text-white disabled:opacity-50">
-            {saving ? "Salvando..." : "Salvar publicação"}
+            {saving ? "Salvando..." : "Salvar publicaÃ§Ã£o"}
           </button>
         </form>
 
         <div className="rounded-[32px] bg-white p-6 shadow-soft">
           <div className="flex items-center justify-between">
-            <h2 className="font-serif text-2xl">Fila de publicações</h2>
+            <h2 className="font-serif text-2xl">Fila de publicaÃ§Ãµes</h2>
             <button onClick={loadPublisher} className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200">
               Atualizar
             </button>
           </div>
           <div className="mt-5 space-y-3">
             {loading ? (
-              <div className="text-sm text-slate-500">Carregando publicações...</div>
+              <div className="text-sm text-slate-500">Carregando publicaÃ§Ãµes...</div>
             ) : posts.length === 0 ? (
-              <div className="text-sm text-slate-500">Nenhuma publicação cadastrada.</div>
+              <div className="text-sm text-slate-500">Nenhuma publicaÃ§Ã£o cadastrada.</div>
             ) : (
               posts.map((post) => (
                 <div key={post.id} className="rounded-2xl bg-panel p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <div className="font-semibold text-slate-900">{post.title}</div>
-                      <div className="mt-1 text-sm text-slate-600">{post.platforms.join(", ")} • {post.status}</div>
+                      <div className="mt-1 text-sm text-slate-600">{post.platforms.join(", ")} â¢ {post.status}</div>
                       <div className="mt-2 text-sm text-slate-500">{post.media_url}</div>
                     </div>
                     <div className="flex gap-2">
@@ -1227,14 +1228,14 @@ function AgendaPage() {
     <div className="space-y-6">
       <div className="rounded-[32px] bg-white p-6 shadow-soft">
         <h2 className="font-serif text-2xl">Agenda</h2>
-        <p className="mt-3 text-slate-600">Visão rápida dos agendamentos e tarefas que já existem no CRM atual.</p>
+        <p className="mt-3 text-slate-600">VisÃ£o rÃ¡pida dos agendamentos e tarefas que jÃ¡ existem no CRM atual.</p>
         {error ? <div className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div> : null}
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
         <div className="rounded-[32px] bg-white p-6 shadow-soft">
           <div className="flex items-center justify-between">
-            <h3 className="font-serif text-xl">Próximos follow-ups</h3>
+            <h3 className="font-serif text-xl">PrÃ³ximos follow-ups</h3>
             <button onClick={loadAgenda} className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200">
               Atualizar
             </button>
@@ -1249,7 +1250,7 @@ function AgendaPage() {
                 <div key={followup.id} className="rounded-2xl bg-panel p-4">
                   <div className="font-semibold text-slate-900">{followup.title || followup.titulo}</div>
                   <div className="mt-1 text-sm text-slate-600">
-                    {formatDateTime(followup.due_at || followup.data_hora)} • {followup.status}
+                    {formatDateTime(followup.due_at || followup.data_hora)} â¢ {followup.status}
                   </div>
                 </div>
               ))
@@ -1269,7 +1270,7 @@ function AgendaPage() {
                 <div key={task.id} className="rounded-2xl bg-panel p-4">
                   <div className="font-semibold text-slate-900">{task.title}</div>
                   <div className="mt-1 text-sm text-slate-600">
-                    {task.due_at ? `${formatDateTime(task.due_at)} • ` : ""}
+                    {task.due_at ? `${formatDateTime(task.due_at)} â¢ ` : ""}
                     {task.status}
                   </div>
                 </div>
@@ -1307,7 +1308,7 @@ function HermesAdminChatPage({ profile }: { profile: MeResponse }) {
       id: "welcome",
       sender: "assistant",
       content:
-        "Olá, Fernando! Eu sou o Hermes Admin. Posso verificar status do sistema, módulos, erros, projeto e próximos passos.",
+        "OlÃ¡, Fernando! Eu sou o Hermes Admin. Posso verificar status do sistema, mÃ³dulos, erros, projeto e prÃ³ximos passos.",
     },
   ]);
 
@@ -1370,9 +1371,9 @@ function HermesAdminChatPage({ profile }: { profile: MeResponse }) {
         </div>
 
         <div className="mt-6 rounded-2xl bg-ink p-4 text-sm text-white">
-          <div className="text-white/60">Comandos úteis</div>
+          <div className="text-white/60">Comandos Ãºteis</div>
           <div className="mt-2">status do sistema</div>
-          <div>listar módulos</div>
+          <div>listar mÃ³dulos</div>
           <div>ver erros</div>
           <div>analisar projeto</div>
           <div>o que falta fazer</div>
@@ -1407,7 +1408,7 @@ function HermesAdminChatPage({ profile }: { profile: MeResponse }) {
               className="input flex-1"
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="Pergunte sobre status, módulos, erros ou projeto"
+              placeholder="Pergunte sobre status, mÃ³dulos, erros ou projeto"
             />
             <button
               disabled={loading}
@@ -1480,7 +1481,7 @@ function CrmWhatsAppPage() {
       });
       await loadWhatsApp();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao salvar conexão");
+      setError(err instanceof Error ? err.message : "Falha ao salvar conexÃ£o");
     } finally {
       setSaving(false);
     }
@@ -1511,22 +1512,22 @@ function CrmWhatsAppPage() {
     <div className="grid gap-6 xl:grid-cols-[1fr,0.95fr]">
       <form onSubmit={handleSave} className="rounded-[32px] bg-white p-6 shadow-soft">
         <h2 className="font-serif text-2xl">WhatsApp CRM</h2>
-        <p className="mt-3 text-slate-600">Configure a instância do provedor e gerencie o QR Code da conexão.</p>
+        <p className="mt-3 text-slate-600">Configure a instÃ¢ncia do provedor e gerencie o QR Code da conexÃ£o.</p>
         {error ? <div className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div> : null}
         <div className="mt-5 grid gap-4">
           <input className="input" placeholder="Provider" value={form.provider} onChange={(e) => setForm((current) => ({ ...current, provider: e.target.value }))} required />
-          <input className="input" placeholder="Nome da instância" value={form.instance_name} onChange={(e) => setForm((current) => ({ ...current, instance_name: e.target.value }))} required />
+          <input className="input" placeholder="Nome da instÃ¢ncia" value={form.instance_name} onChange={(e) => setForm((current) => ({ ...current, instance_name: e.target.value }))} required />
           <input className="input" placeholder="API Base URL" value={form.api_base_url} onChange={(e) => setForm((current) => ({ ...current, api_base_url: e.target.value }))} />
           <input className="input" placeholder="API Key" value={form.api_key} onChange={(e) => setForm((current) => ({ ...current, api_key: e.target.value }))} />
           <input className="input" placeholder="Webhook URL" value={form.webhook_url} onChange={(e) => setForm((current) => ({ ...current, webhook_url: e.target.value }))} />
         </div>
         <button disabled={saving} className="mt-6 rounded-2xl bg-brand px-5 py-3 font-medium text-white disabled:opacity-50">
-          {saving ? "Salvando..." : "Salvar conexão"}
+          {saving ? "Salvando..." : "Salvar conexÃ£o"}
         </button>
       </form>
 
       <div className="rounded-[32px] bg-white p-6 shadow-soft">
-        <h2 className="font-serif text-2xl">Estado da conexão</h2>
+        <h2 className="font-serif text-2xl">Estado da conexÃ£o</h2>
         {loading ? <div className="mt-5 text-sm text-slate-500">Carregando status...</div> : null}
         <div className="mt-5 space-y-4">
           <div className="rounded-2xl bg-panel p-4">
@@ -1596,9 +1597,9 @@ function MasterPage({
     <div className="space-y-6">
       <div className="rounded-[32px] bg-[linear-gradient(135deg,#2a1f43,#3d2d63_55%,#e6d7b7)] p-8 text-white shadow-soft">
         <div className="text-xs uppercase tracking-[0.3em] text-white/60">Admin Master</div>
-        <h2 className="mt-3 font-serif text-4xl">Módulos por cliente</h2>
+        <h2 className="mt-3 font-serif text-4xl">MÃ³dulos por cliente</h2>
         <p className="mt-3 max-w-2xl text-sm text-white/75">
-          Controle central para ativar ou desativar módulos por tenant sem misturar dados entre clientes.
+          Controle central para ativar ou desativar mÃ³dulos por tenant sem misturar dados entre clientes.
         </p>
       </div>
 
