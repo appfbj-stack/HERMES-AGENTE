@@ -1,9 +1,13 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import {
+  activateClientSkill,
   createCrmFollowup,
   createCrmLead,
   createCrmTask,
+  getClientProfile,
+  getClientSkills,
+  getClientSuggestions,
   connectCrmWhatsApp,
   deleteCrmLead,
   deleteCrmFollowup,
@@ -42,7 +46,9 @@ import {
   startInstagramConnect,
   startYouTubeConnect,
   toggleAi,
+  toggleClientSkill,
   updateAdminTenantModules,
+  updateClientProfile,
   updateCrmConversationState,
   updateCrmFollowup,
   updateCrmLead,
@@ -57,6 +63,9 @@ import CrmKanbanPage from "./crm/KanbanPage";
 import type {
   AdminTenant,
   Chat,
+  ClientProfile,
+  ClientSkill,
+  ClientSuggestion,
   Credit,
   CrmActivityLog,
   CrmConversation,
@@ -528,6 +537,97 @@ function CreditsPage({ credits }: { credits?: Credit }) {
 }
 
 function SettingsPage({ profile }: { profile: MeResponse }) {
+  const [clientProfile, setClientProfile] = useState<ClientProfile | null>(null);
+  const [clientSkills, setClientSkills] = useState<ClientSkill[]>([]);
+  const [clientSuggestions, setClientSuggestions] = useState<ClientSuggestion[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [form, setForm] = useState({
+    tipo_negocio: "",
+    objetivo: "",
+    horario_funcionamento: "",
+    preferencias: "",
+    nivel_automacao: "medio",
+  });
+
+  async function loadClientHermes() {
+    setLoading(true);
+    setError("");
+    try {
+      const [profileData, skillsData, suggestionsData] = await Promise.all([
+        getClientProfile(),
+        getClientSkills(),
+        getClientSuggestions(),
+      ]);
+      setClientProfile(profileData);
+      setClientSkills(skillsData);
+      setClientSuggestions(suggestionsData);
+      setForm({
+        tipo_negocio: profileData.tipo_negocio || "",
+        objetivo: profileData.objetivo || "",
+        horario_funcionamento: profileData.horario_funcionamento || "",
+        preferencias: profileData.preferencias || "",
+        nivel_automacao: profileData.nivel_automacao || "medio",
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao carregar configurações do Hermes Cliente");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadClientHermes();
+  }, []);
+
+  async function handleSaveProfile(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    setSuccess("");
+    try {
+      const updated = await updateClientProfile({
+        tipo_negocio: form.tipo_negocio || null,
+        objetivo: form.objetivo || null,
+        horario_funcionamento: form.horario_funcionamento || null,
+        preferencias: form.preferencias || null,
+        nivel_automacao: form.nivel_automacao,
+      });
+      setClientProfile(updated);
+      setSuccess("Perfil do Hermes Cliente atualizado.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao salvar perfil");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleActivateSuggestion(skillKey: string) {
+    setError("");
+    setSuccess("");
+    try {
+      await activateClientSkill(skillKey);
+      await loadClientHermes();
+      setSuccess(`Skill ${skillKey} ativada com confirmação.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao ativar skill");
+    }
+  }
+
+  async function handleToggleSkill(skillId: number, ativa: boolean) {
+    setError("");
+    setSuccess("");
+    try {
+      await toggleClientSkill(skillId, ativa);
+      await loadClientHermes();
+      setSuccess(`Skill ${ativa ? "ativada" : "desativada"} com sucesso.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao atualizar skill");
+    }
+  }
+
   return (
     <div className="grid gap-6 xl:grid-cols-2">
       <div className="rounded-[32px] bg-white p-6 shadow-soft">
@@ -546,6 +646,142 @@ function SettingsPage({ profile }: { profile: MeResponse }) {
           <div>Módulo CRM: {profile.modules.crm ? "ativo" : "inativo"}</div>
         </div>
       </div>
+
+      <form onSubmit={handleSaveProfile} className="rounded-[32px] bg-white p-6 shadow-soft xl:col-span-2">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="font-serif text-2xl">Hermes Cliente</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Perfil, aprendizado e automações controladas por confirmação explícita.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={loadClientHermes}
+            className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200"
+          >
+            Atualizar
+          </button>
+        </div>
+
+        {error ? <div className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div> : null}
+        {success ? <div className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{success}</div> : null}
+
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          <input
+            className="input"
+            placeholder="Tipo de negócio"
+            value={form.tipo_negocio}
+            onChange={(e) => setForm((current) => ({ ...current, tipo_negocio: e.target.value }))}
+          />
+          <select
+            className="input"
+            value={form.nivel_automacao}
+            onChange={(e) => setForm((current) => ({ ...current, nivel_automacao: e.target.value }))}
+          >
+            <option value="baixo">Baixo</option>
+            <option value="medio">Médio</option>
+            <option value="alto">Alto</option>
+          </select>
+          <textarea
+            className="input min-h-24 md:col-span-2"
+            placeholder="Objetivo do cliente"
+            value={form.objetivo}
+            onChange={(e) => setForm((current) => ({ ...current, objetivo: e.target.value }))}
+          />
+          <input
+            className="input"
+            placeholder="Horário de funcionamento"
+            value={form.horario_funcionamento}
+            onChange={(e) => setForm((current) => ({ ...current, horario_funcionamento: e.target.value }))}
+          />
+          <textarea
+            className="input min-h-24"
+            placeholder="Preferências do Hermes"
+            value={form.preferencias}
+            onChange={(e) => setForm((current) => ({ ...current, preferencias: e.target.value }))}
+          />
+        </div>
+
+        <button
+          disabled={saving || loading}
+          className="mt-6 rounded-2xl bg-brand px-5 py-3 font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {saving ? "Salvando..." : "Salvar perfil do Hermes"}
+        </button>
+
+        <div className="mt-8 grid gap-6 xl:grid-cols-2">
+          <div className="rounded-[28px] bg-panel p-5">
+            <h3 className="font-serif text-xl text-ink">Sugestões do Hermes</h3>
+            <div className="mt-4 space-y-3">
+              {loading ? (
+                <div className="text-sm text-slate-500">Carregando sugestões...</div>
+              ) : clientSuggestions.length === 0 ? (
+                <div className="text-sm text-slate-500">
+                  Ainda não há sugestões registradas. Elas aparecem quando o Hermes identifica padrões do tenant.
+                </div>
+              ) : (
+                clientSuggestions.map((item) => (
+                  <div key={item.skill_key} className="rounded-2xl bg-white p-4">
+                    <div className="font-semibold text-slate-900">{item.skill_key}</div>
+                    <div className="mt-2 text-sm text-slate-600">{item.message}</div>
+                    <div className="mt-3 flex items-center justify-between gap-3">
+                      <div className="text-xs text-slate-500">
+                        {item.suggested_at ? `Sugerido em ${formatDateTime(item.suggested_at)}` : "Sugestão registrada"}
+                      </div>
+                      <button
+                        type="button"
+                        disabled={item.active}
+                        onClick={() => handleActivateSuggestion(item.skill_key)}
+                        className="rounded-2xl bg-ink px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {item.active ? "Já ativa" : "Confirmar e ativar"}
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-[28px] bg-panel p-5">
+            <h3 className="font-serif text-xl text-ink">Skills do cliente</h3>
+            <div className="mt-4 space-y-3">
+              {loading ? (
+                <div className="text-sm text-slate-500">Carregando skills...</div>
+              ) : clientSkills.length === 0 ? (
+                <div className="text-sm text-slate-500">Nenhuma skill registrada para este tenant.</div>
+              ) : (
+                clientSkills.map((skill) => (
+                  <div key={skill.id} className="rounded-2xl bg-white p-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <div className="font-semibold text-slate-900">{skill.nome_skill}</div>
+                        <div className="mt-1 text-sm text-slate-600">{skill.descricao || "Skill do cliente"}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleSkill(skill.id, !skill.ativa)}
+                        className={`rounded-2xl px-4 py-2 text-sm font-semibold ${
+                          skill.ativa ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-700"
+                        }`}
+                      >
+                        {skill.ativa ? "Ativa" : "Desligada"}
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+
+        {clientProfile ? (
+          <div className="mt-6 text-xs text-slate-500">
+            Perfil Hermes atualizado em {formatDateTime(clientProfile.updated_at)}.
+          </div>
+        ) : null}
+      </form>
     </div>
   );
 }

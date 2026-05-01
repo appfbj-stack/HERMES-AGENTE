@@ -9,9 +9,9 @@ from app.models import AssistantMemory, ClientMemory, ClientSkill, Message, Task
 from app.routes import public as public_routes
 from app.routes.admin import set_tenant_modules
 from app.routes.auth import login, logout
-from app.routes.client import create_client_skill, get_client_profile, list_client_skills, toggle_client_skill, update_client_profile
+from app.routes.client import activate_client_skill_route, create_client_skill, get_client_profile, list_client_skills, list_client_suggestions, toggle_client_skill, update_client_profile
 from app.routes.public import PublicSendRequest
-from app.schemas import ClientProfileUpdate, ClientSkillCreate, ClientSkillToggleRequest, LoginRequest, TenantModuleUpdate
+from app.schemas import ClientProfileUpdate, ClientSkillActivationRequest, ClientSkillCreate, ClientSkillToggleRequest, LoginRequest, TenantModuleUpdate
 from app.services import task_reminders
 from app.services.agent import (
     maybe_handle_memory_query,
@@ -239,6 +239,8 @@ def test_client_profile_and_skill_routes_are_scoped_to_current_tenant(db_session
     profile_b = get_client_profile(db=db_session, current_user=user_b)
     skills_a = list_client_skills(db=db_session, current_user=user_a)
     skills_b = list_client_skills(db=db_session, current_user=user_b)
+    suggestions_a = list_client_suggestions(db=db_session, current_user=user_a)
+    suggestions_b = list_client_suggestions(db=db_session, current_user=user_b)
 
     assert updated_profile.tenant_id == tenant_a.id
     assert updated_profile.tipo_negocio == "Clínica"
@@ -247,6 +249,36 @@ def test_client_profile_and_skill_routes_are_scoped_to_current_tenant(db_session
     assert profile_b.tenant_id == tenant_b.id
     assert len(skills_a) == 1
     assert skills_a[0].tenant_id == tenant_a.id
+    assert skills_b == []
+    assert suggestions_a == []
+    assert suggestions_b == []
+
+
+def test_client_suggestion_activation_route_creates_skill_in_current_tenant_only(db_session):
+    tenant_a = create_tenant(db_session, name="Tenant A", email="activate-a@empresa.com")
+    tenant_b = create_tenant(db_session, name="Tenant B", email="activate-b@empresa.com")
+    user_a = create_user(db_session, tenant_id=tenant_a.id, name="User A", email="activate-user-a@empresa.com")
+    user_b = create_user(db_session, tenant_id=tenant_b.id, name="User B", email="activate-user-b@empresa.com")
+    chat_a = create_chat(db_session, tenant_id=tenant_a.id, external_id="activate-chat-a")
+    create_chat(db_session, tenant_id=tenant_b.id, external_id="activate-chat-b")
+
+    process_inbound_automation(db_session, tenant_a.id, chat_a, "preciso de follow-up")
+    process_inbound_automation(db_session, tenant_a.id, chat_a, "mais follow-up")
+    process_inbound_automation(db_session, tenant_a.id, chat_a, "outro follow-up")
+    db_session.commit()
+
+    activated = activate_client_skill_route(
+        ClientSkillActivationRequest(skill_key="follow_up_automatico"),
+        db=db_session,
+        current_user=user_a,
+    )
+    skills_a = list_client_skills(db=db_session, current_user=user_a)
+    skills_b = list_client_skills(db=db_session, current_user=user_b)
+
+    assert activated.tenant_id == tenant_a.id
+    assert activated.ativa is True
+    assert len(skills_a) == 1
+    assert skills_a[0].nome_skill == "follow_up_automatico"
     assert skills_b == []
 
 

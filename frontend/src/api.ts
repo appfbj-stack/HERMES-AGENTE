@@ -1,6 +1,9 @@
 import type {
   AdminTenant,
   Chat,
+  ClientProfile,
+  ClientSkill,
+  ClientSuggestion,
   Credit,
   CrmActivityLog,
   CrmConversation,
@@ -124,6 +127,51 @@ export async function deleteTask(taskId: number) {
 
 export async function getCredits() {
   return request<Credit>("/credits");
+}
+
+export async function getClientProfile() {
+  return request<ClientProfile>("/client/profile");
+}
+
+export async function updateClientProfile(payload: Partial<Pick<ClientProfile, "tipo_negocio" | "objetivo" | "horario_funcionamento" | "preferencias" | "nivel_automacao">>) {
+  return request<ClientProfile>("/client/profile", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getClientSkills() {
+  return request<ClientSkill[]>("/client/skills");
+}
+
+export async function createClientSkill(payload: {
+  nome_skill: string;
+  descricao?: string | null;
+  ativa?: boolean;
+  configuracao?: string | null;
+}) {
+  return request<ClientSkill>("/client/skills", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function toggleClientSkill(skillId: number, ativa: boolean) {
+  return request<ClientSkill>(`/client/skills/${skillId}/toggle`, {
+    method: "POST",
+    body: JSON.stringify({ ativa }),
+  });
+}
+
+export async function activateClientSkill(skill_key: string) {
+  return request<ClientSkill>("/client/skills/activate", {
+    method: "POST",
+    body: JSON.stringify({ skill_key }),
+  });
+}
+
+export async function getClientSuggestions() {
+  return request<ClientSuggestion[]>("/client/suggestions");
 }
 
 export async function toggleAi(chatId: number, ai_paused: boolean) {

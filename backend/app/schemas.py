@@ -300,6 +300,17 @@ class ClientSkillCreate(BaseModel):
 class ClientSkillToggleRequest(BaseModel):
     ativa: bool
 
+
+class ClientSkillActivationRequest(BaseModel):
+    skill_key: str
+
+
+class ClientSuggestionOut(BaseModel):
+    skill_key: str
+    message: str
+    suggested_at: str | None = None
+    active: bool = False
+
 class AssignChatRequest(BaseModel):
     assigned_user_id: int
 

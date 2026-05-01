@@ -317,6 +317,35 @@ export type Credit = {
   remaining: number;
 };
 
+export type ClientProfile = {
+  tenant_id: number;
+  tipo_negocio: string | null;
+  objetivo: string | null;
+  horario_funcionamento: string | null;
+  preferencias: string | null;
+  nivel_automacao: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ClientSkill = {
+  id: number;
+  tenant_id: number;
+  nome_skill: string;
+  descricao: string | null;
+  ativa: boolean;
+  configuracao: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ClientSuggestion = {
+  skill_key: string;
+  message: string;
+  suggested_at: string | null;
+  active: boolean;
+};
+
 export type LoginResponse = {
   access_token: string;
   token_type: string;

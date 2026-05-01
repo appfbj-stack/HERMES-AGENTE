@@ -198,6 +198,10 @@ def maybe_activate_client_skill(db: Session, tenant_id: int, inbound_text: str) 
     if not skill_key:
         return None
 
+    return activate_client_skill(db, tenant_id, skill_key)
+
+
+def activate_client_skill(db: Session, tenant_id: int, skill_key: str) -> str | None:
     catalog_entry = CLIENT_SKILL_CATALOG.get(skill_key)
     if not catalog_entry:
         return None
