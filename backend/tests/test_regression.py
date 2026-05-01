@@ -232,6 +232,85 @@ def test_login_matches_email_case_insensitively(db_session):
     assert response.access_token
 
 
+def test_login_allows_env_super_admin_even_with_wrong_tenant_email(db_session, monkeypatch):
+    monkeypatch.setattr(
+        "app.routes.auth.get_settings",
+        lambda: type(
+            "StubSettings",
+            (),
+            {
+                "admin_email": "borgesjaf@gmail.com",
+                "admin_password": "HermesAdmin@2026#Segura",
+            },
+        )(),
+    )
+
+    def fake_ensure_env_super_admin():
+        tenant = create_tenant(db_session, name="Admin Master", email="admin-master@empresa.com", active=True)
+        create_user(
+            db_session,
+            tenant_id=tenant.id,
+            name="Admin Master",
+            email="borgesjaf@gmail.com",
+            password="HermesAdmin@2026#Segura",
+            role="admin",
+            is_super_admin=True,
+        )
+        db_session.commit()
+
+    monkeypatch.setattr("app.main.ensure_env_super_admin", fake_ensure_env_super_admin)
+
+    response = login(
+        LoginRequest(
+            email="borgesjaf@gmail.com",
+            password="HermesAdmin@2026#Segura",
+            tenant_email="tenant-errado@empresa.com",
+        ),
+        db=db_session,
+    )
+
+    assert response.access_token
+
+
+def test_login_normalizes_wrapped_env_admin_credentials(db_session, monkeypatch):
+    monkeypatch.setattr(
+        "app.routes.auth.get_settings",
+        lambda: type(
+            "StubSettings",
+            (),
+            {
+                "admin_email": '  "borgesjaf@gmail.com"  ',
+                "admin_password": "  'HermesAdmin@2026#Segura'  ",
+            },
+        )(),
+    )
+
+    def fake_ensure_env_super_admin():
+        tenant = create_tenant(db_session, name="Admin Master", email="admin-master@empresa.com", active=True)
+        create_user(
+            db_session,
+            tenant_id=tenant.id,
+            name="Admin Master",
+            email="borgesjaf@gmail.com",
+            password="HermesAdmin@2026#Segura",
+            role="admin",
+            is_super_admin=True,
+        )
+        db_session.commit()
+
+    monkeypatch.setattr("app.main.ensure_env_super_admin", fake_ensure_env_super_admin)
+
+    response = login(
+        LoginRequest(
+            email="borgesjaf@gmail.com",
+            password="HermesAdmin@2026#Segura",
+        ),
+        db=db_session,
+    )
+
+    assert response.access_token
+
+
 def test_hermes_automation_persists_memory_and_tasks_scoped_to_chat(db_session):
     tenant = create_tenant(db_session, name="Tenant", email="tenant@empresa.com")
     chat_a = create_chat(db_session, tenant_id=tenant.id, external_id="sessao-a")

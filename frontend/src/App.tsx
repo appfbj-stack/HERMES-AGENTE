@@ -220,6 +220,7 @@ function LoginPage({ onLogged }: { onLogged: () => void }) {
 
     try {
       localStorage.removeItem("hermes_token");
+      localStorage.removeItem("hermes_api_base");
       const result = await login(email.trim(), password, tenantEmail.trim() || undefined);
       localStorage.setItem("hermes_token", result.access_token);
       onLogged();

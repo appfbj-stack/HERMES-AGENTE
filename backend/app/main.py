@@ -53,6 +53,17 @@ app.add_middleware(
 )
 
 
+def _normalize_env_value(value: str | None) -> str:
+    normalized = (value or "").strip()
+    if len(normalized) >= 2 and normalized[0] == normalized[-1] and normalized[0] in {"'", '"'}:
+        normalized = normalized[1:-1].strip()
+    return normalized
+
+
+def _normalized_admin_credentials() -> tuple[str, str]:
+    return _normalize_env_value(settings.admin_email).lower(), _normalize_env_value(settings.admin_password)
+
+
 # Migrações leves (idempotentes) — adicionam colunas novas em DBs existentes.
 MIGRATIONS = [
     "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS niche VARCHAR(50)",
@@ -479,13 +490,14 @@ MIGRATIONS = [
 
 
 def ensure_env_super_admin() -> None:
-    if not settings.admin_email or not settings.admin_password:
+    admin_email, admin_password = _normalized_admin_credentials()
+    if not admin_email or not admin_password:
         return
 
     with engine.begin() as conn:
         existing_user = conn.execute(
-            text("SELECT id, tenant_id FROM users WHERE email = :email ORDER BY id ASC LIMIT 1"),
-            {"email": settings.admin_email},
+            text("SELECT id, tenant_id FROM users WHERE LOWER(email) = :email ORDER BY id ASC LIMIT 1"),
+            {"email": admin_email},
         ).first()
         if existing_user:
             tenant_id = existing_user.tenant_id
@@ -499,7 +511,7 @@ def ensure_env_super_admin() -> None:
                 ),
                 {
                     "user_id": existing_user.id,
-                    "password": get_password_hash(settings.admin_password),
+                    "password": get_password_hash(admin_password),
                 },
             )
             conn.execute(
@@ -525,8 +537,8 @@ def ensure_env_super_admin() -> None:
             return
 
         tenant_row = conn.execute(
-            text("SELECT id FROM tenants WHERE email = :email LIMIT 1"),
-            {"email": settings.admin_email},
+            text("SELECT id FROM tenants WHERE LOWER(email) = :email LIMIT 1"),
+            {"email": admin_email},
         ).first()
 
         if tenant_row:
@@ -540,7 +552,7 @@ def ensure_env_super_admin() -> None:
                     RETURNING id
                     """
                 ),
-                {"name": "Admin Master", "email": settings.admin_email},
+                {"name": "Admin Master", "email": admin_email},
             ).scalar_one()
 
         conn.execute(
@@ -553,8 +565,8 @@ def ensure_env_super_admin() -> None:
             {
                 "tenant_id": tenant_id,
                 "name": "Admin Master",
-                "email": settings.admin_email,
-                "password": get_password_hash(settings.admin_password),
+                "email": admin_email,
+                "password": get_password_hash(admin_password),
             },
         )
         conn.execute(
@@ -567,11 +579,12 @@ def ensure_env_super_admin() -> None:
             ),
             {"tenant_id": tenant_id},
         )
-        logger.info("Seeded super_admin from environment for email=%s", settings.admin_email)
+        logger.info("Seeded super_admin from environment for email=%s", admin_email)
 
 
 def sync_env_super_admin() -> dict[str, object]:
-    if not settings.admin_email or not settings.admin_password:
+    admin_email, admin_password = _normalized_admin_credentials()
+    if not admin_email or not admin_password:
         return {"success": False, "detail": "ADMIN_EMAIL ou ADMIN_PASSWORD ausentes"}
 
     ensure_env_super_admin()
@@ -583,12 +596,12 @@ def sync_env_super_admin() -> dict[str, object]:
                 SELECT u.id, u.email, u.role, u.is_super_admin, u.tenant_id, t.active
                 FROM users u
                 JOIN tenants t ON t.id = u.tenant_id
-                WHERE u.email = :email
+                WHERE LOWER(u.email) = :email
                 ORDER BY u.id ASC
                 LIMIT 1
                 """
             ),
-            {"email": settings.admin_email},
+            {"email": admin_email},
         ).first()
 
     if not row:

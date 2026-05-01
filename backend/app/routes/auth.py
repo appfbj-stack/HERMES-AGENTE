@@ -16,15 +16,43 @@ def _normalize_email(value: str | None) -> str:
     return (value or "").strip().lower()
 
 
-def _sync_env_admin_if_needed(db: Session, email: str) -> None:
+def _normalize_secret(value: str | None) -> str:
+    normalized = (value or "").strip()
+    if len(normalized) >= 2 and normalized[0] == normalized[-1] and normalized[0] in {"'", '"'}:
+        normalized = normalized[1:-1].strip()
+    return normalized
+
+
+def _get_normalized_env_admin() -> tuple[str, str]:
     settings = get_settings()
-    if not settings.admin_email.strip() or _normalize_email(email) != _normalize_email(settings.admin_email):
+    return _normalize_email(_normalize_secret(settings.admin_email)), _normalize_secret(settings.admin_password)
+
+
+def _sync_env_admin_if_needed(db: Session, email: str) -> None:
+    admin_email, _ = _get_normalized_env_admin()
+    if not admin_email or _normalize_email(email) != admin_email:
         return
 
     from app.main import ensure_env_super_admin
 
     ensure_env_super_admin()
     db.expire_all()
+
+
+def _get_active_user_by_email(db: Session, email: str) -> User | None:
+    users = (
+        db.query(User)
+        .join(Tenant, Tenant.id == User.tenant_id)
+        .filter(func.lower(User.email) == email, Tenant.active.is_(True))
+        .order_by(User.is_super_admin.desc(), User.id.asc())
+        .all()
+    )
+    if len(users) > 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Esse email existe em mais de uma empresa. Informe também o email da empresa.",
+        )
+    return users[0] if users else None
 
 
 @router.post("/bootstrap", response_model=TokenResponse)
@@ -65,6 +93,13 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     settings = get_settings()
     email = _normalize_email(payload.email)
     tenant_email = _normalize_email(payload.tenant_email)
+    env_admin_email, env_admin_password = _get_normalized_env_admin()
+
+    if email == env_admin_email and payload.password == env_admin_password:
+        _sync_env_admin_if_needed(db, email)
+        admin_user = _get_active_user_by_email(db, email)
+        if admin_user:
+            return TokenResponse(access_token=create_access_token(str(admin_user.id), admin_user.tenant_id))
 
     user = None
     if tenant_email:
@@ -75,18 +110,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email da empresa não encontrado")
         user = db.query(User).filter(User.tenant_id == tenant.id, func.lower(User.email) == email).first()
     else:
-        users = (
-            db.query(User)
-            .join(Tenant, Tenant.id == User.tenant_id)
-            .filter(func.lower(User.email) == email, Tenant.active.is_(True))
-            .all()
-        )
-        if len(users) > 1:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Esse email existe em mais de uma empresa. Informe também o email da empresa.",
-            )
-        user = users[0] if users else None
+        user = _get_active_user_by_email(db, email)
         if not user:
             inactive_user = (
                 db.query(User)
@@ -104,18 +128,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
             if tenant and tenant.active:
                 user = db.query(User).filter(User.tenant_id == tenant.id, func.lower(User.email) == email).first()
         else:
-            users = (
-                db.query(User)
-                .join(Tenant, Tenant.id == User.tenant_id)
-                .filter(func.lower(User.email) == email, Tenant.active.is_(True))
-                .all()
-            )
-            if len(users) > 1:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Esse email existe em mais de uma empresa. Informe também o email da empresa.",
-                )
-            user = users[0] if users else None
+            user = _get_active_user_by_email(db, email)
 
     password_valid = bool(user) and verify_password(payload.password, user.password)
 
@@ -123,14 +136,14 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     if (
         user
         and not password_valid
-        and settings.admin_email.strip()
-        and settings.admin_password.strip()
-        and _normalize_email(user.email) == _normalize_email(settings.admin_email)
-        and payload.password == settings.admin_password.strip()
+        and env_admin_email
+        and env_admin_password
+        and _normalize_email(user.email) == env_admin_email
+        and payload.password == env_admin_password
     ):
         _sync_env_admin_if_needed(db, email)
         db.refresh(user)
-        user.password = get_password_hash(settings.admin_password.strip())
+        user.password = get_password_hash(env_admin_password)
         user.role = "admin"
         user.is_super_admin = True
         db.add(user)
