@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 class ORMModel(BaseModel):
@@ -16,6 +16,13 @@ class LoginRequest(BaseModel):
     email: EmailStr
     password: str
     tenant_email: EmailStr | None = None
+
+    @field_validator("tenant_email", mode="before")
+    @classmethod
+    def empty_tenant_email_to_none(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
 
 class BootstrapRequest(BaseModel):

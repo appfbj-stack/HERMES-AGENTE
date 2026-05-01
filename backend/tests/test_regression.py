@@ -41,6 +41,12 @@ def test_login_requires_tenant_email_when_same_email_exists_in_multiple_tenants(
     assert "mais de uma empresa" in exc_info.value.detail
 
 
+def test_login_request_accepts_blank_tenant_email_as_none():
+    payload = LoginRequest(email="user@empresa.com", password="Senha123!", tenant_email="")
+
+    assert payload.tenant_email is None
+
+
 def test_set_tenant_modules_updates_flags_for_tenant(db_session):
     admin_tenant = create_tenant(db_session, name="Admin", email="admin@empresa.com")
     admin_user = create_user(
