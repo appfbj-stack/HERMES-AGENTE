@@ -1,5 +1,5 @@
 """
-Endpoints exclusivos do super admin (vocÃª, dono do SaaS).
+Endpoints exclusivos do super admin (você, dono do SaaS).
 Permite criar/listar/editar tenants (clientes).
 """
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -91,13 +91,13 @@ def create_tenant(
     db: Session = Depends(get_db),
 ):
     if db.query(Tenant).filter(Tenant.email == payload.email).first():
-        raise HTTPException(status_code=409, detail="Tenant email jÃ¡ existe")
+        raise HTTPException(status_code=409, detail="Tenant email já existe")
     if db.query(User).filter(User.email == payload.user_email).first():
-        raise HTTPException(status_code=409, detail="User email jÃ¡ existe")
+        raise HTTPException(status_code=409, detail="User email já existe")
     if payload.telegram_bot_token and db.query(Tenant).filter(
         Tenant.telegram_bot_token == payload.telegram_bot_token
     ).first():
-        raise HTTPException(status_code=409, detail="Bot token jÃ¡ cadastrado em outro tenant")
+        raise HTTPException(status_code=409, detail="Bot token já cadastrado em outro tenant")
 
     tenant = Tenant(
         name=payload.name,
@@ -183,7 +183,7 @@ def set_tenant_modules(
     _: User = Depends(_require_super_admin),
     db: Session = Depends(get_db),
 ):
-    """Ativa/desativa mÃ³dulos (CRM, WhatsApp...) por tenant."""
+    """Ativa/desativa módulos (CRM, WhatsApp...) por tenant."""
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
         raise HTTPException(status_code=404)
@@ -193,53 +193,26 @@ def set_tenant_modules(
         mod = TenantModule(tenant_id=tenant_id)
         db.add(mod)
 
-    for k, v in payload.model_dump(exclude_unset=True).items():
+    module_data = payload.model_dump(exclude_unset=True)
+    for k, v in module_data.items():
         setattr(mod, k, v)
 
-    try:
-        if mod.crm:
-            ensure_crm_defaults(db, tenant_id)
-    except (SQLAlchemyError, ValueError) as exc:
-        logger.exception("Erro ao inicializar CRM para tenant_id=%s", tenant_id)
-
+    # Commit module changes first (separate from CRM init)
     db.commit()
     db.refresh(tenant)
+
+    # Initialize CRM defaults in a separate transaction (non-critical)
+    if module_data.get("crm"):
+        try:
+            ensure_crm_defaults(db, tenant_id)
+            db.commit()
+        except (SQLAlchemyError, ValueError) as exc:
+            logger.exception("Erro ao inicializar CRM para tenant_id=%s", tenant_id)
+            db.rollback()
+
     return _to_admin_out(db, tenant)
 
 
 @router.delete("/tenants/{tenant_id}", status_code=204)
 def delete_tenant(
-    tenant_id: int,
-    _: User = Depends(_require_super_admin),
-    db: Session = Depends(get_db),
-):
-    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
-    if not tenant:
-        raise HTTPException(status_code=404)
-    db.delete(tenant)
-    db.commit()
-    return None
-
-
-@router.post("/tenants/{tenant_id}/reset-user-password")
-def reset_user_password(
-    tenant_id: int,
-    payload: dict,
-    _: User = Depends(_require_super_admin),
-    db: Session = Depends(get_db),
-):
-    """Redefine a senha do usuario admin de um tenant pelo super admin."""
-    new_password = payload.get("new_password", "")
-    if len(new_password) < 6:
-        raise HTTPException(status_code=400, detail="Senha minima de 6 caracteres")
-    user = (
-        db.query(User)
-        .filter(User.tenant_id == tenant_id)
-        .order_by(User.id.asc())
-        .first()
-    )
-    if not user:
-        raise HTTPException(status_code=404, detail="Nenhum usuario encontrado nesse tenant")
-    user.password = get_password_hash(new_password)
-    db.commit()
-    return {"success": True, "user_id": user.id, "email": user.email}
+    tenant_id: 
