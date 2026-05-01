@@ -170,6 +170,68 @@ def test_login_env_super_admin_fallback_rehashes_mismatched_password(db_session,
     assert login(LoginRequest(email="fernandojaborges@gmail.com", password="HermesAdmin@2026#Segura"), db=db_session)
 
 
+def test_login_auto_syncs_env_super_admin_when_user_is_missing(db_session, monkeypatch):
+    monkeypatch.setattr(
+        "app.routes.auth.get_settings",
+        lambda: type(
+            "StubSettings",
+            (),
+            {
+                "admin_email": "borgesjaf@gmail.com",
+                "admin_password": "HermesAdmin@2026#Segura",
+            },
+        )(),
+    )
+    def fake_ensure_env_super_admin():
+        tenant = create_tenant(db_session, name="Admin Master", email="borgesjaf@gmail.com", active=True)
+        create_user(
+            db_session,
+            tenant_id=tenant.id,
+            name="Admin Master",
+            email="borgesjaf@gmail.com",
+            password="HermesAdmin@2026#Segura",
+            role="admin",
+            is_super_admin=True,
+        )
+        db_session.commit()
+
+    monkeypatch.setattr("app.main.ensure_env_super_admin", fake_ensure_env_super_admin)
+
+    response = login(LoginRequest(email="borgesjaf@gmail.com", password="HermesAdmin@2026#Segura"), db=db_session)
+    seeded_user = db_session.query(app_main.User).filter(app_main.User.email == "borgesjaf@gmail.com").first()
+    seeded_tenant = db_session.query(app_main.Tenant).filter(app_main.Tenant.email == "borgesjaf@gmail.com").first()
+
+    assert response.access_token
+    assert seeded_user is not None
+    assert seeded_user.is_super_admin is True
+    assert seeded_user.role == "admin"
+    assert seeded_tenant is not None
+    assert seeded_tenant.active is True
+
+
+def test_login_matches_email_case_insensitively(db_session):
+    tenant = create_tenant(db_session, name="Tenant Case", email="empresa@teste.com")
+    create_user(
+        db_session,
+        tenant_id=tenant.id,
+        name="Fernando",
+        email="borgesjaf@gmail.com",
+        password="HermesAdmin@2026#Segura",
+    )
+    db_session.commit()
+
+    response = login(
+        LoginRequest(
+            email="BORGESJAF@GMAIL.COM",
+            password="HermesAdmin@2026#Segura",
+            tenant_email="EMPRESA@TESTE.COM",
+        ),
+        db=db_session,
+    )
+
+    assert response.access_token
+
+
 def test_hermes_automation_persists_memory_and_tasks_scoped_to_chat(db_session):
     tenant = create_tenant(db_session, name="Tenant", email="tenant@empresa.com")
     chat_a = create_chat(db_session, tenant_id=tenant.id, external_id="sessao-a")

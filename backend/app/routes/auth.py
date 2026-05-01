@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -9,6 +10,21 @@ from app.models import Credit, Tenant, TenantModule, User
 from app.schemas import AdminSeedSyncRequest, BootstrapRequest, LoginRequest, MeResponse, TenantModulesOut, TenantOut, TokenResponse, UserOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def _normalize_email(value: str | None) -> str:
+    return (value or "").strip().lower()
+
+
+def _sync_env_admin_if_needed(db: Session, email: str) -> None:
+    settings = get_settings()
+    if not settings.admin_email.strip() or _normalize_email(email) != _normalize_email(settings.admin_email):
+        return
+
+    from app.main import ensure_env_super_admin
+
+    ensure_env_super_admin()
+    db.expire_all()
 
 
 @router.post("/bootstrap", response_model=TokenResponse)
@@ -47,19 +63,22 @@ def bootstrap(payload: BootstrapRequest, db: Session = Depends(get_db)):
 @router.post("/login", response_model=TokenResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
     settings = get_settings()
+    email = _normalize_email(payload.email)
+    tenant_email = _normalize_email(payload.tenant_email)
+
     user = None
-    if payload.tenant_email:
-        tenant = db.query(Tenant).filter(Tenant.email == payload.tenant_email).first()
+    if tenant_email:
+        tenant = db.query(Tenant).filter(func.lower(Tenant.email) == tenant_email).first()
         if tenant and not tenant.active:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant inactive")
         if not tenant:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email da empresa não encontrado")
-        user = db.query(User).filter(User.tenant_id == tenant.id, User.email == payload.email).first()
+        user = db.query(User).filter(User.tenant_id == tenant.id, func.lower(User.email) == email).first()
     else:
         users = (
             db.query(User)
             .join(Tenant, Tenant.id == User.tenant_id)
-            .filter(User.email == payload.email, Tenant.active.is_(True))
+            .filter(func.lower(User.email) == email, Tenant.active.is_(True))
             .all()
         )
         if len(users) > 1:
@@ -72,11 +91,31 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
             inactive_user = (
                 db.query(User)
                 .join(Tenant, Tenant.id == User.tenant_id)
-                .filter(User.email == payload.email, Tenant.active.is_(False))
+                .filter(func.lower(User.email) == email, Tenant.active.is_(False))
                 .first()
             )
             if inactive_user:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant inactive")
+
+    if not user:
+        _sync_env_admin_if_needed(db, email)
+        if tenant_email:
+            tenant = db.query(Tenant).filter(func.lower(Tenant.email) == tenant_email).first()
+            if tenant and tenant.active:
+                user = db.query(User).filter(User.tenant_id == tenant.id, func.lower(User.email) == email).first()
+        else:
+            users = (
+                db.query(User)
+                .join(Tenant, Tenant.id == User.tenant_id)
+                .filter(func.lower(User.email) == email, Tenant.active.is_(True))
+                .all()
+            )
+            if len(users) > 1:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Esse email existe em mais de uma empresa. Informe também o email da empresa.",
+                )
+            user = users[0] if users else None
 
     password_valid = bool(user) and verify_password(payload.password, user.password)
 
@@ -84,13 +123,16 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     if (
         user
         and not password_valid
-        and user.is_super_admin
         and settings.admin_email.strip()
         and settings.admin_password.strip()
-        and user.email == settings.admin_email.strip()
+        and _normalize_email(user.email) == _normalize_email(settings.admin_email)
         and payload.password == settings.admin_password.strip()
     ):
+        _sync_env_admin_if_needed(db, email)
+        db.refresh(user)
         user.password = get_password_hash(settings.admin_password.strip())
+        user.role = "admin"
+        user.is_super_admin = True
         db.add(user)
         db.commit()
         db.refresh(user)
