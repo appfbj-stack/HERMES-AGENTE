@@ -76,6 +76,10 @@ def _quote_identifier(identifier: str) -> str:
     return '"' + identifier.replace('"', '""') + '"'
 
 
+def _quote_sql_string(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"
+
+
 def ensure_legacy_crm_settings_compatibility() -> None:
     current_columns = {
         "id",
@@ -111,7 +115,12 @@ def ensure_legacy_crm_settings_compatibility() -> None:
             if any(column["column_name"] == column_name for column in columns):
                 quoted = _quote_identifier(column_name)
                 conn.execute(text(f"UPDATE crm_settings SET {quoted} = :value WHERE {quoted} IS NULL"), {"value": value})
-                conn.execute(text(f"ALTER TABLE crm_settings ALTER COLUMN {quoted} SET DEFAULT :value"), {"value": value})
+                conn.execute(
+                    text(
+                        f"ALTER TABLE crm_settings ALTER COLUMN {quoted} "
+                        f"SET DEFAULT {_quote_sql_string(value)}"
+                    )
+                )
 
         for column in columns:
             column_name = column["column_name"]
