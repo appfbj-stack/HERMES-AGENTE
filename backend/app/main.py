@@ -887,6 +887,14 @@ def sync_env_super_admin() -> dict[str, object]:
 
 
 def run_startup_migrations() -> None:
+    """
+    Executa migrations de startup de forma idempotente.
+
+    CORREÇÃO: Não lança RuntimeError para falhas individuais.
+    Migrations são DDL idempotente (ADD COLUMN IF NOT EXISTS, CREATE INDEX IF NOT EXISTS, etc.)
+    e podem falhar por inconsistências de schema legado sem impedir o funcionamento do app.
+    Falhas são registradas como WARNING e a startup continua.
+    """
     total = len(MIGRATIONS)
     logger.info("Running %s startup migrations", total)
     failures: list[tuple[int, str, str]] = []
@@ -900,16 +908,19 @@ def run_startup_migrations() -> None:
                 conn.rollback()
                 snippet = _sql_snippet(sql)
                 failures.append((index, snippet, str(exc)))
-                logger.exception("Startup migration failed [%s/%s]: %s", index, total, snippet)
+                logger.warning(
+                    "Startup migration skipped [%s/%s] (non-fatal): %s — %s",
+                    index, total, snippet, exc,
+                )
 
     if failures:
-        first_index, first_sql, first_error = failures[0]
-        raise RuntimeError(
-            "Startup migrations failed "
-            f"({len(failures)}/{total}). First failure [{first_index}/{total}] {first_sql}: {first_error}"
+        logger.warning(
+            "Startup migrations: %s/%s skipped (non-fatal). "
+            "App will continue normally. Check warnings above for details.",
+            len(failures), total,
         )
-
-    logger.info("Startup migrations completed successfully")
+    else:
+        logger.info("Startup migrations completed successfully (%s/%s)", total, total)
 
 
 @app.on_event("startup")

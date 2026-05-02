@@ -114,10 +114,8 @@ def _serialize_whatsapp_connection(connection: CrmWhatsAppConnection) -> CrmWhat
     )
 
 
-@router.get("/modules", response_model=TenantModulesOut)
-@router.get("/module", response_model=TenantModulesOut)
-def get_crm_modules(modules=Depends(get_current_modules)):
-    return build_modules_out(modules)
+# REMOVIDO: GET /crm/modules e GET /crm/module eram duplicatas de GET /tenant/modules
+# Use GET /tenant/modules para obter os módulos do tenant autenticado.
 
 
 @router.put("/module", response_model=TenantModulesOut)
