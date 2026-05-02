@@ -30,7 +30,14 @@ DEFAULT_KANBAN_COLUMNS = [
     ("Perdido", "#F8D7DA"),
 ]
 
-DEFAULT_TAGS = ["quente", "frio", "orçamento", "cliente antigo", "urgente", "retorno"]
+DEFAULT_TAGS = [
+    ("quente",         "#FF6B6B"),
+    ("frio",           "#74B9FF"),
+    ("orçamento",      "#FDCB6E"),
+    ("cliente antigo", "#A29BFE"),
+    ("urgente",        "#E17055"),
+    ("retorno",        "#00B894"),
+]
 
 
 def now_utc() -> datetime:
@@ -76,7 +83,7 @@ def ensure_crm_defaults(db: Session, tenant_id: int) -> None:
                 CrmSetting(
                     tenant_id=tenant_id,
                     status_options_json=dumps_json([item[0] for item in DEFAULT_KANBAN_COLUMNS]),
-                    tags_json=dumps_json(DEFAULT_TAGS),
+                    tags_json=dumps_json([name for name, _ in DEFAULT_TAGS]),
                     business_hours_json=dumps_json(
                         {
                             "timezone": "America/Sao_Paulo",
@@ -119,8 +126,8 @@ def ensure_crm_defaults(db: Session, tenant_id: int) -> None:
     try:
         existing_tags = db.query(CrmTag).filter(CrmTag.tenant_id == tenant_id).count()
         if existing_tags == 0:
-            for name in DEFAULT_TAGS:
-                db.add(CrmTag(tenant_id=tenant_id, name=name))
+            for name, color in DEFAULT_TAGS:
+                db.add(CrmTag(tenant_id=tenant_id, name=name, color=color))
             db.flush()
     except SQLAlchemyError:
         db.rollback()
@@ -131,7 +138,7 @@ def serialize_settings(settings: CrmSetting) -> dict:
         "id": settings.id,
         "tenant_id": settings.tenant_id,
         "status_options": loads_json(settings.status_options_json, [item[0] for item in DEFAULT_KANBAN_COLUMNS]),
-        "tags": loads_json(settings.tags_json, DEFAULT_TAGS),
+        "tags": loads_json(settings.tags_json, [name for name, _ in DEFAULT_TAGS]),
         "initial_auto_message": settings.initial_auto_message,
         "business_hours": loads_json(settings.business_hours_json, {}),
         "hermes_enabled": settings.hermes_enabled,
