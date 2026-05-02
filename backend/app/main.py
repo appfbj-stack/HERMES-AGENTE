@@ -146,6 +146,8 @@ MIGRATIONS = [
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_super_admin BOOLEAN NOT NULL DEFAULT FALSE",
     # Promove o primeiro usuário a super admin (idempotente)
     "UPDATE users SET is_super_admin = TRUE WHERE id = (SELECT id FROM users ORDER BY id ASC LIMIT 1) AND is_super_admin = FALSE",
+    # ===== Usage logs legados =====
+    "ALTER TABLE usage_logs ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()",
     # ===== CRM — chat.lead_id =====
     "ALTER TABLE chats ADD COLUMN IF NOT EXISTS lead_id INTEGER REFERENCES leads(id)",
     # ===== CRM — novos campos em leads =====

@@ -1,6 +1,7 @@
 import json
 from datetime import datetime, timezone
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -317,11 +318,15 @@ def sync_existing_chat_to_crm(db: Session, tenant_id: int, chat: Chat) -> CrmCon
 
 def get_messages_used_month(db: Session, tenant_id: int) -> int:
     month_start = now_utc().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    return (
-        db.query(UsageLog)
-        .filter(UsageLog.tenant_id == tenant_id, UsageLog.created_at >= month_start)
-        .count()
-    )
+    try:
+        return (
+            db.query(UsageLog)
+            .filter(UsageLog.tenant_id == tenant_id, UsageLog.created_at >= month_start)
+            .count()
+        )
+    except SQLAlchemyError:
+        # Legacy databases may still be missing usage_logs.created_at during rollout.
+        return 0
 
 
 def get_user_name_map(db: Session, tenant_id: int) -> dict[int, str]:
