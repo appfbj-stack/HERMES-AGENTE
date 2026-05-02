@@ -58,6 +58,10 @@ import {
   upsertCrmWhatsAppConnection,
   createIntegrationPost,
   publishIntegrationPost,
+  getAgendaReminders,
+  getAgendaAppointments,
+  updateAgendaReminder,
+  updateAgendaAppointment,
 } from "./api";
 import CrmWorkspace from "./crm/CrmWorkspace";
 import CrmKanbanPage from "./crm/KanbanPage";
@@ -98,6 +102,8 @@ import type {
   SocialIntegrationAccount,
   SocialIntegrationStats,
   SocialPost,
+  AgentReminder,
+  AgentAppointment,
 } from "./types";
 
 function currencyCredits(credits?: Credit) {
@@ -1197,90 +1203,296 @@ function ContentPublisherPage() {
   );
 }
 
+// ── helpers para Agenda ───────────────────────────────────────────────────────
+
+type AgendaItem =
+  | { kind: "reminder"; date: Date; data: AgentReminder }
+  | { kind: "appointment"; date: Date; data: AgentAppointment }
+  | { kind: "followup"; date: Date; data: CrmFollowup }
+  | { kind: "task"; date: Date; data: CrmTask };
+
+const AGENDA_KIND_META: Record<AgendaItem["kind"], { label: string; icon: string; color: string }> = {
+  reminder:    { label: "Lembrete",    icon: "🔔", color: "bg-violet-50 border-violet-200" },
+  appointment: { label: "Compromisso", icon: "📅", color: "bg-blue-50 border-blue-200" },
+  followup:    { label: "Follow-up",   icon: "📞", color: "bg-amber-50 border-amber-200" },
+  task:        { label: "Tarefa",      icon: "✅", color: "bg-emerald-50 border-emerald-200" },
+};
+
+function agendaItemDate(item: AgendaItem): string {
+  if (item.kind === "reminder")    return item.data.remind_at;
+  if (item.kind === "appointment") return item.data.scheduled_at;
+  if (item.kind === "followup")    return item.data.due_at || item.data.data_hora || "";
+  return item.data.due_at || "";
+}
+
+function agendaItemTitle(item: AgendaItem): string {
+  if (item.kind === "followup") return item.data.title || item.data.titulo || "";
+  return item.data.title;
+}
+
+function agendaItemStatus(item: AgendaItem): string {
+  return item.data.status;
+}
+
+function agendaItemDesc(item: AgendaItem): string | null | undefined {
+  if (item.kind === "task") return item.data.description;
+  if (item.kind === "appointment") return item.data.location ? `📍 ${item.data.location}` : item.data.description;
+  return (item.data as AgentReminder | CrmFollowup).description;
+}
+
+function isAgendaItemDone(item: AgendaItem): boolean {
+  const s = agendaItemStatus(item);
+  return ["done", "feito", "completed", "sent", "cancelled", "concluido"].includes(s);
+}
+
+function relativeDay(date: Date): string {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diff = Math.round((target.getTime() - today.getTime()) / 86400000);
+  if (diff === 0) return "Hoje";
+  if (diff === 1) return "Amanhã";
+  if (diff === -1) return "Ontem";
+  if (diff < 0) return `${Math.abs(diff)} dias atrás`;
+  return `em ${diff} dias`;
+}
+
 function AgendaPage() {
-  const [followups, setFollowups] = useState<CrmFollowup[]>([]);
-  const [tasks, setTasks] = useState<CrmTask[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [reminders, setReminders]       = useState<AgentReminder[]>([]);
+  const [appointments, setAppointments] = useState<AgentAppointment[]>([]);
+  const [followups, setFollowups]       = useState<CrmFollowup[]>([]);
+  const [tasks, setTasks]               = useState<CrmTask[]>([]);
+  const [loading, setLoading]           = useState(true);
+  const [error, setError]               = useState("");
+  const [showDone, setShowDone]         = useState(false);
+  const [updating, setUpdating]         = useState<string | null>(null);
 
   async function loadAgenda() {
     setLoading(true);
     setError("");
     try {
-      const [followupsData, tasksData] = await Promise.all([getCrmFollowups(), getCrmTasks()]);
-      setFollowups(followupsData);
-      setTasks(tasksData);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao carregar agenda");
+      const [r, a, f, t] = await Promise.allSettled([
+        getAgendaReminders(true),
+        getAgendaAppointments(true),
+        getCrmFollowups(),
+        getCrmTasks(),
+      ]);
+      if (r.status === "fulfilled") setReminders(r.value);
+      if (a.status === "fulfilled") setAppointments(a.value);
+      if (f.status === "fulfilled") setFollowups(f.value);
+      if (t.status === "fulfilled") setTasks(t.value);
+      if ([r, a, f, t].every((x) => x.status === "rejected")) {
+        setError("Falha ao carregar agenda");
+      }
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => {
-    loadAgenda();
-  }, []);
+  useEffect(() => { loadAgenda(); }, []);
 
-  const upcomingFollowups = [...followups]
-    .sort((a, b) => new Date(a.due_at).getTime() - new Date(b.due_at).getTime())
-    .slice(0, 8);
-  const pendingTasks = tasks.filter((task) => task.status !== "feito" && task.status !== "completed").slice(0, 8);
+  const allItems: AgendaItem[] = [
+    ...reminders.map((d): AgendaItem => ({ kind: "reminder", date: new Date(d.remind_at), data: d })),
+    ...appointments.map((d): AgendaItem => ({ kind: "appointment", date: new Date(d.scheduled_at), data: d })),
+    ...followups.map((d): AgendaItem => ({ kind: "followup", date: new Date(d.due_at || d.data_hora || Date.now()), data: d })),
+    ...tasks.filter((t) => t.due_at).map((d): AgendaItem => ({ kind: "task", date: new Date(d.due_at!), data: d })),
+  ].sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  const visibleItems = showDone ? allItems : allItems.filter((i) => !isAgendaItemDone(i));
+  const pendingTasks = tasks.filter((t) => !t.due_at && !["feito", "completed", "done"].includes(t.status));
+
+  async function markReminderDone(id: number) {
+    const key = `reminder-${id}`;
+    setUpdating(key);
+    try {
+      await updateAgendaReminder(id, "done");
+      setReminders((prev) => prev.map((r) => (r.id === id ? { ...r, status: "done" } : r)));
+    } finally {
+      setUpdating(null);
+    }
+  }
+
+  async function markAppointmentDone(id: number) {
+    const key = `appointment-${id}`;
+    setUpdating(key);
+    try {
+      await updateAgendaAppointment(id, "done");
+      setAppointments((prev) => prev.map((a) => (a.id === id ? { ...a, status: "done" } : a)));
+    } finally {
+      setUpdating(null);
+    }
+  }
+
+  function renderDoneButton(item: AgendaItem) {
+    if (isAgendaItemDone(item)) return null;
+    if (item.kind === "reminder") {
+      const key = `reminder-${item.data.id}`;
+      return (
+        <button
+          disabled={updating === key}
+          onClick={() => markReminderDone(item.data.id)}
+          className="ml-2 shrink-0 rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-500 shadow-sm hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-40"
+        >
+          {updating === key ? "…" : "Concluir"}
+        </button>
+      );
+    }
+    if (item.kind === "appointment") {
+      const key = `appointment-${item.data.id}`;
+      return (
+        <button
+          disabled={updating === key}
+          onClick={() => markAppointmentDone(item.data.id)}
+          className="ml-2 shrink-0 rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-500 shadow-sm hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-40"
+        >
+          {updating === key ? "…" : "Concluir"}
+        </button>
+      );
+    }
+    return null;
+  }
+
+  const stats = {
+    total: allItems.length,
+    overdue: allItems.filter((i) => !isAgendaItemDone(i) && i.date < new Date()).length,
+    today: allItems.filter((i) => relativeDay(i.date) === "Hoje").length,
+  };
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="rounded-[32px] bg-white p-6 shadow-soft">
-        <h2 className="font-serif text-2xl">Agenda</h2>
-        <p className="mt-3 text-slate-600">Visão rápida dos agendamentos e tarefas que já existem no CRM atual.</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="font-serif text-3xl text-ink">Agenda</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Lembretes, compromissos, follow-ups e tarefas — tudo em um lugar
+            </p>
+          </div>
+          <button
+            onClick={loadAgenda}
+            disabled={loading}
+            className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200 disabled:opacity-50"
+          >
+            {loading ? "Carregando…" : "↻ Atualizar"}
+          </button>
+        </div>
+
+        {/* Stats bar */}
+        <div className="mt-5 flex flex-wrap gap-4">
+          {[
+            { label: "Total pendente", value: stats.total - allItems.filter(isAgendaItemDone).length, color: "text-slate-700" },
+            { label: "Hoje",           value: stats.today,   color: "text-violet-600" },
+            { label: "Atrasados",      value: stats.overdue, color: stats.overdue > 0 ? "text-red-600" : "text-slate-400" },
+          ].map(({ label, value, color }) => (
+            <div key={label} className="rounded-2xl bg-panel px-4 py-2 text-center">
+              <div className={`text-2xl font-bold ${color}`}>{value}</div>
+              <div className="text-xs text-slate-500">{label}</div>
+            </div>
+          ))}
+          <label className="ml-auto flex cursor-pointer items-center gap-2 text-sm text-slate-500">
+            <input
+              type="checkbox"
+              checked={showDone}
+              onChange={(e) => setShowDone(e.target.checked)}
+              className="h-4 w-4 accent-violet-600"
+            />
+            Mostrar concluídos
+          </label>
+        </div>
+
         {error ? <div className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div> : null}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <div className="rounded-[32px] bg-white p-6 shadow-soft">
-          <div className="flex items-center justify-between">
-            <h3 className="font-serif text-xl">Próximos follow-ups</h3>
-            <button onClick={loadAgenda} className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200">
-              Atualizar
-            </button>
-          </div>
-          <div className="mt-5 space-y-3">
-            {loading ? (
-              <div className="text-sm text-slate-500">Carregando agendamentos...</div>
-            ) : upcomingFollowups.length === 0 ? (
-              <div className="text-sm text-slate-500">Nenhum follow-up agendado.</div>
-            ) : (
-              upcomingFollowups.map((followup) => (
-                <div key={followup.id} className="rounded-2xl bg-panel p-4">
-                  <div className="font-semibold text-slate-900">{followup.title || followup.titulo}</div>
-                  <div className="mt-1 text-sm text-slate-600">
-                    {formatDateTime(followup.due_at || followup.data_hora)} • {followup.status}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+      {/* Timeline */}
+      <div className="rounded-[32px] bg-white p-6 shadow-soft">
+        <h2 className="font-serif text-xl text-ink">Linha do tempo</h2>
+        <div className="mt-5 space-y-3">
+          {loading ? (
+            <div className="py-10 text-center text-sm text-slate-400">Carregando agenda…</div>
+          ) : visibleItems.length === 0 ? (
+            <div className="py-10 text-center text-sm text-slate-400">
+              {showDone ? "Nenhum item na agenda." : "Nenhum item pendente. 🎉"}
+            </div>
+          ) : (
+            visibleItems.map((item) => {
+              const meta = AGENDA_KIND_META[item.kind];
+              const done = isAgendaItemDone(item);
+              const overdue = !done && item.date < new Date();
+              const dateStr = agendaItemDate(item);
+              const desc = agendaItemDesc(item);
 
-        <div className="rounded-[32px] bg-white p-6 shadow-soft">
-          <h3 className="font-serif text-xl">Tarefas pendentes</h3>
-          <div className="mt-5 space-y-3">
-            {loading ? (
-              <div className="text-sm text-slate-500">Carregando tarefas...</div>
-            ) : pendingTasks.length === 0 ? (
-              <div className="text-sm text-slate-500">Nenhuma tarefa pendente.</div>
-            ) : (
-              pendingTasks.map((task) => (
-                <div key={task.id} className="rounded-2xl bg-panel p-4">
-                  <div className="font-semibold text-slate-900">{task.title}</div>
-                  <div className="mt-1 text-sm text-slate-600">
-                     {task.due_at ? `${formatDateTime(task.due_at)} • ` : ""}
-                    {task.status}
+              return (
+                <div
+                  key={`${item.kind}-${item.data.id}`}
+                  className={`flex items-start gap-3 rounded-2xl border p-4 transition ${
+                    done ? "opacity-50" : overdue ? "border-red-200 bg-red-50" : meta.color
+                  }`}
+                >
+                  <span className="mt-0.5 text-lg">{meta.icon}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`text-sm font-semibold ${done ? "line-through text-slate-400" : "text-slate-900"}`}>
+                        {agendaItemTitle(item)}
+                      </span>
+                      <span className="rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-medium text-slate-500">
+                        {meta.label}
+                      </span>
+                      {overdue && (
+                        <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-600">
+                          Atrasado
+                        </span>
+                      )}
+                    </div>
+                    {desc ? <div className="mt-0.5 truncate text-xs text-slate-500">{desc}</div> : null}
+                    <div className="mt-1 text-xs text-slate-400">
+                      {dateStr ? (
+                        <>
+                          {new Date(dateStr).toLocaleString("pt-BR", {
+                            day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+                          })}
+                          {" · "}
+                          <span className={overdue ? "font-semibold text-red-500" : "text-slate-500"}>
+                            {relativeDay(item.date)}
+                          </span>
+                        </>
+                      ) : "Sem data"}
+                    </div>
                   </div>
+                  {renderDoneButton(item)}
                 </div>
-              ))
-            )}
-          </div>
+              );
+            })
+          )}
         </div>
       </div>
+
+      {/* Tarefas sem data */}
+      {pendingTasks.length > 0 && (
+        <div className="rounded-[32px] bg-white p-6 shadow-soft">
+          <h2 className="font-serif text-xl text-ink">Tarefas sem data</h2>
+          <div className="mt-5 space-y-2">
+            {pendingTasks.map((task) => (
+              <div key={task.id} className="flex items-center gap-3 rounded-2xl bg-panel px-4 py-3">
+                <span className="text-lg">✅</span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-semibold text-slate-800">{task.title}</div>
+                  {task.description && (
+                    <div className="mt-0.5 truncate text-xs text-slate-400">{task.description}</div>
+                  )}
+                </div>
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                  task.priority === "alta" ? "bg-red-100 text-red-600" :
+                  task.priority === "media" ? "bg-amber-100 text-amber-600" :
+                  "bg-slate-100 text-slate-500"
+                }`}>
+                  {task.priority || "normal"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

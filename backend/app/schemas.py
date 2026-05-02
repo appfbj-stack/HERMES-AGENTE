@@ -939,3 +939,42 @@ class SkillSuggestionResponse(BaseModel):
     suggestion: AdminSkillCreate
     confidence: float
     reason: str
+
+
+# ── Agenda: AgentReminder ─────────────────────────────────────────────────────
+
+class AgentReminderOut(ORMModel):
+    id: int
+    tenant_id: int
+    chat_id: int | None
+    title: str
+    description: str | None
+    remind_at: datetime
+    status: str
+    recurrence_rule: str | None
+    sent_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class AgentReminderUpdate(BaseModel):
+    status: str | None = None
+
+
+# ── Agenda: AgentAppointment ──────────────────────────────────────────────────
+
+class AgentAppointmentOut(ORMModel):
+    id: int
+    tenant_id: int
+    chat_id: int | None
+    title: str
+    description: str | None
+    scheduled_at: datetime
+    location: str | None
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class AgentAppointmentUpdate(BaseModel):
+    status: str | None = None

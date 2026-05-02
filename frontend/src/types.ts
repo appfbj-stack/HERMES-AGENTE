@@ -152,6 +152,34 @@ export type CrmTask = {
   updated_at: string;
 };
 
+
+export type AgentReminder = {
+  id: number;
+  tenant_id: number;
+  chat_id: number | null;
+  title: string;
+  description: string | null;
+  remind_at: string;
+  status: string;
+  recurrence_rule: string | null;
+  sent_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AgentAppointment = {
+  id: number;
+  tenant_id: number;
+  chat_id: number | null;
+  title: string;
+  description: string | null;
+  scheduled_at: string;
+  location: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export type CrmDashboard = {
   total_leads: number;
   new_leads: number;

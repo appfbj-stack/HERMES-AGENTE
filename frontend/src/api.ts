@@ -371,6 +371,28 @@ export async function deleteCrmFollowup(followupId: number) {
   });
 }
 
+export async function getAgendaReminders(includeDone = false) {
+  return request<import("./types").AgentReminder[]>(`/agenda/reminders?include_done=${includeDone}`);
+}
+
+export async function updateAgendaReminder(id: number, status: string) {
+  return request<import("./types").AgentReminder>(`/agenda/reminders/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}
+
+export async function getAgendaAppointments(includeCancelled = false) {
+  return request<import("./types").AgentAppointment[]>(`/agenda/appointments?include_cancelled=${includeCancelled}`);
+}
+
+export async function updateAgendaAppointment(id: number, status: string) {
+  return request<import("./types").AgentAppointment>(`/agenda/appointments/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}
+
 export async function getCrmTasks() {
   return request<CrmTask[]>("/crm/tasks");
 }

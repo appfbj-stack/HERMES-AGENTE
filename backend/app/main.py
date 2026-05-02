@@ -31,6 +31,7 @@ from app.routes.tasks import router as tasks_router
 from app.routes.telegram_admin import router as telegram_admin_router
 from app.routes.tenant import router as tenant_router
 from app.routes.tools import router as tools_router
+from app.routes.agenda import router as agenda_router
 from app.routes.webhook import router as webhook_router
 from app.services.task_reminders import start_due_task_reminder_scheduler
 
@@ -950,3 +951,4 @@ app.include_router(public_router)
 app.include_router(billing_router)
 app.include_router(crm_router)
 app.include_router(tools_router)
+app.include_router(agenda_router)
