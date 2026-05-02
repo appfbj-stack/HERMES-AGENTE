@@ -389,6 +389,7 @@ class CrmLeadOut(ORMModel):
     responsible_user_id: int | None
     notes: str | None
     last_contact_at: datetime | None
+    kanban_column_id: int | None
     created_at: datetime
     updated_at: datetime
     tags: list[CrmTagOut] = []

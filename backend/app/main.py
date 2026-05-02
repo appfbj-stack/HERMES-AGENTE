@@ -80,17 +80,120 @@ def _quote_sql_string(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
 
 
-def ensure_legacy_crm_settings_compatibility() -> None:
-    current_columns = {
-        "id",
-        "tenant_id",
-        "status_options_json",
-        "tags_json",
-        "initial_auto_message",
-        "business_hours_json",
-        "hermes_enabled",
-        "created_at",
-        "updated_at",
+def ensure_legacy_crm_schema_compatibility() -> None:
+    current_columns_by_table = {
+        "crm_settings": {
+            "id",
+            "tenant_id",
+            "status_options_json",
+            "tags_json",
+            "initial_auto_message",
+            "business_hours_json",
+            "hermes_enabled",
+            "created_at",
+            "updated_at",
+        },
+        "crm_kanban_columns": {"id", "tenant_id", "name", "position", "color", "is_default", "created_at", "updated_at"},
+        "crm_tags": {"id", "tenant_id", "name", "color", "created_at", "updated_at"},
+        "crm_leads": {
+            "id",
+            "tenant_id",
+            "name",
+            "phone",
+            "email",
+            "origin",
+            "status",
+            "responsible_user_id",
+            "notes",
+            "last_contact_at",
+            "kanban_column_id",
+            "created_at",
+            "updated_at",
+        },
+        "crm_conversations": {
+            "id",
+            "tenant_id",
+            "lead_id",
+            "chat_id",
+            "channel",
+            "external_id",
+            "contact_name",
+            "contact_phone",
+            "status",
+            "ai_enabled",
+            "assigned_user_id",
+            "last_message",
+            "last_message_at",
+            "created_at",
+            "updated_at",
+        },
+        "crm_messages": {
+            "id",
+            "tenant_id",
+            "conversation_id",
+            "legacy_message_id",
+            "sender_type",
+            "channel",
+            "content",
+            "created_at",
+            "updated_at",
+        },
+        "crm_followups": {
+            "id",
+            "tenant_id",
+            "lead_id",
+            "title",
+            "description",
+            "due_at",
+            "status",
+            "channel",
+            "responsible_user_id",
+            "created_at",
+            "updated_at",
+        },
+        "crm_tasks": {
+            "id",
+            "tenant_id",
+            "title",
+            "description",
+            "responsible_user_id",
+            "due_at",
+            "status",
+            "priority",
+            "lead_id",
+            "created_at",
+            "updated_at",
+        },
+        "crm_activity_logs": {
+            "id",
+            "tenant_id",
+            "lead_id",
+            "conversation_id",
+            "action",
+            "description",
+            "metadata_json",
+            "created_at",
+            "updated_at",
+        },
+        "crm_lead_tags": {"id", "tenant_id", "lead_id", "tag_id", "created_at", "updated_at"},
+        "crm_whatsapp_connections": {
+            "id",
+            "tenant_id",
+            "provider",
+            "instance_name",
+            "api_base_url",
+            "api_key",
+            "webhook_url",
+            "status",
+            "connected_phone",
+            "qr_code_base64",
+            "last_error",
+            "last_webhook_event",
+            "last_webhook_payload",
+            "last_webhook_at",
+            "created_at",
+            "updated_at",
+        },
     }
     legacy_default_values = {
         "horario_inicio": "08:00",
@@ -98,40 +201,46 @@ def ensure_legacy_crm_settings_compatibility() -> None:
     }
 
     with engine.begin() as conn:
-        rows = conn.execute(
-            text(
-                """
-                SELECT column_name, is_nullable
-                FROM information_schema.columns
-                WHERE table_schema = 'public' AND table_name = 'crm_settings'
-                """
-            )
-        ).mappings()
-        columns = list(rows)
-        if not columns:
-            return
+        for table_name, current_columns in current_columns_by_table.items():
+            rows = conn.execute(
+                text(
+                    """
+                    SELECT column_name, is_nullable
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public' AND table_name = :table_name
+                    """
+                ),
+                {"table_name": table_name},
+            ).mappings()
+            columns = list(rows)
+            if not columns:
+                continue
 
-        for column_name, value in legacy_default_values.items():
-            if any(column["column_name"] == column_name for column in columns):
-                quoted = _quote_identifier(column_name)
-                conn.execute(text(f"UPDATE crm_settings SET {quoted} = :value WHERE {quoted} IS NULL"), {"value": value})
-                conn.execute(
-                    text(
-                        f"ALTER TABLE crm_settings ALTER COLUMN {quoted} "
-                        f"SET DEFAULT {_quote_sql_string(value)}"
-                    )
-                )
+            if table_name == "crm_settings":
+                for column_name, value in legacy_default_values.items():
+                    if any(column["column_name"] == column_name for column in columns):
+                        quoted = _quote_identifier(column_name)
+                        conn.execute(text(f"UPDATE crm_settings SET {quoted} = :value WHERE {quoted} IS NULL"), {"value": value})
+                        conn.execute(
+                            text(
+                                f"ALTER TABLE crm_settings ALTER COLUMN {quoted} "
+                                f"SET DEFAULT {_quote_sql_string(value)}"
+                            )
+                        )
 
-        for column in columns:
-            column_name = column["column_name"]
-            if column["is_nullable"] != "NO":
-                continue
-            if column_name in {"id", "tenant_id", "hermes_enabled", "created_at", "updated_at"}:
-                continue
-            if column_name in current_columns:
-                continue
-            quoted = _quote_identifier(column_name)
-            conn.execute(text(f"ALTER TABLE crm_settings ALTER COLUMN {quoted} DROP NOT NULL"))
+            for column in columns:
+                column_name = column["column_name"]
+                if column["is_nullable"] != "NO":
+                    continue
+                if column_name in {"id", "tenant_id", "created_at", "updated_at"}:
+                    continue
+                if table_name == "crm_settings" and column_name == "hermes_enabled":
+                    continue
+                if column_name in current_columns:
+                    continue
+                quoted_table = _quote_identifier(table_name)
+                quoted_column = _quote_identifier(column_name)
+                conn.execute(text(f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_column} DROP NOT NULL"))
 
 
 # Migrações leves (idempotentes) — adicionam colunas novas em DBs existentes.
@@ -807,7 +916,7 @@ def run_startup_migrations() -> None:
 def on_startup() -> None:
     Base.metadata.create_all(bind=engine)
     run_startup_migrations()
-    ensure_legacy_crm_settings_compatibility()
+    ensure_legacy_crm_schema_compatibility()
     ensure_env_super_admin()
     start_due_task_reminder_scheduler()
 

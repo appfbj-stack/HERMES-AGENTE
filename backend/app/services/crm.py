@@ -181,6 +181,7 @@ def serialize_lead(lead: CrmLead, tags: list[CrmTag]) -> dict:
         "responsible_user_id": lead.responsible_user_id,
         "notes": lead.notes,
         "last_contact_at": lead.last_contact_at,
+        "kanban_column_id": lead.kanban_column_id,
         "created_at": lead.created_at,
         "updated_at": lead.updated_at,
         "tags": tags,

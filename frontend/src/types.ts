@@ -54,6 +54,7 @@ export type CrmLead = {
   notes: string | null;
   interest?: string | null;
   last_contact_at: string | null;
+  kanban_column_id?: number | null;
   created_at: string;
   updated_at: string;
   tags: CrmTag[];

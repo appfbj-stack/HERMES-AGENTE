@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { createKanbanColumn, getKanbanColumns, getLeads, moveLeadKanban } from "../api";
-import type { CrmKanbanColumn, Lead } from "../types";
+import { createKanbanColumn, getCrmLeads, getKanbanColumns, moveLeadKanban } from "../api";
+import type { CrmKanbanColumn, CrmLead } from "../types";
 
 const DEFAULT_COLUMNS = [
   { name: "Novo lead", color: "#3b82f6", position: 0 },
@@ -22,7 +22,7 @@ function LeadCard({
   lead,
   onDragStart,
 }: {
-  lead: Lead;
+  lead: CrmLead;
   onDragStart: (id: number) => void;
 }) {
   return (
@@ -38,15 +38,15 @@ function LeadCard({
           </div>
           <span className="text-sm font-medium text-ink leading-tight">{lead.name}</span>
         </div>
-        <span className="text-sm">{ORIGEM_ICON[lead.origem || "manual"] || ""}</span>
+        <span className="text-sm">{ORIGEM_ICON[lead.origin || "manual"] || ""}</span>
       </div>
       {lead.phone && (
         <div className="mt-1.5 flex items-center gap-1 text-xs text-slate-400">
           <span>📞</span> {lead.phone}
         </div>
       )}
-      {lead.interest && (
-        <div className="mt-1 truncate text-xs text-slate-500">{lead.interest}</div>
+      {lead.notes && (
+        <div className="mt-1 truncate text-xs text-slate-500">{lead.notes}</div>
       )}
       <div className="mt-2 text-[10px] text-slate-300">
         {new Date(lead.created_at).toLocaleDateString("pt-BR")}
@@ -63,7 +63,7 @@ function KanbanColumn({
   onDrop,
 }: {
   column: CrmKanbanColumn;
-  leads: Lead[];
+  leads: CrmLead[];
   draggingId: number | null;
   onDragStart: (id: number) => void;
   onDrop: (columnId: number) => void;
@@ -116,18 +116,22 @@ function KanbanColumn({
 
 export default function KanbanPage() {
   const [columns, setColumns] = useState<CrmKanbanColumn[]>([]);
-  const [leads, setLeads] = useState<Lead[]>([]);
+  const [leads, setLeads] = useState<CrmLead[]>([]);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
   const [seedError, setSeedError] = useState("");
+  const [loadError, setLoadError] = useState("");
   const draggingId = useRef<number | null>(null);
 
   async function load() {
     setLoading(true);
+    setLoadError("");
     try {
-      const [cols, leadsData] = await Promise.all([getKanbanColumns(), getLeads()]);
+      const [cols, leadsData] = await Promise.all([getKanbanColumns(), getCrmLeads()]);
       setColumns(cols);
       setLeads(leadsData);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "Falha ao carregar kanban");
     } finally {
       setLoading(false);
     }
@@ -204,6 +208,7 @@ export default function KanbanPage() {
         >
           {seeding ? "Criando colunas..." : "Criar colunas padrão"}
         </button>
+        {loadError ? <div className="text-sm text-red-600">{loadError}</div> : null}
         {seedError ? <div className="text-sm text-red-600">{seedError}</div> : null}
       </div>
     );
@@ -218,6 +223,7 @@ export default function KanbanPage() {
             {leads.length} lead{leads.length !== 1 ? "s" : ""} • arraste para mover entre colunas
           </p>
         </div>
+        {loadError ? <div className="text-sm text-red-600">{loadError}</div> : null}
         {unassigned.length > 0 && (
           <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
             {unassigned.length} sem coluna
