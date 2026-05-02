@@ -121,6 +121,8 @@ export default function KanbanPage() {
   const [seeding, setSeeding] = useState(false);
   const [seedError, setSeedError] = useState("");
   const [loadError, setLoadError] = useState("");
+  // Flag para evitar loop infinito: tenta auto-seed apenas uma vez por mount
+  const seedAttempted = useRef(false);
   const draggingId = useRef<number | null>(null);
 
   async function load() {
@@ -160,10 +162,12 @@ export default function KanbanPage() {
   }
 
   useEffect(() => {
-    if (!loading && columns.length === 0 && !seeding) {
+    // Auto-seed apenas na primeira vez em que o load termina sem colunas
+    if (!loading && columns.length === 0 && !seedAttempted.current) {
+      seedAttempted.current = true;
       seedDefaultColumns(true);
     }
-  }, [columns.length, loading, seeding]);
+  }, [loading, columns.length]);
 
   async function handleDrop(columnId: number) {
     const id = draggingId.current;

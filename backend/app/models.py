@@ -288,6 +288,7 @@ class CrmLead(Base, TimestampMixin):
     responsible_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     last_contact_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    kanban_column_id: Mapped[int | None] = mapped_column(ForeignKey("crm_kanban_columns.id"), nullable=True)
 
     __table_args__ = (UniqueConstraint("tenant_id", "phone", name="uq_crm_leads_tenant_phone"),)
 

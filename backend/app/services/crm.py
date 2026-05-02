@@ -62,46 +62,68 @@ def get_or_create_tenant_module(db: Session, tenant_id: int) -> TenantModule:
 
 
 def ensure_crm_defaults(db: Session, tenant_id: int) -> None:
-    settings = db.query(CrmSetting).filter(CrmSetting.tenant_id == tenant_id).first()
-    if not settings:
-        settings = CrmSetting(
-            tenant_id=tenant_id,
-            status_options_json=dumps_json([item[0] for item in DEFAULT_KANBAN_COLUMNS]),
-            tags_json=dumps_json(DEFAULT_TAGS),
-            business_hours_json=dumps_json(
-                {
-                    "timezone": "America/Sao_Paulo",
-                    "weekdays": ["monday", "tuesday", "wednesday", "thursday", "friday"],
-                    "start": "08:00",
-                    "end": "18:00",
-                }
-            ),
-            hermes_enabled=True,
-        )
-        db.add(settings)
+    """Garante que o tenant tenha configurações, colunas e tags padrão do CRM.
 
-    existing_columns = (
-        db.query(CrmKanbanColumn)
-        .filter(CrmKanbanColumn.tenant_id == tenant_id)
-        .order_by(CrmKanbanColumn.position.asc())
-        .all()
-    )
-    if not existing_columns:
-        for index, (name, color) in enumerate(DEFAULT_KANBAN_COLUMNS):
+    Cada bloco é protegido individualmente com flush + except para evitar que
+    erros de constraint (race condition) ou schema desatualizado bloqueiem os
+    outros blocos e os routes CRM como um todo.
+    """
+    # --- CrmSetting ---
+    try:
+        settings = db.query(CrmSetting).filter(CrmSetting.tenant_id == tenant_id).first()
+        if not settings:
             db.add(
-                CrmKanbanColumn(
+                CrmSetting(
                     tenant_id=tenant_id,
-                    name=name,
-                    position=index,
-                    color=color,
-                    is_default=True,
+                    status_options_json=dumps_json([item[0] for item in DEFAULT_KANBAN_COLUMNS]),
+                    tags_json=dumps_json(DEFAULT_TAGS),
+                    business_hours_json=dumps_json(
+                        {
+                            "timezone": "America/Sao_Paulo",
+                            "weekdays": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+                            "start": "08:00",
+                            "end": "18:00",
+                        }
+                    ),
+                    hermes_enabled=True,
                 )
             )
+            db.flush()
+    except SQLAlchemyError:
+        db.rollback()
 
-    existing_tags = db.query(CrmTag).filter(CrmTag.tenant_id == tenant_id).count()
-    if existing_tags == 0:
-        for name in DEFAULT_TAGS:
-            db.add(CrmTag(tenant_id=tenant_id, name=name))
+    # --- CrmKanbanColumn ---
+    try:
+        existing_columns = (
+            db.query(CrmKanbanColumn)
+            .filter(CrmKanbanColumn.tenant_id == tenant_id)
+            .order_by(CrmKanbanColumn.position.asc())
+            .all()
+        )
+        if not existing_columns:
+            for index, (name, color) in enumerate(DEFAULT_KANBAN_COLUMNS):
+                db.add(
+                    CrmKanbanColumn(
+                        tenant_id=tenant_id,
+                        name=name,
+                        position=index,
+                        color=color,
+                        is_default=True,
+                    )
+                )
+            db.flush()
+    except SQLAlchemyError:
+        db.rollback()
+
+    # --- CrmTag ---
+    try:
+        existing_tags = db.query(CrmTag).filter(CrmTag.tenant_id == tenant_id).count()
+        if existing_tags == 0:
+            for name in DEFAULT_TAGS:
+                db.add(CrmTag(tenant_id=tenant_id, name=name))
+            db.flush()
+    except SQLAlchemyError:
+        db.rollback()
 
 
 def serialize_settings(settings: CrmSetting) -> dict:

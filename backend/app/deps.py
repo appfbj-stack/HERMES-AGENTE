@@ -1,5 +1,8 @@
+import logging
+
 from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -7,6 +10,8 @@ from app.core.security import decode_token
 from app.models import Credit, Tenant, TenantModule, User
 from app.services.crm import ensure_crm_defaults, get_or_create_tenant_module
 from app.services.modules import module_enabled
+
+logger = logging.getLogger(__name__)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
@@ -116,8 +121,16 @@ def ensure_crm_ready(
     tenant: Tenant = Depends(get_current_tenant),
     modules: TenantModule = Depends(require_crm_module),
 ) -> TenantModule:
-    ensure_crm_defaults(db, tenant.id)
-    db.flush()
+    try:
+        ensure_crm_defaults(db, tenant.id)
+        db.flush()
+    except SQLAlchemyError:
+        logger.warning(
+            "ensure_crm_defaults falhou para tenant_id=%s — continuando sem defaults.",
+            tenant.id,
+            exc_info=True,
+        )
+        db.rollback()
     return modules
 
 
