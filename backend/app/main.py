@@ -72,6 +72,59 @@ def _sql_snippet(sql: str, limit: int = 120) -> str:
     return f"{compact[: limit - 3]}..."
 
 
+def _quote_identifier(identifier: str) -> str:
+    return '"' + identifier.replace('"', '""') + '"'
+
+
+def ensure_legacy_crm_settings_compatibility() -> None:
+    current_columns = {
+        "id",
+        "tenant_id",
+        "status_options_json",
+        "tags_json",
+        "initial_auto_message",
+        "business_hours_json",
+        "hermes_enabled",
+        "created_at",
+        "updated_at",
+    }
+    legacy_default_values = {
+        "horario_inicio": "08:00",
+        "horario_fim": "18:00",
+    }
+
+    with engine.begin() as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT column_name, is_nullable
+                FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = 'crm_settings'
+                """
+            )
+        ).mappings()
+        columns = list(rows)
+        if not columns:
+            return
+
+        for column_name, value in legacy_default_values.items():
+            if any(column["column_name"] == column_name for column in columns):
+                quoted = _quote_identifier(column_name)
+                conn.execute(text(f"UPDATE crm_settings SET {quoted} = :value WHERE {quoted} IS NULL"), {"value": value})
+                conn.execute(text(f"ALTER TABLE crm_settings ALTER COLUMN {quoted} SET DEFAULT :value"), {"value": value})
+
+        for column in columns:
+            column_name = column["column_name"]
+            if column["is_nullable"] != "NO":
+                continue
+            if column_name in {"id", "tenant_id", "hermes_enabled", "created_at", "updated_at"}:
+                continue
+            if column_name in current_columns:
+                continue
+            quoted = _quote_identifier(column_name)
+            conn.execute(text(f"ALTER TABLE crm_settings ALTER COLUMN {quoted} DROP NOT NULL"))
+
+
 # Migrações leves (idempotentes) — adicionam colunas novas em DBs existentes.
 MIGRATIONS = [
     "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS niche VARCHAR(50)",
@@ -743,6 +796,7 @@ def run_startup_migrations() -> None:
 def on_startup() -> None:
     Base.metadata.create_all(bind=engine)
     run_startup_migrations()
+    ensure_legacy_crm_settings_compatibility()
     ensure_env_super_admin()
     start_due_task_reminder_scheduler()
 
