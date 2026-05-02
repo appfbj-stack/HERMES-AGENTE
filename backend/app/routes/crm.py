@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -84,6 +85,13 @@ protected = APIRouter(dependencies=[Depends(ensure_crm_ready)])
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _safe_count(query) -> int:
+    try:
+        return query.count()
+    except SQLAlchemyError:
+        return 0
 
 
 def _serialize_whatsapp_connection(connection: CrmWhatsAppConnection) -> CrmWhatsAppConnectionOut:
@@ -275,12 +283,24 @@ def crm_dashboard(
     today_end = today_start + timedelta(days=1)
 
     return CrmDashboardOut(
-        total_leads=db.query(CrmLead).filter(CrmLead.tenant_id == tenant.id).count(),
-        new_leads=db.query(CrmLead).filter(CrmLead.tenant_id == tenant.id, CrmLead.status == "Novo lead").count(),
-        open_conversations=db.query(CrmConversation).filter(CrmConversation.tenant_id == tenant.id, CrmConversation.status != "resolved").count(),
-        today_followups=db.query(CrmFollowUp).filter(CrmFollowUp.tenant_id == tenant.id, CrmFollowUp.due_at >= today_start, CrmFollowUp.due_at < today_end, CrmFollowUp.status != "feito").count(),
-        active_conversations=db.query(CrmConversation).filter(CrmConversation.tenant_id == tenant.id, CrmConversation.last_message_at.is_not(None)).count(),
-        closed_won=db.query(CrmLead).filter(CrmLead.tenant_id == tenant.id, CrmLead.status == "Fechado").count(),
+        total_leads=_safe_count(db.query(CrmLead).filter(CrmLead.tenant_id == tenant.id)),
+        new_leads=_safe_count(db.query(CrmLead).filter(CrmLead.tenant_id == tenant.id, CrmLead.status == "Novo lead")),
+        open_conversations=_safe_count(db.query(CrmConversation).filter(CrmConversation.tenant_id == tenant.id, CrmConversation.status != "resolved")),
+        today_followups=_safe_count(
+            db.query(CrmFollowUp).filter(
+                CrmFollowUp.tenant_id == tenant.id,
+                CrmFollowUp.due_at >= today_start,
+                CrmFollowUp.due_at < today_end,
+                CrmFollowUp.status != "feito",
+            )
+        ),
+        active_conversations=_safe_count(
+            db.query(CrmConversation).filter(
+                CrmConversation.tenant_id == tenant.id,
+                CrmConversation.last_message_at.is_not(None),
+            )
+        ),
+        closed_won=_safe_count(db.query(CrmLead).filter(CrmLead.tenant_id == tenant.id, CrmLead.status == "Fechado")),
         messages_used_month=get_messages_used_month(db, tenant.id),
         current_plan=tenant.plan,
     )
@@ -305,7 +325,10 @@ def list_crm_leads(
         query = query.filter(CrmLead.origin == origin)
     if responsible_user_id:
         query = query.filter(CrmLead.responsible_user_id == responsible_user_id)
-    leads = query.order_by(CrmLead.updated_at.desc()).all()
+    try:
+        leads = query.order_by(CrmLead.updated_at.desc()).all()
+    except SQLAlchemyError:
+        return []
     tags_map = get_lead_tags(db, current_user.tenant_id, [lead.id for lead in leads])
     return [serialize_lead(lead, tags_map.get(lead.id, [])) for lead in leads]
 
@@ -500,11 +523,31 @@ def crm_kanban(
     current_user: User = Depends(get_current_user),
     _: object = Depends(require_kanban_module),
 ):
-    columns = db.query(CrmKanbanColumn).filter(CrmKanbanColumn.tenant_id == current_user.tenant_id).order_by(CrmKanbanColumn.position.asc()).all()
-    leads = db.query(CrmLead).filter(CrmLead.tenant_id == current_user.tenant_id).order_by(CrmLead.updated_at.desc()).all()
+    try:
+        columns = (
+            db.query(CrmKanbanColumn)
+            .filter(CrmKanbanColumn.tenant_id == current_user.tenant_id)
+            .order_by(CrmKanbanColumn.position.asc())
+            .all()
+        )
+    except SQLAlchemyError:
+        columns = []
+    try:
+        leads = db.query(CrmLead).filter(CrmLead.tenant_id == current_user.tenant_id).order_by(CrmLead.updated_at.desc()).all()
+    except SQLAlchemyError:
+        leads = []
     tags_map = get_lead_tags(db, current_user.tenant_id, [lead.id for lead in leads])
     lead_ids = [lead.id for lead in leads]
-    conversations = db.query(CrmConversation).filter(CrmConversation.tenant_id == current_user.tenant_id, CrmConversation.lead_id.in_(lead_ids)).all() if lead_ids else []
+    try:
+        conversations = (
+            db.query(CrmConversation)
+            .filter(CrmConversation.tenant_id == current_user.tenant_id, CrmConversation.lead_id.in_(lead_ids))
+            .all()
+            if lead_ids
+            else []
+        )
+    except SQLAlchemyError:
+        conversations = []
     conversation_map = {conversation.lead_id: conversation for conversation in conversations if conversation.lead_id}
     cards: dict[str, list[CrmKanbanCardOut]] = {column.name: [] for column in columns}
     for lead in leads:
@@ -535,7 +578,17 @@ def create_kanban_column(
         is_default=False,
     )
     db.add(column)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        existing = db.query(CrmKanbanColumn).filter(
+            CrmKanbanColumn.tenant_id == current_user.tenant_id,
+            CrmKanbanColumn.name == payload.name,
+        ).first()
+        if existing:
+            return existing
+        raise
     db.refresh(column)
     return column
 
