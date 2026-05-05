@@ -62,7 +62,18 @@ def get_or_create_tenant_module(db: Session, tenant_id: int) -> TenantModule:
     if module:
         return module
 
-    module = TenantModule(tenant_id=tenant_id, crm=False)
+    module = TenantModule(
+        tenant_id=tenant_id,
+        crm=False,
+        whatsapp=False,
+        whatsapp_evolution=False,
+        kanban=False,
+        agenda=False,
+        followup=False,
+        instagram=False,
+        youtube=False,
+        content_publisher=False,
+    )
     db.add(module)
     db.flush()
     return module

@@ -24,6 +24,7 @@ from app.services.agent import (
     process_inbound_automation,
     task_reminder_already_sent,
 )
+from app.services.modules import build_modules_out
 from app.services.telegram import send_telegram_message
 
 from conftest import TestingSessionLocal, create_chat, create_tenant, create_user
@@ -236,6 +237,24 @@ def test_list_tenants_returns_admin_module_flags_for_super_admin(db_session):
     assert target_payload["whatsapp_enabled"] is True
     assert target_payload["whatsapp_evolution_enabled"] is True
     assert target_payload["kanban_enabled"] is True
+
+
+def test_tenant_modules_support_explicit_whatsapp_evolution_and_followup_flags(db_session):
+    tenant = create_tenant(
+        db_session,
+        name="Cliente Modulos",
+        email="modulos@empresa.com",
+        modules={"whatsapp_evolution": True, "followup": True},
+    )
+    db_session.commit()
+
+    modules = db_session.query(TenantModule).filter(TenantModule.tenant_id == tenant.id).first()
+    assert modules is not None
+    payload = build_modules_out(modules)
+
+    assert payload.whatsapp_evolution is True
+    assert payload.whatsapp is True
+    assert payload.followup is True
 
 
 def test_hermes_admin_chat_accepts_authenticated_super_admin(db_session, monkeypatch):

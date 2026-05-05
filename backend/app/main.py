@@ -276,6 +276,7 @@ MIGRATIONS = [
     # ===== TimestampMixin — tabelas criadas antes do mixin ser adicionado =====
     "ALTER TABLE tenant_modules ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()",
     "ALTER TABLE tenant_modules ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()",
+    "ALTER TABLE tenant_modules ADD COLUMN IF NOT EXISTS whatsapp_evolution BOOLEAN NOT NULL DEFAULT FALSE",
     "ALTER TABLE crm_kanban_columns ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()",
     "ALTER TABLE crm_kanban_columns ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()",
     "ALTER TABLE crm_kanban_columns ADD COLUMN IF NOT EXISTS position INTEGER NOT NULL DEFAULT 0",
@@ -621,9 +622,12 @@ MIGRATIONS = [
     # ===== Tenant Modules - Add missing columns =====
     """ALTER TABLE tenant_modules ADD COLUMN IF NOT EXISTS kanban BOOLEAN NOT NULL DEFAULT FALSE""",
     """ALTER TABLE tenant_modules ADD COLUMN IF NOT EXISTS agenda BOOLEAN NOT NULL DEFAULT FALSE""",
+    """ALTER TABLE tenant_modules ADD COLUMN IF NOT EXISTS followup BOOLEAN NOT NULL DEFAULT FALSE""",
     """ALTER TABLE tenant_modules ADD COLUMN IF NOT EXISTS instagram BOOLEAN NOT NULL DEFAULT FALSE""",
     """ALTER TABLE tenant_modules ADD COLUMN IF NOT EXISTS youtube BOOLEAN NOT NULL DEFAULT FALSE""",
     """ALTER TABLE tenant_modules ADD COLUMN IF NOT EXISTS content_publisher BOOLEAN NOT NULL DEFAULT FALSE""",
+    """UPDATE tenant_modules SET whatsapp_evolution = whatsapp WHERE whatsapp_evolution IS DISTINCT FROM whatsapp""",
+    """UPDATE tenant_modules SET followup = crm WHERE followup IS DISTINCT FROM crm""",
     # ===== Social Integrations (Instagram, YouTube) =====
     """CREATE TABLE IF NOT EXISTS social_integration_accounts (
         id SERIAL PRIMARY KEY,

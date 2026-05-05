@@ -9,7 +9,7 @@ from app.core.database import get_db
 from app.core.security import decode_token
 from app.models import Credit, Tenant, TenantModule, User
 from app.services.crm import ensure_crm_defaults, get_or_create_tenant_module
-from app.services.modules import module_enabled
+from app.services.modules import has_module as has_module_for_tenant, module_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +58,9 @@ def has_module(modules: TenantModule, module_key: str) -> bool:
 def tenant_has_module(db: Session, tenant_id: int, module_key: str) -> bool:
     modules = get_or_create_tenant_module(db, tenant_id)
     db.flush()
-    return has_module(modules, module_key)
+    if has_module(modules, module_key):
+        return True
+    return has_module_for_tenant(db, tenant_id, module_key)
 
 
 def require_module_enabled(module_key: str, label: str):

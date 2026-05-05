@@ -1,44 +1,76 @@
 # HERMES AGENTE
 
-SaaS multi-tenant para atendimento automatizado via Telegram com IA, CRM leve e painel web estilo chat.
+SaaS multi-tenant com FastAPI, PostgreSQL, painel React/Vite, CRM, Hermes Agente, Telegram, WhatsApp Evolution e deploy via Coolify.
 
 ## Stack
 
 - Backend: FastAPI, SQLAlchemy, PostgreSQL, JWT
 - Frontend: React, Vite, TypeScript, Tailwind
-- Infra: Docker, Docker Compose, Nginx
-- IA: Hermes Agente como provedor principal, com DeepSeek como fallback opcional
+- Infra: Docker, Nginx, Coolify
+- IA: Hermes Admin + roteamento LLM para cliente/admin
 
 ## Estrutura
 
 ```text
-backend/   API, modelos, autenticação, webhook Telegram
-frontend/  painel web estilo WhatsApp
-docs/      PRD, rotas e deploy
+backend/   API, modelos, rotas, serviços, migrations e testes
+frontend/  painel web admin + cliente
+docs/      documentação complementar
 ```
 
-## Subir localmente
+## Módulos por tenant
+
+O sistema usa `tenant_modules` com uma linha por tenant e flags por módulo:
+
+- `crm`
+- `whatsapp`
+- `whatsapp_evolution`
+- `kanban`
+- `agenda`
+- `followup`
+- `instagram`
+- `youtube`
+- `content_publisher`
+
+Compatibilidade legada:
+
+- `whatsapp_evolution` mantém fallback para `whatsapp`
+- `followup` mantém fallback para `crm`
+
+API principal:
+
+- `GET /tenant/modules`
+- `GET /auth/modules`
+- `PUT /admin/tenants/{tenant_id}/modules`
+
+No backend, o helper global está em [backend/app/services/modules.py](backend/app/services/modules.py):
+
+```python
+has_module(db, tenant_id, module_key)
+```
+
+## Execução local
 
 1. Copie `.env.example` para `.env`
-2. Ajuste os segredos e tokens
-3. Configure o provedor de IA no `.env`
-4. Rode:
+2. Ajuste `DATABASE_URL`, `JWT_SECRET`/`SECRET_KEY`, credenciais admin e integrações
+3. Rode:
 
 ```bash
 docker compose up --build
 ```
 
-Frontend: `http://localhost:8080`  
-Backend: `http://localhost:8000`  
-Docs OpenAPI: `http://localhost:8080/api/docs`
+URLs locais:
 
-## Testes rápidos
+- Frontend: `http://localhost:8080`
+- Backend: `http://localhost:8000`
+- Swagger: `http://localhost:8080/api/docs`
+
+## Testes e validação
 
 Backend:
 
 ```bash
 cd backend
-pytest
+pytest -q
 ```
 
 Frontend:
@@ -48,15 +80,12 @@ cd frontend
 npx tsc -b
 ```
 
-Observações:
+Estado atual da suíte:
 
-- os testes backend já configuram `DATABASE_URL=sqlite://` e `JWT_SECRET` para execução local
-- o build completo do frontend depende do ambiente conseguir executar o `esbuild` sem bloqueio do sistema
-- a suíte de regressão atual do backend cobre 27 cenários principais
+- regressão backend cobrindo login, módulos, webhooks, Hermes Admin, lembretes e CRM
+- build TypeScript do frontend validado
 
 ## Bootstrap inicial
-
-Crie o primeiro tenant e usuário admin:
 
 ```bash
 curl -X POST http://localhost:8000/auth/bootstrap \
@@ -73,179 +102,106 @@ curl -X POST http://localhost:8000/auth/bootstrap \
   }'
 ```
 
-## Integração Hermes
+## CRM
 
-O projeto já sai preparado para usar o Hermes nesse endpoint:
+O CRM já está integrado à base principal. Não crie projeto paralelo.
 
-```env
-AI_PROVIDER=hermes
-HERMES_AGENT_URL=https://apihermes.fbautomacao.space
-HERMES_AGENT_PATH=/chat
-```
+Recursos já ativos na base:
 
-Se o contrato HTTP do Hermes usar outro caminho, ajuste `HERMES_AGENT_PATH`.
+- dashboard CRM
+- leads
+- kanban com arrasta-e-solta
+- conversas
+- follow-ups
+- tarefas
+- configuração CRM
+- integração WhatsApp Evolution
+- painel Master responsivo para ativar módulos
 
-Payload enviado para o Hermes:
+Rotas principais:
 
-```json
-{
-  "messages": [
-    { "role": "system", "content": "..." },
-    { "role": "user", "content": "..." }
-  ]
-}
-```
-
-Resposta esperada:
-
-```json
-{
-  "response": "texto"
-}
-```
-
-Também aceita `content`, `answer` ou formato OpenAI compatível em `choices[0].message.content`.
-
-## Deploy
-
-Ver [docs/DEPLOY.md](docs/DEPLOY.md) para Coolify, Docker Compose e VPS.
-
-### Defaults de produção desta base
-
-- frontend consumindo a API por `VITE_API_BASE_URL=/api`
-- `nginx` do frontend fazendo proxy de `/api/*` para `backend:8000`
-- `PublicChat` usando o mesmo fallback `/api`, sem depender de `localhost`
-
-## CRM Phase 1
-
-Esta base agora inclui a fundação do módulo CRM sem recriar autenticação, cobrança,
-Hermes ou a integração existente de Telegram.
-
-### Estrutura adicionada
-
-- tabelas `crm_*` e `tenant_modules`
-- rotas `/crm/*`
-- sincronização inicial de conversas e mensagens do Telegram para o CRM
-- item `CRM` no menu do painel quando `tenant_modules.crm = true`
-
-### Ativar CRM para um tenant
-
-1. Rode a migration SQL:
-
-```bash
-psql "$DATABASE_URL" -f backend/migrations/001_crm_phase1.sql
-```
-
-2. Ative o módulo para o tenant:
-
-```sql
-update tenant_modules
-set crm = true
-where tenant_id = <TENANT_ID>;
-```
-
-3. Faça login novamente no painel. O menu `CRM` passa a aparecer no frontend.
-
-### Rotas CRM criadas
-
-- `GET/PUT /crm/whatsapp`
-- `POST /crm/whatsapp/connect`
-- `GET /crm/whatsapp/status`
-- `GET /crm/whatsapp/qrcode`
-- `POST /crm/whatsapp/disconnect`
 - `GET /crm/dashboard`
 - `GET/POST /crm/leads`
 - `GET/PUT/DELETE /crm/leads/{id}`
-- `GET /crm/leads/{id}/activity`
-- `GET /crm/conversations`
-- `GET /crm/conversations/{id}`
-- `PUT /crm/conversations/{id}/state`
-- `POST /crm/conversations/{id}/messages`
-- `GET /crm/messages?conversation_id={id}`
 - `GET /crm/kanban`
 - `POST /crm/kanban/move`
+- `PUT /crm/kanban/{column_id}`
 - `GET/POST /crm/followups`
 - `GET/POST /crm/tasks`
 - `GET/POST /crm/tags`
 - `GET/PUT /crm/settings`
-- `PUT /crm/module`
-- `GET /tenant/modules`
+- `GET/PUT /crm/whatsapp`
 
-### Rotas Admin Master
+## Hermes Agente
 
-- `GET /admin/tenants`
-- `PUT /admin/tenants/{tenant_id}/modules`
+Persistência já conectada ao banco:
 
-Todas exigem login, isolamento por `tenant_id` e módulo CRM ativo.
+- `save_memory`
+- `search_memory`
+- `create_task`
+- `list_tasks`
+- `create_reminder`
+- `list_reminders`
+- `create_appointment`
+- `list_appointments`
 
-### Escopo atual do CRM
+Arquivos principais:
 
-- camada de provider WhatsApp preparada para `evolution_go`
-- dashboard operacional
-- CRUD visual completo de leads
-- timeline básica por lead
-- kanban com arrasta-e-solta
-- lista de conversas do CRM
-- assumir atendimento, devolver para IA e resolver conversa
-- envio manual de mensagem pela tela CRM
-- criação rápida de lead, follow-up e tarefa
-- edição e exclusão de follow-up e tarefa pelo painel CRM
-- configuração inicial de status, tags e mensagem automática
-- painel master para ativar/desativar CRM por tenant
-- tela CRM para conectar WhatsApp via Evolution Go
+- [backend/app/services/agent.py](backend/app/services/agent.py)
+- [backend/app/services/hermes_actions.py](backend/app/services/hermes_actions.py)
+- [backend/app/services/hermes_admin.py](backend/app/services/hermes_admin.py)
 
-### Papel master
+O Hermes Admin agora possui fallback local quando a IA externa falha, em vez de quebrar o chat.
 
-O painel `Master` e as rotas `/admin/*` exigem `user.is_super_admin = true`.
-Os webhooks administrativos dedicados continuam aceitando o fluxo legado master no
-endpoint `/webhook/telegram-master`, mas o painel e as rotas REST de administração
-do SaaS ficam restritos ao super admin autenticado.
+## Worker e lembretes
 
-### Evolution Go
+O scheduler de lembretes roda a cada 1 minuto:
 
-Variáveis adicionadas para o provider:
+- [backend/app/services/task_reminders.py](backend/app/services/task_reminders.py)
+- [backend/app/services/scheduler.py](backend/app/services/scheduler.py)
 
+Fluxo:
+
+- busca tarefas vencidas e lembretes pendentes
+- entrega por Telegram/WhatsApp quando aplicável
+- marca como enviado
+
+## Deploy via Coolify
+
+### Backend
+
+- Porta: `8000`
+- Comando padrão: `uvicorn app.main:app --host 0.0.0.0 --port 8000`
+- Variáveis mínimas:
+  - `DATABASE_URL`
+  - `JWT_SECRET` ou `SECRET_KEY`
+  - `ADMIN_EMAIL`
+  - `ADMIN_PASSWORD`
+
+Recomendadas:
+
+- `CORS_ORIGINS`
+- `HERMES_AGENT_URL`
+- `HERMES_AGENT_PATH`
+- `OPENROUTER_API_KEY`
+- `DEEPSEEK_API_KEY`
 - `EVOLUTION_API_BASE_URL`
 - `EVOLUTION_API_KEY`
-- `EVOLUTION_API_KEY_HEADER`
 
-Esta integração foi estruturada como provider externo por tenant. O backend do SaaS
-salva a conexão e chama a API do Evolution Go para criar instância, consultar status,
-buscar QR code e desconectar.
+### Frontend
 
-### Webhooks de entrada
+- Build command: padrão do Dockerfile/Vite
+- `VITE_API_BASE_URL=/api` quando o frontend usa o proxy do Nginx/container
+- se frontend e backend estiverem em domínios separados, use a URL pública completa da API
 
-- `POST /webhook/telegram?tenant_id={tenant_id}`
-- `POST /webhook/telegram-admin`
-- `POST /webhook/telegram-master`
-- `POST /webhook/evolution-go`
+### Banco
 
-Uso recomendado:
+- confirme `DATABASE_URL` com hostname interno válido da rede da Coolify
+- se o backend não sobe e aparece erro de `could not translate host name`, o problema é DNS/rede do serviço do Postgres, não da aplicação
 
-- bot cliente: `/webhook/telegram` com `tenant_id` na query quando necessário
-- bot admin super admin: `/webhook/telegram-admin`
-- bot master legado: `/webhook/telegram-master`
-- tokens administrativos não devem ser enviados para `/webhook/telegram`; esse endpoint é apenas para atendimento de cliente
+## Observações de produção
 
-Para o `evolution-go`, o backend tenta identificar a conexão por `instance_name`
-no payload ou por query string. Como fallback operacional, você também pode
-configurar o webhook com `?tenant_id=<TENANT_ID>&instance_name=<INSTANCE_NAME>`.
-
-## Saúde e startup
-
-- `GET /health` valida a API e a conexão com o banco
-- o startup aplica migrations SQL idempotentes e agora falha explicitamente se alguma quebrar
-- o logging grava em console e em `logs/app.log`
-
-## API no frontend
-
-Por padrão, o frontend fala com a API pelo mesmo host usando o caminho `/api`.
-No container `frontend`, o `nginx` faz proxy de `/api/*` para `backend:8000`.
-
-Se você publicar frontend e backend em domínios separados, defina `VITE_API_BASE_URL`
-com a URL pública completa da API no build do frontend.
-
-## Domínios planejados
-
-- painel web: `https://meuchat.fbautomacao.space`
-- agente Hermes: `https://apihermes.fbautomacao.space`
+- o startup aplica migrations idempotentes em [backend/app/main.py](backend/app/main.py)
+- há migration dedicada de padronização dos módulos em [backend/migrations/005_tenant_modules_standardization.sql](backend/migrations/005_tenant_modules_standardization.sql)
+- o projeto ainda usa `@app.on_event("startup")`; funciona, mas há warning deprecatado do FastAPI
+- há mudanças locais antigas no repositório fora do escopo desta rodada; revise `git status` antes de publicar tudo
