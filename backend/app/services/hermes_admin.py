@@ -54,7 +54,15 @@ class HermesAdminService:
             return {"response": response, "actions": actions, "context": context}
         except (httpx.HTTPError, RuntimeError, ValueError) as exc:
             logger.warning("Hermes Admin chat failed for user_id=%s: %s", user.id, exc)
-            return {"response": f"Erro: {str(exc)}", "actions": [], "context": context}
+            fallback = await self._local_chat_response(user, message, context, reason=str(exc))
+            await self._log_action(
+                "hermes_chat_fallback",
+                "chat",
+                None,
+                details=f"Fallback local acionado: {message}",
+                user_id=user.id,
+            )
+            return {"response": fallback, "actions": [], "context": context}
 
     async def _handle_builtin_command(self, user: User, message: str) -> dict | None:
         normalized = (message or "").strip().lower()
@@ -79,6 +87,53 @@ class HermesAdminService:
             "actions": [],
             "context": self._gather_context(),
         }
+
+    async def _local_chat_response(
+        self,
+        user: User,
+        message: str,
+        context: dict,
+        reason: str | None = None,
+    ) -> str:
+        """Fallback local para manter o chat funcional sem depender de provedor externo."""
+        normalized = (message or "").strip().lower()
+
+        if any(token in normalized for token in ("oi", "ola", "olá", "bom dia", "boa tarde", "boa noite")):
+            status = await self._skill_status_sistema(user)
+            return (
+                f"Olá, {user.name}. A IA externa está indisponível no momento, então ativei o modo local.\n\n"
+                f"{status['output']}\n\n"
+                "Comandos que funcionam agora:\n"
+                "• status do sistema\n"
+                "• listar módulos\n"
+                "• ver erros\n"
+                "• analisar projeto\n"
+                "• o que falta fazer"
+            )
+
+        if "cliente" in normalized and any(token in normalized for token in ("ativo", "ativos", "bloqueado", "bloqueados")):
+            status = "ativos" if "ativo" in normalized else "bloqueados"
+            result = await self._skill_listar_clientes(user, status)
+            return result["output"]
+
+        lines = [
+            "O Hermes Admin entrou em modo local porque a IA externa não respondeu.",
+            f"Clientes ativos: {context['active_tenants']}",
+            f"Clientes bloqueados: {context['blocked_tenants']}",
+            f"Tarefas abertas: {context['open_tasks']}",
+            f"Projetos ativos: {context['active_projects']}",
+            f"Rotinas ativas: {context['active_routines']}",
+        ]
+        if reason:
+            lines.append(f"Motivo técnico: {reason}")
+        lines.append("")
+        lines.append("Tente um destes comandos:")
+        lines.append("• status do sistema")
+        lines.append("• listar módulos")
+        lines.append("• ver erros")
+        lines.append("• analisar projeto")
+        lines.append("• o que falta fazer")
+        return "\n".join(lines)
 
     def _build_system_prompt(self, user: User) -> str:
         return f"""Você é o Hermes Admin Master, assistente interno da plataforma HERMES AGENTE.

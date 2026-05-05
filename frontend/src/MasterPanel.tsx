@@ -886,7 +886,10 @@ function HermesAdminPanel({ onClose }: { onClose: () => void }) {
       console.error(e);
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: "Erro ao processar mensagem." },
+        {
+          role: "assistant",
+          content: `Não consegui concluir a chamada do assistente.\n${e instanceof Error ? e.message : "Falha interna"}`,
+        },
       ]);
     } finally {
       setLoading(false);

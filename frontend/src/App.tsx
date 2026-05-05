@@ -1517,6 +1517,13 @@ function HermesAdminChatPage({ profile }: { profile: MeResponse }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [dashboard, setDashboard] = useState<HermesAdminDashboard | null>(null);
+  const quickCommands = [
+    "status do sistema",
+    "listar módulos",
+    "ver erros",
+    "analisar projeto",
+    "o que falta fazer",
+  ];
   const [messages, setMessages] = useState<Array<{ id: string; sender: "user" | "assistant"; content: string }>>([
     {
       id: "welcome",
@@ -1554,22 +1561,36 @@ function HermesAdminChatPage({ profile }: { profile: MeResponse }) {
       const nextDashboard = await getHermesAdminDashboard().catch(() => null);
       setDashboard(nextDashboard);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao falar com Hermes Admin");
+      const message = err instanceof Error ? err.message : "Falha ao falar com Hermes Admin";
+      setError(message);
+      setMessages((current) => [
+        ...current,
+        {
+          id: `${Date.now()}-assistant-error`,
+          sender: "assistant",
+          content: `Não consegui concluir a chamada do assistente agora.\n${message}`,
+        },
+      ]);
     } finally {
       setLoading(false);
     }
   }
 
+  function handleQuickCommand(command: string) {
+    if (loading) return;
+    setContent(command);
+  }
+
   return (
-    <div className="grid h-[calc(100vh-3rem)] gap-4 xl:grid-cols-[320px,1fr]">
-      <section className="rounded-[32px] bg-white p-6 shadow-soft">
+    <div className="grid min-h-[calc(100vh-3rem)] gap-4 xl:grid-cols-[320px,1fr]">
+      <section className="rounded-[32px] bg-white p-5 shadow-soft sm:p-6">
         <div className="text-xs uppercase tracking-[0.3em] text-brand/70">Super Admin</div>
-        <h2 className="mt-2 font-serif text-3xl">Hermes Admin</h2>
+        <h2 className="mt-2 font-serif text-2xl sm:text-3xl">Hermes Admin</h2>
         <p className="mt-3 text-sm text-slate-600">
           Chat operacional global do SaaS para {profile.user.name}.
         </p>
 
-        <div className="mt-6 space-y-3 text-sm">
+        <div className="mt-6 grid gap-3 text-sm sm:grid-cols-3 xl:grid-cols-1">
           <div className="rounded-2xl bg-panel p-4">
             <div className="text-slate-500">Clientes ativos</div>
             <div className="mt-1 text-2xl font-semibold text-ink">{dashboard?.active_tenants ?? "-"}</div>
@@ -1586,38 +1607,46 @@ function HermesAdminChatPage({ profile }: { profile: MeResponse }) {
 
         <div className="mt-6 rounded-2xl bg-ink p-4 text-sm text-white">
           <div className="text-white/60">Comandos úteis</div>
-          <div className="mt-2">status do sistema</div>
-          <div>listar módulos</div>
-          <div>ver erros</div>
-          <div>analisar projeto</div>
-          <div>o que falta fazer</div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {quickCommands.map((command) => (
+              <button
+                key={command}
+                type="button"
+                onClick={() => handleQuickCommand(command)}
+                className="rounded-full bg-white/10 px-3 py-2 text-left text-xs text-white transition hover:bg-white/20"
+              >
+                {command}
+              </button>
+            ))}
+          </div>
         </div>
       </section>
 
       <section className="flex flex-col overflow-hidden rounded-[32px] bg-[#efeae2] shadow-soft">
-        <div className="border-b border-black/5 bg-white/90 px-6 py-4 backdrop-blur">
+        <div className="border-b border-black/5 bg-white/90 px-4 py-4 backdrop-blur sm:px-6">
           <div className="font-medium">Hermes Super Admin</div>
           <div className="text-sm text-slate-500">Acesso global ao sistema</div>
         </div>
 
-        <div className="flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top_right,rgba(27,127,107,0.10),transparent_25%),linear-gradient(180deg,#efeae2,#e7dfd3)] p-6">
+        <div className="flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top_right,rgba(27,127,107,0.10),transparent_25%),linear-gradient(180deg,#efeae2,#e7dfd3)] p-4 sm:p-6">
           <div className="space-y-4">
             {messages.map((message) => (
               <div
                 key={message.id}
-                className={`max-w-[80%] whitespace-pre-wrap rounded-[22px] px-4 py-3 text-sm shadow ${
-                  message.sender === "user" ? "bg-white" : "ml-auto bg-bubble"
+                className={`w-fit max-w-[88%] whitespace-pre-wrap rounded-[22px] px-4 py-3 text-sm shadow sm:max-w-[80%] ${
+                  message.sender === "user" ? "ml-auto bg-bubble" : "bg-white"
                 }`}
               >
                 {message.content}
               </div>
             ))}
+            {loading ? <div className="w-fit max-w-[88%] rounded-[22px] bg-white px-4 py-3 text-sm text-slate-500 shadow sm:max-w-[80%]">Hermes está processando...</div> : null}
             {error ? <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div> : null}
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="border-t border-black/5 bg-white/90 p-4 backdrop-blur">
-          <div className="flex gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row">
             <input
               className="input flex-1"
               value={content}
@@ -1626,7 +1655,7 @@ function HermesAdminChatPage({ profile }: { profile: MeResponse }) {
             />
             <button
               disabled={loading}
-              className="rounded-2xl bg-brand px-5 py-3 font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-2xl bg-brand px-5 py-3 font-medium text-white disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-[140px]"
             >
               {loading ? "Enviando..." : "Enviar"}
             </button>
@@ -1789,6 +1818,15 @@ function MasterPage({
   const [tenants, setTenants] = useState<AdminTenant[]>([]);
   const [savingTenantId, setSavingTenantId] = useState<number | null>(null);
   const [error, setError] = useState("");
+  const moduleDefs = [
+    { key: "crm", label: "CRM", enabledKey: "crm_enabled" as const },
+    { key: "whatsapp_evolution", label: "WhatsApp", enabledKey: "whatsapp_evolution_enabled" as const },
+    { key: "kanban", label: "Kanban", enabledKey: "kanban_enabled" as const },
+    { key: "agenda", label: "Agenda", enabledKey: "agenda_enabled" as const },
+    { key: "instagram", label: "Instagram", enabledKey: "instagram_enabled" as const },
+    { key: "youtube", label: "YouTube", enabledKey: "youtube_enabled" as const },
+    { key: "content_publisher", label: "Content Publisher", enabledKey: "content_publisher_enabled" as const },
+  ] as const;
 
   async function loadTenants() {
     try {
@@ -1803,15 +1841,31 @@ function MasterPage({
     loadTenants();
   }, [profile.user.is_super_admin]);
 
+  async function toggleModule(tenant: AdminTenant, moduleKey: (typeof moduleDefs)[number]["key"], enabled: boolean) {
+    setSavingTenantId(tenant.id);
+    setError("");
+    try {
+      const updated = await updateAdminTenantModules(tenant.id, { [moduleKey]: enabled });
+      if (updated.id === profile.tenant.id) {
+        await onProfileRefresh();
+      }
+      setTenants((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao atualizar tenant");
+    } finally {
+      setSavingTenantId(null);
+    }
+  }
+
   if (!profile.user.is_super_admin) {
     return <Navigate to="/dashboard" replace />;
   }
 
   return (
     <div className="space-y-6">
-      <div className="rounded-[32px] bg-[linear-gradient(135deg,#2a1f43,#3d2d63_55%,#e6d7b7)] p-8 text-white shadow-soft">
+      <div className="rounded-[32px] bg-[linear-gradient(135deg,#2a1f43,#3d2d63_55%,#e6d7b7)] p-6 text-white shadow-soft sm:p-8">
         <div className="text-xs uppercase tracking-[0.3em] text-white/60">Admin Master</div>
-        <h2 className="mt-3 font-serif text-4xl">Módulos por cliente</h2>
+        <h2 className="mt-3 font-serif text-3xl sm:text-4xl">Módulos por cliente</h2>
         <p className="mt-3 max-w-2xl text-sm text-white/75">
           Controle central para ativar ou desativar módulos por tenant sem misturar dados entre clientes.
         </p>
@@ -1819,12 +1873,46 @@ function MasterPage({
 
       {error ? <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div> : null}
 
-        <div className="rounded-[32px] bg-white p-6 shadow-soft">
-        <div className="flex items-center justify-between gap-4">
+      <div className="rounded-[32px] bg-white p-4 shadow-soft sm:p-6">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <h3 className="font-serif text-2xl">Tenants</h3>
           <div className="text-sm text-slate-500">{tenants.length} clientes</div>
         </div>
-        <div className="mt-5 overflow-x-auto">
+
+        <div className="mt-5 space-y-4 lg:hidden">
+          {tenants.map((tenant) => (
+            <div key={tenant.id} className="rounded-[28px] border border-black/5 bg-slate-50 p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="truncate font-semibold text-ink">{tenant.name}</div>
+                  <div className="truncate text-sm text-slate-500">{tenant.email}</div>
+                  <div className="mt-2 text-xs uppercase tracking-[0.18em] text-slate-400">{tenant.plan}</div>
+                </div>
+                <span className={`shrink-0 rounded-full px-3 py-1 text-xs ${tenant.active ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>
+                  {tenant.active ? "ativo" : "inativo"}
+                </span>
+              </div>
+
+              <div className="mt-4 grid gap-3">
+                {moduleDefs.map((moduleDef) => (
+                  <label key={moduleDef.key} className="flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3">
+                    <span className="text-sm font-medium text-slate-700">{moduleDef.label}</span>
+                    <input
+                      type="checkbox"
+                      checked={tenant[moduleDef.enabledKey]}
+                      disabled={savingTenantId === tenant.id}
+                      onChange={(event) => void toggleModule(tenant, moduleDef.key, event.target.checked)}
+                    />
+                  </label>
+                ))}
+              </div>
+
+              <div className="mt-4 text-xs text-slate-400">Criado em {formatDateTime(tenant.created_at)}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-5 hidden overflow-x-auto lg:block">
           <table className="min-w-full text-left text-sm">
             <thead className="text-slate-400">
               <tr>
@@ -1860,23 +1948,7 @@ function MasterPage({
                         type="checkbox"
                         checked={tenant.crm_enabled}
                         disabled={savingTenantId === tenant.id}
-                        onChange={async (event) => {
-                          setSavingTenantId(tenant.id);
-                          setError("");
-                          try {
-                            const updated = await updateAdminTenantModules(tenant.id, { crm: event.target.checked });
-                            if (updated.id === profile.tenant.id) {
-                              await onProfileRefresh();
-                            }
-                            setTenants((current) =>
-                              current.map((item) => (item.id === updated.id ? updated : item)),
-                            );
-                          } catch (err) {
-                            setError(err instanceof Error ? err.message : "Falha ao atualizar tenant");
-                          } finally {
-                            setSavingTenantId(null);
-                          }
-                        }}
+                        onChange={(event) => void toggleModule(tenant, "crm", event.target.checked)}
                       />
                       <span className="text-slate-700">{tenant.crm_enabled ? "habilitado" : "desligado"}</span>
                     </label>
@@ -1887,23 +1959,7 @@ function MasterPage({
                         type="checkbox"
                         checked={tenant.whatsapp_evolution_enabled}
                         disabled={savingTenantId === tenant.id}
-                        onChange={async (event) => {
-                          setSavingTenantId(tenant.id);
-                          setError("");
-                          try {
-                            const updated = await updateAdminTenantModules(tenant.id, { whatsapp_evolution: event.target.checked });
-                            if (updated.id === profile.tenant.id) {
-                              await onProfileRefresh();
-                            }
-                            setTenants((current) =>
-                              current.map((item) => (item.id === updated.id ? updated : item)),
-                            );
-                          } catch (err) {
-                            setError(err instanceof Error ? err.message : "Falha ao atualizar tenant");
-                          } finally {
-                            setSavingTenantId(null);
-                          }
-                        }}
+                        onChange={(event) => void toggleModule(tenant, "whatsapp_evolution", event.target.checked)}
                       />
                       <span className="text-slate-700">{tenant.whatsapp_evolution_enabled ? "habilitado" : "desligado"}</span>
                     </label>
@@ -1914,23 +1970,7 @@ function MasterPage({
                         type="checkbox"
                         checked={tenant.kanban_enabled}
                         disabled={savingTenantId === tenant.id}
-                        onChange={async (event) => {
-                          setSavingTenantId(tenant.id);
-                          setError("");
-                          try {
-                            const updated = await updateAdminTenantModules(tenant.id, { kanban: event.target.checked });
-                            if (updated.id === profile.tenant.id) {
-                              await onProfileRefresh();
-                            }
-                            setTenants((current) =>
-                              current.map((item) => (item.id === updated.id ? updated : item)),
-                            );
-                          } catch (err) {
-                            setError(err instanceof Error ? err.message : "Falha ao atualizar tenant");
-                          } finally {
-                            setSavingTenantId(null);
-                          }
-                        }}
+                        onChange={(event) => void toggleModule(tenant, "kanban", event.target.checked)}
                       />
                       <span className="text-slate-700">{tenant.kanban_enabled ? "habilitado" : "desligado"}</span>
                     </label>
@@ -1941,23 +1981,7 @@ function MasterPage({
                         type="checkbox"
                         checked={tenant.agenda_enabled}
                         disabled={savingTenantId === tenant.id}
-                        onChange={async (event) => {
-                          setSavingTenantId(tenant.id);
-                          setError("");
-                          try {
-                            const updated = await updateAdminTenantModules(tenant.id, { agenda: event.target.checked });
-                            if (updated.id === profile.tenant.id) {
-                              await onProfileRefresh();
-                            }
-                            setTenants((current) =>
-                              current.map((item) => (item.id === updated.id ? updated : item)),
-                            );
-                          } catch (err) {
-                            setError(err instanceof Error ? err.message : "Falha ao atualizar tenant");
-                          } finally {
-                            setSavingTenantId(null);
-                          }
-                        }}
+                        onChange={(event) => void toggleModule(tenant, "agenda", event.target.checked)}
                       />
                       <span className="text-slate-700">{tenant.agenda_enabled ? "habilitado" : "desligado"}</span>
                     </label>
@@ -1968,23 +1992,7 @@ function MasterPage({
                         type="checkbox"
                         checked={tenant.instagram_enabled}
                         disabled={savingTenantId === tenant.id}
-                        onChange={async (event) => {
-                          setSavingTenantId(tenant.id);
-                          setError("");
-                          try {
-                            const updated = await updateAdminTenantModules(tenant.id, { instagram: event.target.checked });
-                            if (updated.id === profile.tenant.id) {
-                              await onProfileRefresh();
-                            }
-                            setTenants((current) =>
-                              current.map((item) => (item.id === updated.id ? updated : item)),
-                            );
-                          } catch (err) {
-                            setError(err instanceof Error ? err.message : "Falha ao atualizar tenant");
-                          } finally {
-                            setSavingTenantId(null);
-                          }
-                        }}
+                        onChange={(event) => void toggleModule(tenant, "instagram", event.target.checked)}
                       />
                       <span className="text-slate-700">{tenant.instagram_enabled ? "habilitado" : "desligado"}</span>
                     </label>
@@ -1995,23 +2003,7 @@ function MasterPage({
                         type="checkbox"
                         checked={tenant.youtube_enabled}
                         disabled={savingTenantId === tenant.id}
-                        onChange={async (event) => {
-                          setSavingTenantId(tenant.id);
-                          setError("");
-                          try {
-                            const updated = await updateAdminTenantModules(tenant.id, { youtube: event.target.checked });
-                            if (updated.id === profile.tenant.id) {
-                              await onProfileRefresh();
-                            }
-                            setTenants((current) =>
-                              current.map((item) => (item.id === updated.id ? updated : item)),
-                            );
-                          } catch (err) {
-                            setError(err instanceof Error ? err.message : "Falha ao atualizar tenant");
-                          } finally {
-                            setSavingTenantId(null);
-                          }
-                        }}
+                        onChange={(event) => void toggleModule(tenant, "youtube", event.target.checked)}
                       />
                       <span className="text-slate-700">{tenant.youtube_enabled ? "habilitado" : "desligado"}</span>
                     </label>
@@ -2022,23 +2014,7 @@ function MasterPage({
                         type="checkbox"
                         checked={tenant.content_publisher_enabled}
                         disabled={savingTenantId === tenant.id}
-                        onChange={async (event) => {
-                          setSavingTenantId(tenant.id);
-                          setError("");
-                          try {
-                            const updated = await updateAdminTenantModules(tenant.id, { content_publisher: event.target.checked });
-                            if (updated.id === profile.tenant.id) {
-                              await onProfileRefresh();
-                            }
-                            setTenants((current) =>
-                              current.map((item) => (item.id === updated.id ? updated : item)),
-                            );
-                          } catch (err) {
-                            setError(err instanceof Error ? err.message : "Falha ao atualizar tenant");
-                          } finally {
-                            setSavingTenantId(null);
-                          }
-                        }}
+                        onChange={(event) => void toggleModule(tenant, "content_publisher", event.target.checked)}
                       />
                       <span className="text-slate-700">{tenant.content_publisher_enabled ? "habilitado" : "desligado"}</span>
                     </label>
