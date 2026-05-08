@@ -7,7 +7,17 @@ from app.core.config import get_settings
 from app.core.security import create_access_token, get_password_hash, verify_password
 from app.deps import get_current_modules, get_current_tenant, get_current_user
 from app.models import Credit, Tenant, TenantModule, User
-from app.schemas import AdminRecoveryRequest, AdminSeedSyncRequest, BootstrapRequest, LoginRequest, MeResponse, TenantModulesOut, TenantOut, TokenResponse, UserOut
+from app.schemas import (
+    AdminRecoveryRequest,
+    AdminSeedSyncRequest,
+    BootstrapRequest,
+    LoginRequest,
+    MeResponse,
+    TenantModulesOut,
+    TenantOut,
+    TokenResponse,
+    UserOut,
+)
 from app.services.modules import build_modules_out
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -33,9 +43,7 @@ def _sync_env_admin_if_needed(db: Session, email: str) -> None:
     admin_email, _ = _get_normalized_env_admin()
     if not admin_email or _normalize_email(email) != admin_email:
         return
-
     from app.main import ensure_env_super_admin
-
     ensure_env_super_admin()
     db.expire_all()
 
@@ -56,19 +64,32 @@ def _get_active_user_by_email(db: Session, email: str) -> User | None:
     return users[0] if users else None
 
 
+# -- FIX: Bootstrap agora aceita niche, system_prompt, bot_display_name, welcome_message
 @router.post("/bootstrap", response_model=TokenResponse)
 def bootstrap(payload: BootstrapRequest, db: Session = Depends(get_db)):
     existing = db.query(User).first()
     if existing:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Bootstrap already completed")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Bootstrap already completed. Use /admin/tenants to create new tenants.",
+        )
 
     from app.core.config import get_settings
-
     settings = get_settings()
     if payload.token != settings.bootstrap_token:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid bootstrap token")
 
-    tenant = Tenant(name=payload.tenant_name, email=payload.tenant_email, plan=payload.plan, active=True)
+    # FIX: inclui todos os campos opcionais no tenant
+    tenant = Tenant(
+        name=payload.tenant_name,
+        email=payload.tenant_email,
+        plan=payload.plan,
+        active=True,
+        niche=payload.niche,
+        system_prompt=payload.system_prompt,
+        bot_display_name=payload.bot_display_name,
+        welcome_message=payload.welcome_message,
+    )
     db.add(tenant)
     db.flush()
 
@@ -82,7 +103,8 @@ def bootstrap(payload: BootstrapRequest, db: Session = Depends(get_db)):
     )
     db.add(user)
     db.add(Credit(tenant_id=tenant.id, total=payload.credits, used=0, remaining=payload.credits))
-    db.add(TenantModule(tenant_id=tenant.id, crm=False))
+    # FIX: TenantModule criado com CRM ativo por padrao no bootstrap inicial
+    db.add(TenantModule(tenant_id=tenant.id, crm=True))
     db.commit()
     db.refresh(user)
 
@@ -108,8 +130,13 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         if tenant and not tenant.active:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant inactive")
         if not tenant:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email da empresa nao encontrado")
-        user = db.query(User).filter(User.tenant_id == tenant.id, func.lower(User.email) == email).first()
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Email da empresa nao encontrado",
+            )
+        user = db.query(User).filter(
+            User.tenant_id == tenant.id, func.lower(User.email) == email
+        ).first()
     else:
         user = _get_active_user_by_email(db, email)
         if not user:
@@ -120,14 +147,19 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
                 .first()
             )
             if inactive_user:
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant inactive")
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Tenant inactive",
+                )
 
     if not user:
         _sync_env_admin_if_needed(db, email)
         if tenant_email:
             tenant = db.query(Tenant).filter(func.lower(Tenant.email) == tenant_email).first()
             if tenant and tenant.active:
-                user = db.query(User).filter(User.tenant_id == tenant.id, func.lower(User.email) == email).first()
+                user = db.query(User).filter(
+                    User.tenant_id == tenant.id, func.lower(User.email) == email
+                ).first()
         else:
             user = _get_active_user_by_email(db, email)
 
@@ -153,7 +185,10 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         password_valid = True
 
     if not user or not password_valid:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email ou senha invalidos")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Email ou senha invalidos",
+        )
 
     return TokenResponse(access_token=create_access_token(str(user.id), user.tenant_id))
 
@@ -161,7 +196,6 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
 @router.post("/sync-admin-env")
 def sync_admin_env(payload: AdminSeedSyncRequest):
     from app.main import sync_env_super_admin
-
     settings = get_settings()
     if payload.token != settings.bootstrap_token:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid bootstrap token")
@@ -179,7 +213,6 @@ def admin_recovery(payload: AdminRecoveryRequest, db: Session = Depends(get_db))
     if payload.token != settings.bootstrap_token:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Token invalido")
 
-    # Busca o super admin mais antigo (independente de tenant estar ativo)
     user = (
         db.query(User)
         .filter(User.is_super_admin.is_(True))
@@ -187,7 +220,6 @@ def admin_recovery(payload: AdminRecoveryRequest, db: Session = Depends(get_db))
         .first()
     )
 
-    # Se nao encontrou por is_super_admin, tenta o primeiro usuario com role admin
     if not user:
         user = (
             db.query(User)
@@ -202,7 +234,6 @@ def admin_recovery(payload: AdminRecoveryRequest, db: Session = Depends(get_db))
             detail="Nenhum usuario admin encontrado no banco",
         )
 
-    # Ativa o tenant do admin
     tenant = db.query(Tenant).filter(Tenant.id == user.tenant_id).first()
     if not tenant:
         raise HTTPException(
@@ -214,12 +245,10 @@ def admin_recovery(payload: AdminRecoveryRequest, db: Session = Depends(get_db))
     user.is_super_admin = True
     user.role = "admin"
 
-    # Garante creditos minimos
     credit = db.query(Credit).filter(Credit.tenant_id == tenant.id).first()
     if not credit:
         db.add(Credit(tenant_id=tenant.id, total=1000, used=0, remaining=1000))
 
-    # Atualiza senha se fornecida
     if payload.new_password:
         if len(payload.new_password) < 6:
             raise HTTPException(
