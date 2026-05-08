@@ -25,6 +25,7 @@ class LoginRequest(BaseModel):
         return value
 
 
+# -- FIX BUG 2: BootstrapRequest agora aceita niche, system_prompt, etc.
 class BootstrapRequest(BaseModel):
     token: str
     tenant_name: str
@@ -34,6 +35,11 @@ class BootstrapRequest(BaseModel):
     password: str = Field(min_length=6)
     plan: str = "pro"
     credits: int = 500
+    # CAMPOS ADICIONADOS:
+    niche: str | None = None
+    system_prompt: str | None = None
+    bot_display_name: str | None = None
+    welcome_message: str | None = None
 
 
 class AdminSeedSyncRequest(BaseModel):
@@ -53,6 +59,7 @@ class UserOut(ORMModel):
     role: str
     is_super_admin: bool = False
 
+
 class TenantOut(ORMModel):
     id: int
     name: str
@@ -64,6 +71,7 @@ class TenantOut(ORMModel):
     bot_display_name: str | None = None
     welcome_message: str | None = None
     telegram_bot_username: str | None = None
+
 
 class TenantModulesOut(BaseModel):
     crm: bool
@@ -102,12 +110,15 @@ class TenantAdminOut(TenantOut, TenantAdminModulesOut):
     telegram_bot_token: str | None = None
     created_at: datetime
 
+
+# -- FIX BUG 5: TenantCreateAdmin agora inclui bot_display_name e welcome_message
 class TenantCreateAdmin(BaseModel):
     name: str
     email: EmailStr
     plan: str = "starter"
     niche: str | None = None
     system_prompt: str | None = None
+    # CAMPOS ADICIONADOS:
     bot_display_name: str | None = None
     welcome_message: str | None = None
     telegram_bot_token: str | None = None
@@ -142,6 +153,7 @@ class PlanOut(ORMModel):
     price_cents: int
     description: str | None = None
 
+
 class SubscriptionOut(ORMModel):
     id: int
     plan_id: int
@@ -150,6 +162,7 @@ class SubscriptionOut(ORMModel):
     next_due_date: datetime | None = None
     last_paid_at: datetime | None = None
     asaas_subscription_id: str | None = None
+
 
 class PaymentOut(ORMModel):
     id: int
@@ -164,6 +177,7 @@ class PaymentOut(ORMModel):
     due_date: datetime | None
     paid_at: datetime | None
     created_at: datetime
+
 
 class CreateSubscriptionRequest(BaseModel):
     plan_id: int
@@ -192,12 +206,14 @@ class ChatOut(ORMModel):
     assigned_user_id: int | None
     created_at: datetime
 
+
 class MessageOut(ORMModel):
     id: int
     chat_id: int
     sender_type: str
     content: str
     created_at: datetime
+
 
 class SendMessageRequest(BaseModel):
     content: str = Field(min_length=1)
@@ -244,6 +260,7 @@ class LeadOut(ORMModel):
     created_at: datetime
     updated_at: datetime | None = None
 
+
 class TaskCreate(BaseModel):
     title: str
     description: str | None = None
@@ -276,6 +293,7 @@ class TaskOut(ORMModel):
     assigned_user_id: int | None = None
     created_at: datetime
     updated_at: datetime | None = None
+
 
 class CreditOut(ORMModel):
     total: int
@@ -334,6 +352,7 @@ class ClientSuggestionOut(BaseModel):
     suggested_at: str | None = None
     active: bool = False
 
+
 class AssignChatRequest(BaseModel):
     assigned_user_id: int
 
@@ -351,6 +370,7 @@ class CrmTagOut(CrmTagCreate, ORMModel):
     id: int
     created_at: datetime
     updated_at: datetime
+
 
 class CrmLeadBase(BaseModel):
     name: str
@@ -394,6 +414,7 @@ class CrmLeadOut(ORMModel):
     updated_at: datetime
     tags: list[CrmTagOut] = []
 
+
 class CrmConversationOut(ORMModel):
     id: int
     lead_id: int | None
@@ -409,6 +430,7 @@ class CrmConversationOut(ORMModel):
     last_message_at: datetime | None
     created_at: datetime
     updated_at: datetime
+
 
 class CrmConversationStateUpdate(BaseModel):
     assigned_user_id: int | None = None
@@ -430,6 +452,7 @@ class CrmMessageOut(ORMModel):
     created_at: datetime
     updated_at: datetime
 
+
 class CrmActivityLogOut(ORMModel):
     id: int
     tenant_id: int
@@ -441,6 +464,7 @@ class CrmActivityLogOut(ORMModel):
     created_at: datetime
     updated_at: datetime
 
+
 class CrmKanbanColumnOut(ORMModel):
     id: int
     name: str
@@ -449,6 +473,7 @@ class CrmKanbanColumnOut(ORMModel):
     is_default: bool
     created_at: datetime
     updated_at: datetime
+
 
 class CrmKanbanColumnCreate(BaseModel):
     name: str
@@ -496,6 +521,7 @@ class CrmFollowUpOut(CrmFollowUpCreate, ORMModel):
     created_at: datetime
     updated_at: datetime
 
+
 class CrmTaskCreate(BaseModel):
     title: str
     description: str | None = None
@@ -521,6 +547,7 @@ class CrmTaskOut(CrmTaskCreate, ORMModel):
     tenant_id: int
     created_at: datetime
     updated_at: datetime
+
 
 class CrmSettingsUpdate(BaseModel):
     column_names: list[str] | None = None
@@ -594,6 +621,7 @@ class CrmWhatsAppConnectionOut(ORMModel):
     last_webhook_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
+
 
 class CrmWhatsAppStatusOut(BaseModel):
     status: str
@@ -712,6 +740,7 @@ class SkillExecutionOut(ORMModel):
     created_at: datetime
     updated_at: datetime
 
+
 class SkillExecutionsListOut(BaseModel):
     executions: list[SkillExecutionOut]
     total: int
@@ -721,10 +750,14 @@ class HermesAdminChatRequest(BaseModel):
     message: str = Field(min_length=1)
 
 
+# -- FIX BUG 4: HermesAdminChatResponse agora inclui dashboard e suggested_skills
 class HermesAdminChatResponse(BaseModel):
     response: str
+    message: str | None = None
     actions: list[str] = []
     context: dict = {}
+    dashboard: dict | None = None
+    suggested_skills: list | None = None
 
 
 class AdminTaskCreate(BaseModel):
@@ -758,6 +791,7 @@ class AdminTaskOut(ORMModel):
     created_at: datetime
     updated_at: datetime
 
+
 class AdminTaskListOut(BaseModel):
     tasks: list[AdminTaskOut]
     total: int
@@ -788,6 +822,7 @@ class AdminProjectOut(ORMModel):
     completed_at: datetime | None
     created_at: datetime
     updated_at: datetime
+
 
 class AdminProjectListOut(BaseModel):
     projects: list[AdminProjectOut]
@@ -821,6 +856,7 @@ class AdminRoutineOut(ORMModel):
     created_at: datetime
     updated_at: datetime
 
+
 class AdminRoutineListOut(BaseModel):
     routines: list[AdminRoutineOut]
     total: int
@@ -840,14 +876,28 @@ class AdminMemoryUpdate(BaseModel):
     meta_data: str | None = None
 
 
+# -- FIX BUG 3: AdminMemoryOut -- meta_data exposto como metadata para o frontend
 class AdminMemoryOut(ORMModel):
     id: int
     category: str
     key: str
     value: str
-    meta_data: str | None
+    meta_data: str | None = None
+    metadata: str | None = None
     created_at: datetime
     updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @classmethod
+    def model_validate(cls, obj, **kwargs):
+        instance = super().model_validate(obj, **kwargs)
+        if instance.meta_data is not None and instance.metadata is None:
+            instance.metadata = instance.meta_data
+        elif instance.metadata is not None and instance.meta_data is None:
+            instance.meta_data = instance.metadata
+        return instance
+
 
 class AdminMemoryListOut(BaseModel):
     memories: list[AdminMemoryOut]
@@ -863,6 +913,7 @@ class AdminActionLogOut(ORMModel):
     performed_by_user_id: int | None
     tenant_id: int | None
     created_at: datetime
+
 
 class AdminActionLogListOut(BaseModel):
     logs: list[AdminActionLogOut]
@@ -880,11 +931,10 @@ class HermesAdminDashboardOut(BaseModel):
     total_revenue: float
 
 
-
 class AdminSkillCreate(BaseModel):
     name: str = Field(min_length=1)
     description: str | None = None
-    trigger_type: str = 'manual'
+    trigger_type: str = "manual"
     trigger_value: str | None = None
     instructions: str = Field(min_length=1)
     expected_result: str | None = None
@@ -916,6 +966,7 @@ class AdminSkillOut(ORMModel):
     created_at: datetime
     updated_at: datetime
 
+
 class AdminSkillListOut(BaseModel):
     skills: list[AdminSkillOut]
     total: int
@@ -941,8 +992,6 @@ class SkillSuggestionResponse(BaseModel):
     reason: str
 
 
-# ── Agenda: AgentReminder ─────────────────────────────────────────────────────
-
 class AgentReminderOut(ORMModel):
     id: int
     tenant_id: int
@@ -960,8 +1009,6 @@ class AgentReminderOut(ORMModel):
 class AgentReminderUpdate(BaseModel):
     status: str | None = None
 
-
-# ── Agenda: AgentAppointment ──────────────────────────────────────────────────
 
 class AgentAppointmentOut(ORMModel):
     id: int
