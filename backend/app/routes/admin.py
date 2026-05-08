@@ -1,5 +1,5 @@
 """
-Endpoints exclusivos do super admin (você, dono do SaaS).
+Endpoints exclusivos do super admin (voce, dono do SaaS).
 Permite criar/listar/editar tenants (clientes).
 """
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -26,16 +26,7 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 logger = get_logger(__name__)
 
 
-@router.get("/master-bot")
-def master_bot_info(_: User = Depends(lambda u=Depends(get_current_user): _check_super(u))):
-    """Retorna o username do bot mestre pra gerar QR codes."""
-    s = get_settings()
-    return {
-        "username": s.hermes_master_bot_username or None,
-        "configured": bool(s.hermes_master_bot_token),
-        "panel_url": s.public_panel_url,
-    }
-
+# -- Helpers de autenticacao (definidos ANTES de qualquer rota que os use) ------
 
 def _check_super(user: User) -> User:
     if not user.is_super_admin:
@@ -43,6 +34,7 @@ def _check_super(user: User) -> User:
     return user
 
 
+# FIX BUG 6: usar _require_super_admin diretamente em vez de lambda com Depends aninhado
 def _require_super_admin(user: User = Depends(get_current_user)) -> User:
     if not user.is_super_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Super admin only")
@@ -71,6 +63,18 @@ def _to_admin_out(db: Session, tenant: Tenant) -> dict:
     return payload
 
 
+# FIX: usar _require_super_admin direto (lambda com Depends aninhado e _check_super indefinido era bugado)
+@router.get("/master-bot")
+def master_bot_info(_: User = Depends(_require_super_admin)):
+    """Retorna o username do bot mestre pra gerar QR codes."""
+    s = get_settings()
+    return {
+        "username": s.hermes_master_bot_username or None,
+        "configured": bool(s.hermes_master_bot_token),
+        "panel_url": s.public_panel_url,
+    }
+
+
 @router.get("/tenants", response_model=list[TenantAdminOut])
 def list_tenants(
     _: User = Depends(_require_super_admin),
@@ -87,20 +91,23 @@ def create_tenant(
     db: Session = Depends(get_db),
 ):
     if db.query(Tenant).filter(Tenant.email == payload.email).first():
-        raise HTTPException(status_code=409, detail="Tenant email já existe")
+        raise HTTPException(status_code=409, detail="Tenant email ja existe")
     if db.query(User).filter(User.email == payload.user_email).first():
-        raise HTTPException(status_code=409, detail="User email já existe")
+        raise HTTPException(status_code=409, detail="User email ja existe")
     if payload.telegram_bot_token and db.query(Tenant).filter(
         Tenant.telegram_bot_token == payload.telegram_bot_token
     ).first():
-        raise HTTPException(status_code=409, detail="Bot token já cadastrado em outro tenant")
+        raise HTTPException(status_code=409, detail="Bot token ja cadastrado em outro tenant")
 
+    # FIX: incluir bot_display_name e welcome_message na criacao do tenant
     tenant = Tenant(
         name=payload.name,
         email=payload.email,
         plan=payload.plan,
         niche=payload.niche,
         system_prompt=payload.system_prompt,
+        bot_display_name=getattr(payload, "bot_display_name", None),
+        welcome_message=getattr(payload, "welcome_message", None),
         telegram_bot_token=payload.telegram_bot_token,
         telegram_bot_username=payload.telegram_bot_username,
         active=True,
@@ -124,7 +131,8 @@ def create_tenant(
         remaining=payload.credits,
     )
     db.add(credit)
-    db.add(TenantModule(tenant_id=tenant.id))
+    # FIX: crm=True por padrao ao criar tenant
+    db.add(TenantModule(tenant_id=tenant.id, crm=True))
 
     db.commit()
     db.refresh(tenant)
@@ -179,7 +187,7 @@ def set_tenant_modules(
     _: User = Depends(_require_super_admin),
     db: Session = Depends(get_db),
 ):
-    """Ativa/desativa módulos (CRM, WhatsApp...) por tenant."""
+    """Ativa/desativa modulos (CRM, WhatsApp...) por tenant."""
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
         raise HTTPException(status_code=404)
@@ -193,11 +201,9 @@ def set_tenant_modules(
     for k, v in module_data.items():
         setattr(mod, k, v)
 
-    # Commit module changes first (separate from CRM init)
     db.commit()
     db.refresh(tenant)
 
-    # Initialize CRM defaults in a separate transaction (non-critical)
     if module_data.get("crm"):
         try:
             ensure_crm_defaults(db, tenant_id)
@@ -244,4 +250,4 @@ def reset_user_password(
         raise HTTPException(status_code=404, detail="Nenhum usuario encontrado nesse tenant")
     user.password = get_password_hash(new_password)
     db.commit()
-    return {"success": True, "user_id": user.id, "email": user.email}
+    return {"success": True, "user_id": user.id, "email": user.email}—
