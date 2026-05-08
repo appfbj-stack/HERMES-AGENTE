@@ -37,7 +37,7 @@ from app.services.hermes_admin import HermesAdminService
 
 
 def _require_super_admin(user: User = Depends(get_current_user)) -> User:
-    """Verifica se o usuário é super admin."""
+    """Verifica se o usuario e super admin."""
     if not user.is_super_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Super admin only")
     return user
@@ -46,6 +46,7 @@ def _require_super_admin(user: User = Depends(get_current_user)) -> User:
 router = APIRouter(prefix="/admin/hermes", tags=["admin-hermes"])
 
 
+# FIX: chat agora retorna dashboard e suggested_skills (frontend precisa desses campos)
 @router.post("/chat", response_model=HermesAdminChatResponse)
 async def hermes_chat(
     payload: HermesAdminChatRequest,
@@ -54,7 +55,38 @@ async def hermes_chat(
 ):
     """Chat com Hermes Admin Master."""
     service = HermesAdminService(db)
-    return await service.chat(user, payload.message)
+    result = await service.chat(user, payload.message)
+
+    # Normalizar resultado: pode ser dict ou HermesAdminChatResponse ja
+    if isinstance(result, dict):
+        response_text = result.get("response", result.get("message", ""))
+        actions = result.get("actions", [])
+        context = result.get("context", {})
+        dashboard_data = result.get("dashboard", None)
+        suggested_skills = result.get("suggested_skills", None)
+    else:
+        response_text = getattr(result, "response", "")
+        actions = getattr(result, "actions", [])
+        context = getattr(result, "context", {})
+        dashboard_data = getattr(result, "dashboard", None)
+        suggested_skills = getattr(result, "suggested_skills", None)
+
+    # FIX: buscar dashboard atual se nao foi retornado pelo servico
+    if dashboard_data is None:
+        try:
+            dash = service.get_dashboard()
+            dashboard_data = dash.model_dump() if hasattr(dash, "model_dump") else dict(dash)
+        except Exception:
+            dashboard_data = None
+
+    return HermesAdminChatResponse(
+        response=response_text,
+        message=response_text,
+        actions=actions,
+        context=context,
+        dashboard=dashboard_data,
+        suggested_skills=suggested_skills,
+    )
 
 
 @router.get("/dashboard", response_model=HermesAdminDashboardOut)
@@ -115,7 +147,6 @@ def delete_task(
 ):
     """Deleta tarefa administrativa."""
     from app.models import AdminTask
-
     task = db.query(AdminTask).filter(AdminTask.id == task_id).first()
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
@@ -171,7 +202,6 @@ def delete_project(
 ):
     """Deleta projeto administrativo."""
     from app.models import AdminProject
-
     project = db.query(AdminProject).filter(AdminProject.id == project_id).first()
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
@@ -226,7 +256,6 @@ def delete_routine(
 ):
     """Deleta rotina administrativa."""
     from app.models import AdminRoutine
-
     routine = db.query(AdminRoutine).filter(AdminRoutine.id == routine_id).first()
     if not routine:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Routine not found")
@@ -243,7 +272,7 @@ def get_memory(
     db: Session = Depends(get_db),
     user: User = Depends(_require_super_admin),
 ):
-    """Lista memória administrativa."""
+    """Lista memoria administrativa."""
     service = HermesAdminService(db)
     memories, total = service.get_memory(category, key, limit, offset)
     return AdminMemoryListOut(memories=memories, total=total)
@@ -255,7 +284,7 @@ def create_memory(
     db: Session = Depends(get_db),
     user: User = Depends(_require_super_admin),
 ):
-    """Cria memória administrativa."""
+    """Cria memoria administrativa."""
     service = HermesAdminService(db)
     return service.create_memory(payload.model_dump(), user)
 
@@ -267,7 +296,7 @@ def update_memory(
     db: Session = Depends(get_db),
     user: User = Depends(_require_super_admin),
 ):
-    """Atualiza memória administrativa."""
+    """Atualiza memoria administrativa."""
     service = HermesAdminService(db)
     memory = service.update_memory(memory_id, payload.model_dump(exclude_unset=True), user)
     if not memory:
@@ -281,9 +310,8 @@ def delete_memory(
     db: Session = Depends(get_db),
     user: User = Depends(_require_super_admin),
 ):
-    """Deleta memória administrativa."""
+    """Deleta memoria administrativa."""
     from app.models import AdminMemory
-
     memory = db.query(AdminMemory).filter(AdminMemory.id == memory_id).first()
     if not memory:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Memory not found")
@@ -298,11 +326,10 @@ def get_logs(
     db: Session = Depends(get_db),
     user: User = Depends(_require_super_admin),
 ):
-    """Lista logs de ações administrativas."""
+    """Lista logs de acoes administrativas."""
     service = HermesAdminService(db)
     logs, total = service.get_logs(limit, offset)
     return AdminActionLogListOut(logs=logs, total=total)
-
 
 
 @router.get("/skills", response_model=AdminSkillListOut)
@@ -368,7 +395,6 @@ async def run_skill(
     from datetime import datetime, timezone
     service = HermesAdminService(db)
     result = await service.run_skill(skill_id, user, payload.parameters if payload else None)
-
     return AdminSkillRunResponse(
         skill_id=result["skill_id"],
         skill_name=result.get("skill_name", ""),
@@ -386,7 +412,7 @@ async def suggest_skill(
     db: Session = Depends(get_db),
     user: User = Depends(_require_super_admin),
 ):
-    """Sugere criação de skill a partir da conversa."""
+    """Sugere criacao de skill a partir da conversa."""
     service = HermesAdminService(db)
     result = await service.suggest_skill_from_conversation(user, message)
     return result
