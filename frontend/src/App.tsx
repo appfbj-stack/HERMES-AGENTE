@@ -205,6 +205,12 @@ function Layout({
             <div className="mt-4 text-xs uppercase tracking-[0.25em] text-white/50">
               CRM {profile.modules.crm ? "ativo" : "inativo"}
             </div>
+            <button
+              onClick={() => { localStorage.removeItem("hermes_token"); navigate("/login"); }}
+              className="mt-4 w-full rounded-xl bg-white/10 py-2 text-xs font-semibold text-white/80 hover:bg-white/20 transition-all"
+            >
+              Sair
+            </button>
           </div>
         </aside>
 
