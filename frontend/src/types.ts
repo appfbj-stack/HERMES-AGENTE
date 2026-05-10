@@ -308,6 +308,7 @@ export type AdminTenant = {
   instagram_enabled: boolean;
   youtube_enabled: boolean;
   content_publisher_enabled: boolean;
+  agenda_pastoral_enabled: boolean;
 };
 
 export type CreateTenantPayload = {
@@ -392,6 +393,7 @@ export type TenantModules = {
   instagram: boolean;
   youtube: boolean;
   content_publisher: boolean;
+  agenda_pastoral: boolean;
 };
 
 export type MeResponse = {
