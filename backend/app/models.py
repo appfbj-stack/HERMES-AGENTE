@@ -275,6 +275,7 @@ class TenantModule(Base, TimestampMixin):
     instagram: Mapped[bool] = mapped_column(Boolean, default=False)
     youtube: Mapped[bool] = mapped_column(Boolean, default=False)
     content_publisher: Mapped[bool] = mapped_column(Boolean, default=False)
+    agenda_pastoral: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class CrmLead(Base, TimestampMixin):
@@ -593,3 +594,79 @@ class SocialPost(Base, TimestampMixin):
     error_details: Mapped[str | None] = mapped_column(Text, nullable=True)
     
     created_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=True)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Módulo Agenda Pastoral
+# ─────────────────────────────────────────────────────────────────────────────
+
+class PastoralMembro(Base, TimestampMixin):
+    __tablename__ = "pastoral_membros"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    nome: Mapped[str] = mapped_column(String(255))
+    telefone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    data_nascimento: Mapped["datetime | None"] = mapped_column(DateTime(timezone=False), nullable=True)
+    endereco: Mapped[str | None] = mapped_column(Text, nullable=True)
+    data_batismo: Mapped["datetime | None"] = mapped_column(DateTime(timezone=False), nullable=True)
+    cargo: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    observacoes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class PastoralCulto(Base, TimestampMixin):
+    __tablename__ = "pastoral_cultos"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    tipo: Mapped[str] = mapped_column(String(80), index=True)
+    data_culto: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    pregador: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    tema: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    presentes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    visitantes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    oferta: Mapped[float | None] = mapped_column(nullable=True)
+    observacoes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class PastoralEvento(Base, TimestampMixin):
+    __tablename__ = "pastoral_eventos"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    titulo: Mapped[str] = mapped_column(String(255))
+    data_inicio: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    data_fim: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    local: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    descricao: Mapped[str | None] = mapped_column(Text, nullable=True)
+    responsavel: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    status: Mapped[str] = mapped_column(String(50), default="planejado", index=True)
+
+
+class PastoralVisita(Base, TimestampMixin):
+    __tablename__ = "pastoral_visitas"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    membro_id: Mapped[int | None] = mapped_column(ForeignKey("pastoral_membros.id"), nullable=True, index=True)
+    nome_visitado: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    data_visita: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    local: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    motivo: Mapped[str | None] = mapped_column(Text, nullable=True)
+    feito_por: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    observacoes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class PastoralAconselhamento(Base, TimestampMixin):
+    __tablename__ = "pastoral_aconselhamentos"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    membro_id: Mapped[int | None] = mapped_column(ForeignKey("pastoral_membros.id"), nullable=True, index=True)
+    nome_aconselhado: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    data_sessao: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    assunto: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    confidencial: Mapped[bool] = mapped_column(Boolean, default=True)
+    feito_por: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    observacoes: Mapped[str | None] = mapped_column(Text, nullable=True)
