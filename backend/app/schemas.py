@@ -83,6 +83,7 @@ class TenantModulesOut(BaseModel):
     instagram: bool = False
     youtube: bool = False
     content_publisher: bool = False
+    agenda_pastoral: bool = False
 
 
 class MeResponse(BaseModel):
@@ -104,6 +105,7 @@ class TenantAdminModulesOut(BaseModel):
     instagram_enabled: bool = False
     youtube_enabled: bool = False
     content_publisher_enabled: bool = False
+    agenda_pastoral_enabled: bool = False
 
 
 class TenantAdminOut(TenantOut, TenantAdminModulesOut):
@@ -595,6 +597,7 @@ class TenantModuleUpdate(BaseModel):
     instagram: bool | None = None
     youtube: bool | None = None
     content_publisher: bool | None = None
+    agenda_pastoral: bool | None = None
 
 
 class CrmWhatsAppConnectionUpsert(BaseModel):
