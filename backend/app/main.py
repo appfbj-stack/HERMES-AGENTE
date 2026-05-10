@@ -32,6 +32,7 @@ from app.routes.telegram_admin import router as telegram_admin_router
 from app.routes.tenant import router as tenant_router
 from app.routes.tools import router as tools_router
 from app.routes.agenda import router as agenda_router
+from app.routes.agenda_pastoral import router as agenda_pastoral_router
 from app.routes.webhook import router as webhook_router
 from app.services.task_reminders import start_due_task_reminder_scheduler
 
@@ -721,6 +722,88 @@ MIGRATIONS = [
     """CREATE INDEX IF NOT EXISTS ix_agent_appointments_tenant_id ON agent_appointments(tenant_id)""",
     """CREATE INDEX IF NOT EXISTS ix_agent_appointments_chat_id ON agent_appointments(chat_id)""",
     """CREATE INDEX IF NOT EXISTS ix_agent_appointments_scheduled_at ON agent_appointments(scheduled_at)""",
+
+    # ===== Agenda Pastoral Module =====
+    """ALTER TABLE tenant_modules ADD COLUMN IF NOT EXISTS agenda_pastoral BOOLEAN NOT NULL DEFAULT FALSE""",
+    """CREATE TABLE IF NOT EXISTS pastoral_membros (
+        id SERIAL PRIMARY KEY,
+        tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        nome VARCHAR(255) NOT NULL,
+        telefone VARCHAR(50),
+        email VARCHAR(255),
+        data_nascimento DATE,
+        endereco TEXT,
+        data_batismo DATE,
+        cargo VARCHAR(100),
+        ativo BOOLEAN NOT NULL DEFAULT TRUE,
+        observacoes TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+    )""",
+    """CREATE TABLE IF NOT EXISTS pastoral_cultos (
+        id SERIAL PRIMARY KEY,
+        tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        tipo VARCHAR(80) NOT NULL,
+        data_culto TIMESTAMPTZ NOT NULL,
+        pregador VARCHAR(255),
+        tema VARCHAR(255),
+        presentes INTEGER,
+        visitantes INTEGER,
+        oferta NUMERIC(12,2),
+        observacoes TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+    )""",
+    """CREATE TABLE IF NOT EXISTS pastoral_eventos (
+        id SERIAL PRIMARY KEY,
+        tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        titulo VARCHAR(255) NOT NULL,
+        data_inicio TIMESTAMPTZ NOT NULL,
+        data_fim TIMESTAMPTZ,
+        local VARCHAR(255),
+        descricao TEXT,
+        responsavel VARCHAR(255),
+        status VARCHAR(50) NOT NULL DEFAULT 'planejado',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+    )""",
+    """CREATE TABLE IF NOT EXISTS pastoral_visitas (
+        id SERIAL PRIMARY KEY,
+        tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        membro_id INTEGER REFERENCES pastoral_membros(id) ON DELETE SET NULL,
+        nome_visitado VARCHAR(255),
+        data_visita TIMESTAMPTZ NOT NULL,
+        local VARCHAR(255),
+        motivo TEXT,
+        feito_por VARCHAR(255),
+        observacoes TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+    )""",
+    """CREATE TABLE IF NOT EXISTS pastoral_aconselhamentos (
+        id SERIAL PRIMARY KEY,
+        tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        membro_id INTEGER REFERENCES pastoral_membros(id) ON DELETE SET NULL,
+        nome_aconselhado VARCHAR(255),
+        data_sessao TIMESTAMPTZ NOT NULL,
+        assunto VARCHAR(255),
+        confidencial BOOLEAN NOT NULL DEFAULT TRUE,
+        feito_por VARCHAR(255),
+        observacoes TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+    )""",
+    """CREATE INDEX IF NOT EXISTS ix_pastoral_membros_tenant_id ON pastoral_membros(tenant_id)""",
+    """CREATE INDEX IF NOT EXISTS ix_pastoral_membros_ativo ON pastoral_membros(ativo)""",
+    """CREATE INDEX IF NOT EXISTS ix_pastoral_cultos_tenant_id ON pastoral_cultos(tenant_id)""",
+    """CREATE INDEX IF NOT EXISTS ix_pastoral_cultos_data_culto ON pastoral_cultos(data_culto DESC)""",
+    """CREATE INDEX IF NOT EXISTS ix_pastoral_eventos_tenant_id ON pastoral_eventos(tenant_id)""",
+    """CREATE INDEX IF NOT EXISTS ix_pastoral_eventos_data_inicio ON pastoral_eventos(data_inicio)""",
+    """CREATE INDEX IF NOT EXISTS ix_pastoral_eventos_status ON pastoral_eventos(status)""",
+    """CREATE INDEX IF NOT EXISTS ix_pastoral_visitas_tenant_id ON pastoral_visitas(tenant_id)""",
+    """CREATE INDEX IF NOT EXISTS ix_pastoral_visitas_data_visita ON pastoral_visitas(data_visita DESC)""",
+    """CREATE INDEX IF NOT EXISTS ix_pastoral_aconselhamentos_tenant_id ON pastoral_aconselhamentos(tenant_id)""",
+    """CREATE INDEX IF NOT EXISTS ix_pastoral_aconselhamentos_data_sessao ON pastoral_aconselhamentos(data_sessao DESC)""",
     # ===== Hermes Client Learning =====
     """CREATE TABLE IF NOT EXISTS client_memory (
         id SERIAL PRIMARY KEY,
@@ -956,3 +1039,4 @@ app.include_router(billing_router)
 app.include_router(crm_router)
 app.include_router(tools_router)
 app.include_router(agenda_router)
+app.include_router(agenda_pastoral_router)
