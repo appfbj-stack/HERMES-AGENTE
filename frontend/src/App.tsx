@@ -65,6 +65,7 @@ import {
 } from "./api";
 import CrmWorkspace from "./crm/CrmWorkspace";
 import CrmKanbanPage from "./crm/KanbanPage";
+import PastoralWorkspace from "./pastoral/PastoralWorkspace";
 import type {
   AdminTenant,
   Chat,
@@ -165,6 +166,7 @@ function Layout({
     ...(modules.instagram ? [{ label: "Instagram", path: "/instagram" }] : []),
     ...(modules.youtube ? [{ label: "YouTube", path: "/youtube" }] : []),
     ...(modules.content_publisher ? [{ label: "Publicador", path: "/publisher" }] : []),
+    ...(modules.agenda_pastoral ? [{ label: "⛪ Pastoral", path: "/pastoral" }] : []),
     ...(profile.user.is_super_admin ? [{ label: "Master", path: "/master" }] : []),
     ...(modules.crm ? [{ label: "Leads", path: "/leads" }, { label: "Tarefas", path: "/tasks" }] : []),
     { label: "Créditos", path: "/credits" },
@@ -1832,6 +1834,7 @@ function MasterPage({
     { key: "instagram", label: "Instagram", enabledKey: "instagram_enabled" as const },
     { key: "youtube", label: "YouTube", enabledKey: "youtube_enabled" as const },
     { key: "content_publisher", label: "Content Publisher", enabledKey: "content_publisher_enabled" as const },
+    { key: "agenda_pastoral", label: "Agenda Pastoral", enabledKey: "agenda_pastoral_enabled" as const },
   ] as const;
 
   async function loadTenants() {
@@ -2228,6 +2231,14 @@ function ProtectedApp() {
           element={
             <ModuleRoute enabled={profile.modules.content_publisher}>
               <ContentPublisherPage />
+            </ModuleRoute>
+          }
+        />
+        <Route
+          path="/pastoral"
+          element={
+            <ModuleRoute enabled={profile.modules.agenda_pastoral}>
+              <PastoralWorkspace />
             </ModuleRoute>
           }
         />
