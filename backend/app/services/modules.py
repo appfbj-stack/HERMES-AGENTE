@@ -15,6 +15,7 @@ MODULE_KEY_ALIASES = {
     "instagram": ("instagram",),
     "youtube": ("youtube",),
     "content_publisher": ("content_publisher",),
+    "agenda_pastoral": ("agenda_pastoral",),
 }
 
 
@@ -44,6 +45,7 @@ def build_modules_out(modules: TenantModule) -> TenantModulesOut:
         instagram=bool(modules.instagram),
         youtube=bool(modules.youtube),
         content_publisher=bool(modules.content_publisher),
+        agenda_pastoral=bool(modules.agenda_pastoral),
     )
 
 
@@ -58,6 +60,7 @@ def build_admin_modules_out(modules: TenantModule | None) -> TenantAdminModulesO
         instagram_enabled=bool(modules.instagram) if modules else False,
         youtube_enabled=bool(modules.youtube) if modules else False,
         content_publisher_enabled=bool(modules.content_publisher) if modules else False,
+        agenda_pastoral_enabled=bool(modules.agenda_pastoral) if modules else False,
     )
 
 
